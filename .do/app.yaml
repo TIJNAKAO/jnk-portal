@@ -67,6 +67,72 @@ services:
       - key: AZURE_AD_REDIRECT_URI
         value: ""
 
+jobs:
+  - name: cron-notas-fiscais
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- notas_fiscais
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "30 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-estoque
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- estoque
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "15 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+
 static_sites:
   - name: portal
     github:

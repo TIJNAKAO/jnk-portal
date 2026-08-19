@@ -19,7 +19,7 @@ export async function sincronizarRepresentantes(idLog: number): Promise<Resultad
         `INSERT INTO sysemp_representante (id_representante, nome_representante, ativo, synced_at)
          VALUES (?, ?, TRUE, CURRENT_TIMESTAMP)
          ON DUPLICATE KEY UPDATE nome_representante = VALUES(nome_representante), synced_at = CURRENT_TIMESTAMP`,
-        [idRepresentante, valor(rep, 'nome_representante')],
+        [idRepresentante, valor(rep, 'nome_representante_vendas') ?? ''],
       );
     }
   });
