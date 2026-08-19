@@ -53,7 +53,7 @@ export function ExecucaoDetalhePage() {
 
     es.addEventListener('detalhe', (evento) => {
       const linha = JSON.parse((evento as MessageEvent).data) as Detalhe;
-      setDetalhes((prev) => (prev.some((d) => d.id === linha.id) ? prev : [...prev, linha]));
+      setDetalhes((prev) => (prev.some((d) => d.id === linha.id) ? prev : [linha, ...prev]));
     });
     es.addEventListener('fim', (evento) => {
       const dados = JSON.parse((evento as MessageEvent).data) as Partial<Execucao>;

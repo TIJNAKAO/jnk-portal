@@ -133,6 +133,295 @@ jobs:
         type: SECRET
         value: ALTERAR-AQUI
 
+  - name: cron-empresas
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- empresas
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "0 6 * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-produtos
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- produtos
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "0 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-etl-empresa
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- etl_empresa
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "15 6 * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-parceiros
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- parceiros
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "15 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-representantes
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- representantes
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "15 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-precos
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- precos
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "30 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-pedidos
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- pedidos
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "30 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-etl-produto
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- etl_produto
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "45 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+  - name: cron-etl-fatcom
+    kind: SCHEDULED
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run cron:sincronizar --workspace=apps/api -- etl_fatcom
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    schedule:
+      cron: "45 * * * *"
+      time_zone: America/Sao_Paulo
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: PARAMETROS_ENCRYPTION_KEY
+        type: SECRET
+        value: ALTERAR-AQUI
+
 static_sites:
   - name: portal
     github:

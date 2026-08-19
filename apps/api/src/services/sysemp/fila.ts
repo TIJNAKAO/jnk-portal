@@ -13,6 +13,8 @@ export interface ConsumidorFila {
 
 const registro = new Map<number, ConsumidorFila>();
 
+const MAX_ITERACOES = 200; // trava de segurança — até 200 páginas por execução
+
 export function registrarConsumidorFila(consumidor: ConsumidorFila): void {
   registro.set(consumidor.tipoTabela, consumidor);
 }
@@ -103,99 +105,112 @@ export async function sincronizarFila(chaveConfig: string, idLog: number): Promi
     throw new Error(`Nenhum consumidor registrado pra tipo_tabela=${config.tipo_tabela} (chave '${chaveConfig}').`);
   }
 
-  const inicioImportacao = Date.now();
-  let qtdeImportada = 0;
-  try {
-    qtdeImportada = await importarPaginaFila(config);
-    await integracaoLog.detalhe(idLog, {
-      status: 'ok',
-      qtdeRegistros: qtdeImportada,
-      duracaoMs: Date.now() - inicioImportacao,
-      mensagem: `Página da fila importada: ${qtdeImportada} evento(s).`,
-    });
-  } catch (error) {
-    await integracaoLog.detalhe(idLog, {
-      status: 'erro',
-      mensagem: (error as Error).message,
-      duracaoMs: Date.now() - inicioImportacao,
-    });
-    throw error;
-  }
+  let totalProcessados = 0;
 
-  const [pendentes] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM sysemp_fila WHERE tipo_tabela = ? AND (consumido = FALSE OR confirmado_sysemp = FALSE)',
-    [config.tipo_tabela],
-  );
-
-  let processados = 0;
-  for (const linha of pendentes) {
+  // Uma página só traz até `limite_pagina` eventos ainda PENDENTES do lado
+  // da SysEmp — se a fila tiver mais que isso, repete até esgotar (ou até
+  // a trava de segurança), senão sobra muito registro pendente de uma
+  // execução pra outra.
+  for (let iteracao = 0; iteracao < MAX_ITERACOES; iteracao++) {
     if (await integracaoLog.foiCancelado(idLog)) {
-      return { qtde: processados, cancelado: true };
+      return { qtde: totalProcessados, cancelado: true };
     }
 
-    const inicioRegistro = Date.now();
-    const idFila = linha.id_fila as number;
-    const idRegistro = linha.id_registro as number;
-    const acao = linha.acao as 'I' | 'U' | 'D';
-    let jaConsumido = Boolean(linha.consumido);
+    const inicioImportacao = Date.now();
+    let qtdeImportada = 0;
+    try {
+      qtdeImportada = await importarPaginaFila(config);
+      await integracaoLog.detalhe(idLog, {
+        status: 'ok',
+        qtdeRegistros: qtdeImportada,
+        duracaoMs: Date.now() - inicioImportacao,
+        mensagem: `Página da fila importada: ${qtdeImportada} evento(s).`,
+      });
+    } catch (error) {
+      await integracaoLog.detalhe(idLog, {
+        status: 'erro',
+        mensagem: (error as Error).message,
+        duracaoMs: Date.now() - inicioImportacao,
+      });
+      throw error;
+    }
 
-    if (!jaConsumido) {
-      try {
-        await withTransaction(async (connection) => {
-          if (acao === 'D') {
-            await consumidor.gravar(connection, null, 'D', idRegistro);
-          } else {
-            if (!config.endpoint_detalhe || !config.campo_id_detalhe) {
-              throw new Error(`Config de fila '${chaveConfig}' sem endpoint_detalhe/campo_id_detalhe.`);
+    const [pendentes] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM sysemp_fila WHERE tipo_tabela = ? AND (consumido = FALSE OR confirmado_sysemp = FALSE)',
+      [config.tipo_tabela],
+    );
+
+    for (const linha of pendentes) {
+      if (await integracaoLog.foiCancelado(idLog)) {
+        return { qtde: totalProcessados, cancelado: true };
+      }
+
+      const inicioRegistro = Date.now();
+      const idFila = linha.id_fila as number;
+      const idRegistro = linha.id_registro as number;
+      const acao = linha.acao as 'I' | 'U' | 'D';
+      let jaConsumido = Boolean(linha.consumido);
+
+      if (!jaConsumido) {
+        try {
+          await withTransaction(async (connection) => {
+            if (acao === 'D') {
+              await consumidor.gravar(connection, null, 'D', idRegistro);
+            } else {
+              if (!config.endpoint_detalhe || !config.campo_id_detalhe) {
+                throw new Error(`Config de fila '${chaveConfig}' sem endpoint_detalhe/campo_id_detalhe.`);
+              }
+              const detalheResposta = await sysempPost<{ retorno: Record<string, unknown>[] }>(config.endpoint_detalhe, {
+                [config.campo_id_detalhe]: String(idRegistro),
+              });
+              const registroDetalhe = detalheResposta.retorno?.[0] ?? null;
+              await consumidor.gravar(connection, registroDetalhe, acao, idRegistro);
             }
-            const detalheResposta = await sysempPost<{ retorno: Record<string, unknown>[] }>(config.endpoint_detalhe, {
-              [config.campo_id_detalhe]: String(idRegistro),
-            });
-            const registroDetalhe = detalheResposta.retorno?.[0] ?? null;
-            await consumidor.gravar(connection, registroDetalhe, acao, idRegistro);
-          }
-          await connection.query('UPDATE sysemp_fila SET consumido = TRUE, consumido_em = CURRENT_TIMESTAMP, erro_consumo = NULL WHERE id_fila = ?', [
+            await connection.query('UPDATE sysemp_fila SET consumido = TRUE, consumido_em = CURRENT_TIMESTAMP, erro_consumo = NULL WHERE id_fila = ?', [
+              idFila,
+            ]);
+          });
+          jaConsumido = true;
+        } catch (error) {
+          await pool.query('UPDATE sysemp_fila SET erro_consumo = ? WHERE id_fila = ?', [(error as Error).message.slice(0, 500), idFila]);
+          await integracaoLog.detalhe(idLog, {
+            pagina: idFila,
+            status: 'erro',
+            mensagem: `Falha ao consumir id_fila=${idFila} (id_registro=${idRegistro}): ${(error as Error).message}`,
+            duracaoMs: Date.now() - inicioRegistro,
+          });
+          continue; // não confirma o que não foi consumido — reprocessa na próxima chamada
+        }
+      }
+
+      if (jaConsumido) {
+        try {
+          await sysempPost(config.endpoint_confirmacao, { id_fila: String(idFila) });
+          await pool.query('UPDATE sysemp_fila SET confirmado_sysemp = TRUE, confirmado_em = CURRENT_TIMESTAMP, erro_confirmacao = NULL WHERE id_fila = ?', [
             idFila,
           ]);
-        });
-        jaConsumido = true;
-      } catch (error) {
-        await pool.query('UPDATE sysemp_fila SET erro_consumo = ? WHERE id_fila = ?', [(error as Error).message.slice(0, 500), idFila]);
-        await integracaoLog.detalhe(idLog, {
-          pagina: idFila,
-          status: 'erro',
-          mensagem: `Falha ao consumir id_fila=${idFila} (id_registro=${idRegistro}): ${(error as Error).message}`,
-          duracaoMs: Date.now() - inicioRegistro,
-        });
-        continue; // não confirma o que não foi consumido — reprocessa na próxima chamada
+          totalProcessados++;
+          await integracaoLog.detalhe(idLog, {
+            pagina: idFila,
+            status: 'ok',
+            qtdeRegistros: 1,
+            duracaoMs: Date.now() - inicioRegistro,
+            mensagem: `id_fila=${idFila} (id_registro=${idRegistro}, acao=${acao}) consumido e confirmado.`,
+          });
+        } catch (error) {
+          await pool.query('UPDATE sysemp_fila SET erro_confirmacao = ? WHERE id_fila = ?', [(error as Error).message.slice(0, 500), idFila]);
+          await integracaoLog.detalhe(idLog, {
+            pagina: idFila,
+            status: 'erro',
+            mensagem: `id_fila=${idFila} consumido mas falha ao confirmar: ${(error as Error).message}`,
+            duracaoMs: Date.now() - inicioRegistro,
+          });
+        }
       }
     }
 
-    if (jaConsumido) {
-      try {
-        await sysempPost(config.endpoint_confirmacao, { id_fila: String(idFila) });
-        await pool.query('UPDATE sysemp_fila SET confirmado_sysemp = TRUE, confirmado_em = CURRENT_TIMESTAMP, erro_confirmacao = NULL WHERE id_fila = ?', [
-          idFila,
-        ]);
-        processados++;
-        await integracaoLog.detalhe(idLog, {
-          pagina: idFila,
-          status: 'ok',
-          qtdeRegistros: 1,
-          duracaoMs: Date.now() - inicioRegistro,
-          mensagem: `id_fila=${idFila} (id_registro=${idRegistro}, acao=${acao}) consumido e confirmado.`,
-        });
-      } catch (error) {
-        await pool.query('UPDATE sysemp_fila SET erro_confirmacao = ? WHERE id_fila = ?', [(error as Error).message.slice(0, 500), idFila]);
-        await integracaoLog.detalhe(idLog, {
-          pagina: idFila,
-          status: 'erro',
-          mensagem: `id_fila=${idFila} consumido mas falha ao confirmar: ${(error as Error).message}`,
-          duracaoMs: Date.now() - inicioRegistro,
-        });
-      }
-    }
+    if (qtdeImportada === 0) break; // fila da SysEmp esgotada por enquanto
   }
 
-  return { qtde: processados };
+  return { qtde: totalProcessados };
 }

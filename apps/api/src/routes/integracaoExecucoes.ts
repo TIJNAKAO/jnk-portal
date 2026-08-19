@@ -37,7 +37,7 @@ integracaoExecucoesRouter.get('/:id', requirePermissao(ROTA, 'podeVisualizar'), 
   }
 
   const [detalhes] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM integracao_log_detalhe WHERE id_log = ? ORDER BY id',
+    'SELECT * FROM integracao_log_detalhe WHERE id_log = ? ORDER BY id DESC',
     [req.params.id],
   );
   res.json({ execucao, detalhes });
@@ -66,7 +66,7 @@ integracaoExecucoesRouter.get('/:id/stream', requirePermissao(ROTA, 'podeVisuali
   }
 
   const [detalhesExistentes] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM integracao_log_detalhe WHERE id_log = ? ORDER BY id',
+    'SELECT * FROM integracao_log_detalhe WHERE id_log = ? ORDER BY id DESC',
     [idLog],
   );
   for (const linha of detalhesExistentes) enviar('detalhe', linha);
