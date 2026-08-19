@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+certs/
+*.local
+.DS_Store
+Thumbs.db
+npm-debug.log*
+coverage/
+.vite/
+*.tsbuildinfo

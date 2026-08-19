@@ -1,0 +1,27 @@
+{
+  "name": "jnk-portal",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Portal Web multi-filial — monorepo (React/Vite + Express + MySQL)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:portal": "npm run dev --workspace=apps/portal",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:portal": "npm run build --workspace=apps/portal",
+    "build": "npm run build:shared && npm run build:api && npm run build:portal",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:migrate": "npm run migrate --workspace=apps/api"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
