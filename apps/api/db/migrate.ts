@@ -15,9 +15,11 @@ async function main() {
     database: env.db.database,
     multipleStatements: true,
     timezone: 'Z',
-    ssl: env.db.caCertPath
-      ? { ca: readFileSync(env.db.caCertPath, 'utf8'), rejectUnauthorized: true }
-      : undefined,
+    ssl: env.db.caCertContent
+      ? { ca: env.db.caCertContent, rejectUnauthorized: true }
+      : env.db.caCertPath
+        ? { ca: readFileSync(env.db.caCertPath, 'utf8'), rejectUnauthorized: true }
+        : undefined,
   });
 
   await connection.query(`
