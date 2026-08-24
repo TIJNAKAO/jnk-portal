@@ -29,13 +29,13 @@ WHERE u.email = 'admin@jnkportal.com.br' AND f.cnpj = '12345678000199'
   );
 
 INSERT INTO perfis (nome, descricao)
-SELECT 'Administrador', 'Acesso total ao Configurador, TI e Integração'
+SELECT 'Administrador', 'Acesso total ao Configurador, TI, Integração e Estoque'
 WHERE NOT EXISTS (SELECT 1 FROM perfis WHERE nome = 'Administrador');
 
 INSERT INTO perfis_telas (perfil_id, tela_id, pode_visualizar, pode_criar, pode_editar, pode_deletar)
 SELECT p.id, t.id, TRUE, TRUE, TRUE, TRUE
 FROM perfis p
-JOIN telas_modulo t ON (t.rota_tela LIKE '/config/%' OR t.rota_tela LIKE '/ti/%' OR t.rota_tela LIKE '/integracao/%')
+JOIN telas_modulo t ON (t.rota_tela LIKE '/config/%' OR t.rota_tela LIKE '/ti/%' OR t.rota_tela LIKE '/integracao/%' OR t.rota_tela LIKE '/estoque/%')
 WHERE p.nome = 'Administrador'
   AND NOT EXISTS (SELECT 1 FROM perfis_telas pt WHERE pt.perfil_id = p.id AND pt.tela_id = t.id);
 

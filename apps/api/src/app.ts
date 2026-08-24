@@ -6,6 +6,7 @@ import express from 'express';
 import { env } from './config/env.js';
 import { authRouter } from './routes/auth.js';
 import { avisosRouter } from './routes/avisos.js';
+import { estoqueCurvaAbcRouter } from './routes/estoqueCurvaAbc.js';
 import { filiaisRouter } from './routes/filiais.js';
 import { healthRouter } from './routes/health.js';
 import { integracaoExecucoesRouter } from './routes/integracaoExecucoes.js';
@@ -70,6 +71,8 @@ app.use('/api/integracao/parametros-fila', integracaoParametrosFilaRouter);
 // authTenant só nas rotas autenticadas deste router — /callback é acessado
 // direto pelo navegador após o redirect do Mercado Livre, sem Bearer token.
 app.use('/api/integracao/mercado-livre', mercadoLivreRouter);
+
+app.use('/api/estoque/curva-abc', estoqueCurvaAbcRouter);
 
 app.use((req, res) => {
   res.status(404).json({ erro: `Rota não encontrada: ${req.method} ${req.path}` });

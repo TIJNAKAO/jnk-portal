@@ -13,6 +13,7 @@ import { ParametrosPage } from './pages/config/ParametrosPage';
 import { PerfilPermissoesPage } from './pages/config/PerfilPermissoesPage';
 import { PerfisPage } from './pages/config/PerfisPage';
 import { UsuariosPage } from './pages/config/UsuariosPage';
+import { CurvaAbcPage } from './pages/estoque/CurvaAbcPage';
 import { ExecucaoDetalhePage } from './pages/integracao/ExecucaoDetalhePage';
 import { ExecucoesPage } from './pages/integracao/ExecucoesPage';
 import { FilaPage } from './pages/integracao/FilaPage';
@@ -70,6 +71,8 @@ export function App() {
             <Route path="/integracao/fila" element={<FilaPage />} />
             <Route path="/integracao/parametros-fila" element={<ParametrosFilaPage />} />
             <Route path="/integracao/mercado-livre" element={<MercadoLivrePage />} />
+
+            <Route path="/estoque/curva-abc" element={<CurvaAbcPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/modules" replace />} />
