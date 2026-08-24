@@ -40,7 +40,7 @@ async function gravarLoteProdutos(connection: PoolConnection, produtos: ProdutoP
       [
         idProduto,
         valor(produto, 'codigo_auxiliar'),
-        valor(produto, 'nome_produto'),
+        valor(produto, 'nome_produto') ?? '',
         valor(produto, 'unidade'),
         valor(produto, 'tipo_produto'),
         inteiro(produto, 'cod_produto_pai'),
