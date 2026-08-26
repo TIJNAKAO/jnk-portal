@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface LinhaDiff {
   categoria: string;
@@ -35,6 +38,14 @@ export function CompararColetasPage() {
   const api = useApi();
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(resultado?.linhas ?? [], busca), {
+    categoria: (l) => l.categoria,
+    item: (l) => l.item,
+    tipo: (l) => l.tipo,
+    campo: (l) => l.campo,
+  });
 
   useEffect(() => {
     const de = searchParams.get('de');
@@ -76,20 +87,23 @@ export function CompararColetasPage() {
               Nenhuma alteração de hardware ou software encontrada entre essas duas coletas.
             </p>
           ) : (
+            <div className="space-y-3">
+            <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar na comparação..." />
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-slate-200 text-slate-500">
                   <tr>
-                    <th className="p-2">Categoria</th>
-                    <th className="p-2">Item</th>
-                    <th className="p-2">Tipo</th>
-                    <th className="p-2">Campo</th>
+                    <ThOrdenavel campo="categoria" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor} className="p-2">Categoria</ThOrdenavel>
+                    <ThOrdenavel campo="item" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor} className="p-2">Item</ThOrdenavel>
+                    <ThOrdenavel campo="tipo" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor} className="p-2">Tipo</ThOrdenavel>
+                    <ThOrdenavel campo="campo" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor} className="p-2">Campo</ThOrdenavel>
                     <th className="p-2">De</th>
                     <th className="p-2">Para</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resultado.linhas.map((l, i) => (
+                  {linhasOrdenadas.map((l, i) => (
                     <tr key={i} className="border-b border-slate-100 last:border-0">
                       <td className="p-2">{l.categoria}</td>
                       <td className="p-2">{l.item || '—'}</td>
@@ -105,6 +119,7 @@ export function CompararColetasPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
             </div>
           )}
         </div>

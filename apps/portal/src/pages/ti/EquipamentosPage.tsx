@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface Equipamento {
   id: number;
@@ -35,6 +38,19 @@ export function EquipamentosPage() {
     api<Equipamento[]>('/ti/equipamentos').then(setEquipamentos).catch(console.error);
   }, [api]);
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(equipamentos, busca), {
+    nome_filial: (e) => e.nome_filial,
+    nome_computador: (e) => e.apelido || e.nome_computador,
+    apelido: (e) => e.apelido,
+    nome_departamento: (e) => e.nome_departamento,
+    nome_responsavel: (e) => e.nome_responsavel,
+    so_caption: (e) => e.so_caption,
+    processador_nome: (e) => e.processador_nome,
+    ram_total_bytes: (e) => e.ram_total_bytes,
+    ultima_coleta_em: (e) => e.ultima_coleta_em,
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -45,30 +61,32 @@ export function EquipamentosPage() {
         </p>
       </div>
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar equipamento..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Filial</th>
-              <th className="p-3">Computador</th>
-              <th className="p-3">Apelido</th>
-              <th className="p-3">Departamento</th>
-              <th className="p-3">Responsável</th>
-              <th className="p-3">Sistema Operacional</th>
-              <th className="p-3">Processador</th>
-              <th className="p-3">RAM</th>
-              <th className="p-3">Última Coleta</th>
+              <ThOrdenavel campo="nome_filial" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Filial</ThOrdenavel>
+              <ThOrdenavel campo="nome_computador" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Computador</ThOrdenavel>
+              <ThOrdenavel campo="apelido" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Apelido</ThOrdenavel>
+              <ThOrdenavel campo="nome_departamento" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Departamento</ThOrdenavel>
+              <ThOrdenavel campo="nome_responsavel" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Responsável</ThOrdenavel>
+              <ThOrdenavel campo="so_caption" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Sistema Operacional</ThOrdenavel>
+              <ThOrdenavel campo="processador_nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Processador</ThOrdenavel>
+              <ThOrdenavel campo="ram_total_bytes" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>RAM</ThOrdenavel>
+              <ThOrdenavel campo="ultima_coleta_em" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Última Coleta</ThOrdenavel>
             </tr>
           </thead>
           <tbody>
-            {equipamentos.length === 0 && (
+            {linhasOrdenadas.length === 0 && (
               <tr>
                 <td colSpan={9} className="p-4 text-center text-slate-400">
                   Nenhum equipamento coletado ainda.
                 </td>
               </tr>
             )}
-            {equipamentos.map((e) => (
+            {linhasOrdenadas.map((e) => (
               <tr key={e.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3 text-slate-500">{e.nome_filial ?? '—'}</td>
                 <td className="p-3">

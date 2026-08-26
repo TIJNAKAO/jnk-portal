@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface SoftwareLinha {
   nome: string;
@@ -61,6 +64,15 @@ export function SoftwaresAprovadosPage() {
     await carregar();
   }
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(linhas, busca), {
+    nome: (l) => l.nome,
+    versaoRecente: (l) => l.versaoRecente,
+    versaoAprovada: (l) => l.versaoAprovada,
+    qtdMaquinas: (l) => l.qtdMaquinas,
+    aprovado: (l) => (l.aprovado ? 1 : 0),
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -68,15 +80,18 @@ export function SoftwaresAprovadosPage() {
         <p className="text-sm text-slate-500">Marque o que é aprovado pela empresa. Versão em branco = qualquer versão serve.</p>
       </div>
 
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm"
-      >
-        <option value="">Todos</option>
-        <option value="aprovados">Aprovados</option>
-        <option value="nao_aprovados">Não aprovados</option>
-      </select>
+      <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm"
+        >
+          <option value="">Todos</option>
+          <option value="aprovados">Aprovados</option>
+          <option value="nao_aprovados">Não aprovados</option>
+        </select>
+        <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar software..." />
+      </div>
 
       {mensagem && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{mensagem}</p>}
 
@@ -85,23 +100,23 @@ export function SoftwaresAprovadosPage() {
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 border-b border-slate-200 bg-slate-50 text-slate-500">
               <tr>
-                <th className="p-3">Aprovado</th>
-                <th className="p-3">Software</th>
-                <th className="p-3">Última versão vista</th>
+                <ThOrdenavel campo="aprovado" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Aprovado</ThOrdenavel>
+                <ThOrdenavel campo="nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Software</ThOrdenavel>
+                <ThOrdenavel campo="versaoRecente" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Última versão vista</ThOrdenavel>
                 <th className="p-3">Versão aprovada</th>
-                <th className="p-3">Qtd. Máquinas</th>
+                <ThOrdenavel campo="qtdMaquinas" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Qtd. Máquinas</ThOrdenavel>
                 <th className="p-3" />
               </tr>
             </thead>
             <tbody>
-              {linhas.length === 0 && (
+              {linhasOrdenadas.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-4 text-center text-slate-400">
                     Nenhum software instalado em nenhuma máquina no momento.
                   </td>
                 </tr>
               )}
-              {linhas.map((l) => (
+              {linhasOrdenadas.map((l) => (
                 <tr key={l.nome} className="border-b border-slate-100 last:border-0">
                   <td className="p-3">
                     <input type="checkbox" checked={l.aprovado} onChange={(e) => atualizarLinha(l.nome, 'aprovado', e.target.checked)} />

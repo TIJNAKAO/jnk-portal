@@ -1,6 +1,9 @@
 import { Pencil, Plus, PowerOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface Usuario {
   id: number;
@@ -98,6 +101,13 @@ export function UsuariosPage() {
     await api(`/usuarios/${usuario.id}`, { method: 'PUT', body: { ativo: !usuario.ativo } });
     await carregar();
   }
+
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(usuarios, busca), {
+    nome: (u) => u.nome,
+    email: (u) => u.email,
+    ativo: (u) => (u.ativo ? 1 : 0),
+  });
 
   return (
     <div className="space-y-4">
@@ -206,18 +216,20 @@ export function UsuariosPage() {
         </form>
       )}
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar usuário..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Nome</th>
-              <th className="p-3">E-mail</th>
-              <th className="p-3">Status</th>
+              <ThOrdenavel campo="nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Nome</ThOrdenavel>
+              <ThOrdenavel campo="email" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>E-mail</ThOrdenavel>
+              <ThOrdenavel campo="ativo" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Status</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
-            {usuarios.map((usuario) => (
+            {linhasOrdenadas.map((usuario) => (
               <tr key={usuario.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{usuario.nome}</td>
                 <td className="p-3">{usuario.email}</td>

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useAuth } from '../../context/AuthProvider';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface Execucao {
   id: number;
@@ -69,6 +72,15 @@ export function ExecucaoDetalhePage() {
     await api(`/integracao/execucoes/${id}/cancelar`, { method: 'POST' });
   }
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(detalhes, busca), {
+    pagina: (d) => d.pagina,
+    status: (d) => d.status,
+    qtde_registros: (d) => d.qtde_registros,
+    duracao_ms: (d) => d.duracao_ms,
+    criado_em: (d) => d.criado_em,
+  });
+
   if (!execucao) return null;
 
   return (
@@ -94,19 +106,21 @@ export function ExecucaoDetalhePage() {
         </button>
       )}
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar na mensagem..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Página/Registro</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Registros</th>
-              <th className="p-3">Duração</th>
+              <ThOrdenavel campo="pagina" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Página/Registro</ThOrdenavel>
+              <ThOrdenavel campo="status" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Status</ThOrdenavel>
+              <ThOrdenavel campo="qtde_registros" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Registros</ThOrdenavel>
+              <ThOrdenavel campo="duracao_ms" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Duração</ThOrdenavel>
               <th className="p-3">Mensagem</th>
             </tr>
           </thead>
           <tbody>
-            {detalhes.map((d) => (
+            {linhasOrdenadas.map((d) => (
               <tr key={d.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3 text-slate-500">{d.pagina ?? '—'}</td>
                 <td className="p-3">

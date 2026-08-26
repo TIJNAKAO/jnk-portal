@@ -1,6 +1,8 @@
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { useOrdenacao } from '../../lib/tabela';
 
 interface LinhaFila {
   id_fila: number;
@@ -35,6 +37,14 @@ export function FilaPage() {
   useEffect(() => {
     carregar().catch(console.error);
   }, [api, filtros]);
+
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(linhas, {
+    id_fila: (l) => l.id_fila,
+    tipo_tabela: (l) => l.desc_tipo_tabela ?? l.tipo_tabela,
+    acao: (l) => l.acao,
+    id_registro: (l) => l.id_registro,
+    importado_em: (l) => l.importado_em,
+  });
 
   async function reprocessar(idFila: number) {
     await api(`/integracao/fila/${idFila}/reprocessar`, { method: 'PUT' });
@@ -88,18 +98,18 @@ export function FilaPage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">id_fila</th>
-              <th className="p-3">Tipo</th>
-              <th className="p-3">Ação</th>
-              <th className="p-3">id_registro</th>
+              <ThOrdenavel campo="id_fila" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>id_fila</ThOrdenavel>
+              <ThOrdenavel campo="tipo_tabela" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Tipo</ThOrdenavel>
+              <ThOrdenavel campo="acao" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Ação</ThOrdenavel>
+              <ThOrdenavel campo="id_registro" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>id_registro</ThOrdenavel>
               <th className="p-3">Consumido</th>
               <th className="p-3">Confirmado</th>
-              <th className="p-3">Importado em</th>
+              <ThOrdenavel campo="importado_em" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Importado em</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
-            {linhas.map((l) => (
+            {linhasOrdenadas.map((l) => (
               <tr key={l.id_fila} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{l.id_fila}</td>
                 <td className="p-3 text-slate-500">{l.desc_tipo_tabela ?? l.tipo_tabela}</td>

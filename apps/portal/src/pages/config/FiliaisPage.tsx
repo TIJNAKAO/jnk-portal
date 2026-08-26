@@ -1,6 +1,9 @@
 import { Pencil, Plus, PowerOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface Filial {
   id: number;
@@ -62,6 +65,13 @@ export function FiliaisPage() {
     await carregar();
   }
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(filiais, busca), {
+    nome: (f) => f.nome,
+    cnpj: (f) => f.cnpj,
+    ativa: (f) => (f.ativa ? 1 : 0),
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -110,18 +120,20 @@ export function FiliaisPage() {
         </form>
       )}
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar filial..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Nome</th>
-              <th className="p-3">CNPJ</th>
-              <th className="p-3">Status</th>
+              <ThOrdenavel campo="nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Nome</ThOrdenavel>
+              <ThOrdenavel campo="cnpj" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>CNPJ</ThOrdenavel>
+              <ThOrdenavel campo="ativa" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Status</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
-            {filiais.map((filial) => (
+            {linhasOrdenadas.map((filial) => (
               <tr key={filial.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{filial.nome}</td>
                 <td className="p-3">{filial.cnpj}</td>

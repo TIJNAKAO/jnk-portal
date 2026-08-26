@@ -1,6 +1,9 @@
 import { Plus, PowerOff, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface Departamento {
   id: number;
@@ -45,6 +48,12 @@ export function DepartamentosPage() {
     await carregar();
   }
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(departamentos, busca), {
+    nome: (d) => d.nome,
+    ativo: (d) => (d.ativo ? 1 : 0),
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -67,17 +76,19 @@ export function DepartamentosPage() {
       </form>
       {erro && <p className="text-sm text-red-600">{erro}</p>}
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar departamento..." />
+
       <div className="max-w-xl overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Nome</th>
-              <th className="p-3">Status</th>
+              <ThOrdenavel campo="nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Nome</ThOrdenavel>
+              <ThOrdenavel campo="ativo" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Status</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
-            {departamentos.map((d) => (
+            {linhasOrdenadas.map((d) => (
               <tr key={d.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{d.nome}</td>
                 <td className="p-3">

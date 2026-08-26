@@ -1,7 +1,9 @@
 import { Eye, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { useOrdenacao } from '../../lib/tabela';
 
 interface Execucao {
   id: number;
@@ -82,6 +84,14 @@ export function ExecucoesPage() {
 
   const todosSelecionados = execucoes.length > 0 && selecionados.size === execucoes.length;
 
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(execucoes, {
+    entidade: (e) => e.entidade,
+    status: (e) => e.status,
+    qtde_registros: (e) => e.qtde_registros,
+    duracao_ms: (e) => e.duracao_ms,
+    executado_em: (e) => e.executado_em,
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -128,11 +138,11 @@ export function ExecucoesPage() {
               <th className="p-3">
                 <input type="checkbox" checked={todosSelecionados} onChange={alternarSelecionarTudo} aria-label="Selecionar tudo" />
               </th>
-              <th className="p-3">Entidade</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Registros</th>
-              <th className="p-3">Duração</th>
-              <th className="p-3">Executado em</th>
+              <ThOrdenavel campo="entidade" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Entidade</ThOrdenavel>
+              <ThOrdenavel campo="status" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Status</ThOrdenavel>
+              <ThOrdenavel campo="qtde_registros" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Registros</ThOrdenavel>
+              <ThOrdenavel campo="duracao_ms" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Duração</ThOrdenavel>
+              <ThOrdenavel campo="executado_em" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Executado em</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
@@ -144,7 +154,7 @@ export function ExecucoesPage() {
                 </td>
               </tr>
             )}
-            {execucoes.map((e) => (
+            {linhasOrdenadas.map((e) => (
               <tr key={e.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">
                   <input type="checkbox" checked={selecionados.has(e.id)} onChange={() => alternarSelecao(e.id)} aria-label={`Selecionar execução ${e.id}`} />

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { ApiError } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
+import { useOrdenacao } from '../../lib/tabela';
 
 interface Conta {
   id: number;
@@ -61,6 +63,11 @@ export function MercadoLivrePage() {
     await carregar();
   }
 
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(contas, {
+    nickname: (c) => c.nickname,
+    userIdMl: (c) => c.userIdMl,
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -81,8 +88,8 @@ export function MercadoLivrePage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Conta</th>
-              <th className="p-3">user_id</th>
+              <ThOrdenavel campo="nickname" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Conta</ThOrdenavel>
+              <ThOrdenavel campo="userIdMl" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>user_id</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
@@ -94,7 +101,7 @@ export function MercadoLivrePage() {
                 </td>
               </tr>
             )}
-            {contas.map((c) => (
+            {linhasOrdenadas.map((c) => (
               <tr key={c.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{c.nickname}</td>
                 <td className="p-3 text-slate-500">{c.userIdMl}</td>

@@ -1,7 +1,10 @@
 import { Pencil, Plus, PowerOff, Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface Perfil {
   id: number;
@@ -63,6 +66,13 @@ export function PerfisPage() {
     await carregar();
   }
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(perfis, busca), {
+    nome: (p) => p.nome,
+    descricao: (p) => p.descricao,
+    ativo: (p) => (p.ativo ? 1 : 0),
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -108,18 +118,20 @@ export function PerfisPage() {
         </form>
       )}
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar perfil..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Nome</th>
-              <th className="p-3">Descrição</th>
-              <th className="p-3">Status</th>
+              <ThOrdenavel campo="nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Nome</ThOrdenavel>
+              <ThOrdenavel campo="descricao" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Descrição</ThOrdenavel>
+              <ThOrdenavel campo="ativo" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Status</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
-            {perfis.map((perfil) => (
+            {linhasOrdenadas.map((perfil) => (
               <tr key={perfil.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{perfil.nome}</td>
                 <td className="p-3 text-slate-500">{perfil.descricao}</td>

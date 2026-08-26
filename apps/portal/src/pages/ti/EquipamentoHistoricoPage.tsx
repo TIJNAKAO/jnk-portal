@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { useOrdenacao } from '../../lib/tabela';
 
 interface Equipamento {
   id: number;
@@ -132,6 +134,11 @@ export function EquipamentoHistoricoPage() {
     await api(`/ti/equipamentos/${id}/fotos/${idFoto}`, { method: 'DELETE' });
     await carregar();
   }
+
+  const { linhasOrdenadas: coletasOrdenadas, campoOrdenado: campoColetaOrdenado, direcao: direcaoColeta, ordenarPor: ordenarColetasPor } = useOrdenacao(coletas, {
+    coletado_em: (c) => c.coletado_em,
+    usuario_windows: (c) => c.usuario_windows,
+  });
 
   if (!equipamento) return null;
 
@@ -290,12 +297,12 @@ export function EquipamentoHistoricoPage() {
                 <tr>
                   <th className="p-2">De</th>
                   <th className="p-2">Para</th>
-                  <th className="p-2">Coletado em</th>
-                  <th className="p-2">Usuário Windows</th>
+                  <ThOrdenavel campo="coletado_em" campoOrdenado={campoColetaOrdenado} direcao={direcaoColeta} onOrdenar={ordenarColetasPor} className="p-2">Coletado em</ThOrdenavel>
+                  <ThOrdenavel campo="usuario_windows" campoOrdenado={campoColetaOrdenado} direcao={direcaoColeta} onOrdenar={ordenarColetasPor} className="p-2">Usuário Windows</ThOrdenavel>
                 </tr>
               </thead>
               <tbody>
-                {coletas.map((c) => (
+                {coletasOrdenadas.map((c) => (
                   <tr key={c.id} className="border-t border-slate-100">
                     <td className="p-2">
                       <input type="radio" name="de" checked={de === c.id} onChange={() => setDe(c.id)} />

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface EquipamentoAuditoria {
   id: number;
@@ -35,6 +38,16 @@ export function AuditoriaColetaPage() {
     api<EquipamentoAuditoria[]>('/ti/auditoria-coleta').then(setEquipamentos).catch(console.error);
   }, [api]);
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(equipamentos, busca), {
+    nome_filial: (e) => e.nome_filial,
+    nome_computador: (e) => e.apelido || e.nome_computador,
+    nome_responsavel: (e) => e.nome_responsavel,
+    nome_departamento: (e) => e.nome_departamento,
+    ultima_coleta_em: (e) => e.ultima_coleta_em,
+    dias_sem_coletar: (e) => e.dias_sem_coletar,
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -54,27 +67,29 @@ export function AuditoriaColetaPage() {
         </span>
       </div>
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar equipamento..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Filial</th>
-              <th className="p-3">Computador</th>
-              <th className="p-3">Responsável</th>
-              <th className="p-3">Departamento</th>
-              <th className="p-3">Última Coleta</th>
-              <th className="p-3">Dias sem Coletar</th>
+              <ThOrdenavel campo="nome_filial" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Filial</ThOrdenavel>
+              <ThOrdenavel campo="nome_computador" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Computador</ThOrdenavel>
+              <ThOrdenavel campo="nome_responsavel" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Responsável</ThOrdenavel>
+              <ThOrdenavel campo="nome_departamento" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Departamento</ThOrdenavel>
+              <ThOrdenavel campo="ultima_coleta_em" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Última Coleta</ThOrdenavel>
+              <ThOrdenavel campo="dias_sem_coletar" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Dias sem Coletar</ThOrdenavel>
             </tr>
           </thead>
           <tbody>
-            {equipamentos.length === 0 && (
+            {linhasOrdenadas.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-4 text-center text-slate-400">
                   Nenhum equipamento ativo cadastrado.
                 </td>
               </tr>
             )}
-            {equipamentos.map((e) => (
+            {linhasOrdenadas.map((e) => (
               <tr key={e.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3 text-slate-500">{e.nome_filial ?? '—'}</td>
                 <td className="p-3">

@@ -1,6 +1,9 @@
 import { Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface Programa {
   id: number;
@@ -54,6 +57,14 @@ export function CatalogoProgramasPage() {
     await carregar();
   }
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(programas, busca), {
+    nome: (p) => p.nome,
+    winget_id: (p) => p.winget_id,
+    ativo: (p) => (p.ativo ? 1 : 0),
+    configurar_acesso_remoto: (p) => (p.configurar_acesso_remoto ? 1 : 0),
+  });
+
   return (
     <div className="space-y-4">
       <div>
@@ -93,19 +104,21 @@ export function CatalogoProgramasPage() {
         </button>
       </form>
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar programa..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Nome</th>
-              <th className="p-3">ID do winget</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Acesso Remoto</th>
+              <ThOrdenavel campo="nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Nome</ThOrdenavel>
+              <ThOrdenavel campo="winget_id" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>ID do winget</ThOrdenavel>
+              <ThOrdenavel campo="ativo" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Status</ThOrdenavel>
+              <ThOrdenavel campo="configurar_acesso_remoto" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Acesso Remoto</ThOrdenavel>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
-            {programas.map((p) => (
+            {linhasOrdenadas.map((p) => (
               <tr key={p.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{p.nome}</td>
                 <td className="p-3">

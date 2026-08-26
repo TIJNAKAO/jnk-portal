@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
+import { CampoBusca } from '../../components/CampoBusca';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { useApi } from '../../lib/useApi';
+import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 
 interface LogAcesso {
   id: number;
@@ -37,6 +40,16 @@ export function LogsAcessoPage() {
     api<LogAcesso[]>(`/logs-acesso${query}`).then(setLogs).catch(console.error);
   }, [api, usuarioId]);
 
+  const [busca, setBusca] = useState('');
+  const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(logs, busca), {
+    nomeUsuario: (l) => l.nomeUsuario,
+    tipo_evento: (l) => LABEL_EVENTO[l.tipo_evento],
+    nomeFilial: (l) => l.nomeFilial,
+    nomeTela: (l) => l.nomeTela,
+    ip_origem: (l) => l.ip_origem,
+    criado_em: (l) => l.criado_em,
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -55,20 +68,22 @@ export function LogsAcessoPage() {
         </select>
       </div>
 
+      <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar log..." />
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="p-3">Usuário</th>
-              <th className="p-3">Evento</th>
-              <th className="p-3">Filial</th>
-              <th className="p-3">Tela</th>
-              <th className="p-3">IP</th>
-              <th className="p-3">Data/Hora</th>
+              <ThOrdenavel campo="nomeUsuario" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Usuário</ThOrdenavel>
+              <ThOrdenavel campo="tipo_evento" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Evento</ThOrdenavel>
+              <ThOrdenavel campo="nomeFilial" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Filial</ThOrdenavel>
+              <ThOrdenavel campo="nomeTela" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Tela</ThOrdenavel>
+              <ThOrdenavel campo="ip_origem" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>IP</ThOrdenavel>
+              <ThOrdenavel campo="criado_em" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Data/Hora</ThOrdenavel>
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => (
+            {linhasOrdenadas.map((log) => (
               <tr key={log.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{log.nomeUsuario}</td>
                 <td className="p-3">{LABEL_EVENTO[log.tipo_evento]}</td>
