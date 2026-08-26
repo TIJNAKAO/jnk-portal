@@ -3,7 +3,7 @@ using AgenteInventarioPC.Configuracao;
 using AgenteInventarioPC.Envio;
 using AgenteInventarioPC.Modelos;
 
-const string VersaoAgente = "1.2.0";
+const string VersaoAgente = "1.2.1";
 
 // Log em arquivo ao lado do .exe, além do console — rodando via Tarefa
 // Agendada (principalmente como SYSTEM/onstart) não existe console
@@ -43,7 +43,12 @@ try
         },
         Coleta = new ColetaInfo
         {
-            ColetadoEm = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            // UTC, nao hora local -- o resto do sistema (banco com timezone
+            // 'Z', frontend convertendo pra hora do navegador) assume que
+            // todo timestamp salvo ja esta em UTC. Mandar DateTime.Now aqui
+            // fazia a hora exibida ficar errada pelo offset do fuso da
+            // maquina que roda o agente.
+            ColetadoEm = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
             UsuarioWindows = Environment.UserName,
             VersaoAgente = VersaoAgente,
             AnydeskId = ColetorAnydesk.Coletar(),
