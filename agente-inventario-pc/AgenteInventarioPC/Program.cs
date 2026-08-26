@@ -3,7 +3,7 @@ using AgenteInventarioPC.Configuracao;
 using AgenteInventarioPC.Envio;
 using AgenteInventarioPC.Modelos;
 
-const string VersaoAgente = "1.2.1";
+const string VersaoAgente = "1.3.0";
 
 // Log em arquivo ao lado do .exe, além do console — rodando via Tarefa
 // Agendada (principalmente como SYSTEM/onstart) não existe console

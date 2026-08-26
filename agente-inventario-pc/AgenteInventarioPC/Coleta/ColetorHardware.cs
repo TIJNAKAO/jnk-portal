@@ -262,12 +262,31 @@ public static class ColetorHardware
                 resultado.Add(linha);
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Uma classe WMI indisponível/bloqueada nesta máquina não pode
-            // impedir a coleta do resto — devolve vazio e segue.
+            // impedir a coleta do resto — devolve vazio e segue. Mas sem
+            // registrar o motivo, uma falha ampla (ex: WMI inteiro
+            // inacessível nesta máquina) fica invisível — snapshot chega
+            // vazio no portal e não sobra nenhuma pista de por quê.
+            RegistrarErroWmi(query, ex);
         }
         return resultado;
+    }
+
+    private static readonly string CaminhoLog = Path.Combine(AppContext.BaseDirectory, "agente.log");
+
+    private static void RegistrarErroWmi(string query, Exception ex)
+    {
+        try
+        {
+            var linha = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [WMI] Falha em \"{query}\": {ex.GetType().Name} - {ex.Message}";
+            File.AppendAllText(CaminhoLog, linha + Environment.NewLine);
+        }
+        catch
+        {
+            // Idem — se nem o log funcionar, não tem mais pra onde reportar.
+        }
     }
 
     private static string? Texto(ManagementBaseObject linha, string propriedade)
