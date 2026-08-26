@@ -36,6 +36,19 @@ integracaoPainelRouter.post('/:chave/sincronizar', requirePermissao(ROTA, 'podeE
     return;
   }
 
+  // Sem essa checagem, clicar em "Sincronizar agora" com uma execução já
+  // rodando não reinicia nada — só soma uma segunda execução concorrente
+  // por cima da primeira, disputando as mesmas linhas de fila/tabelas.
+  // Reaproveita a execução em andamento em vez de duplicar.
+  const [emAndamento] = await pool.query<RowDataPacket[]>(
+    "SELECT id FROM integracao_log WHERE entidade = ? AND status = 'iniciado' ORDER BY executado_em DESC LIMIT 1",
+    [entidade.chave],
+  );
+  if (emAndamento[0]) {
+    res.status(200).json({ idLog: emAndamento[0].id, jaEmAndamento: true });
+    return;
+  }
+
   const idLog = await executarEmBackground(entidade.chave, entidade.sincronizar);
   res.status(202).json({ idLog });
 });

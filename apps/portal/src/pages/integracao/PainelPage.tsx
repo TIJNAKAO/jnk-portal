@@ -1,6 +1,6 @@
-import { PlayCircle } from 'lucide-react';
+import { Eye, PlayCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApi } from '../../lib/useApi';
 
 interface UltimaExecucao {
@@ -44,7 +44,7 @@ export function PainelPage() {
   async function sincronizar(chave: string) {
     setSincronizando(chave);
     try {
-      const { idLog } = await api<{ idLog: number }>(`/integracao/painel/${chave}/sincronizar`, { method: 'POST' });
+      const { idLog } = await api<{ idLog: number; jaEmAndamento?: boolean }>(`/integracao/painel/${chave}/sincronizar`, { method: 'POST' });
       navigate(`/integracao/execucoes/${idLog}`);
     } finally {
       setSincronizando(null);
@@ -64,26 +64,36 @@ export function PainelPage() {
             <h2 className="font-medium text-slate-900">{card.nome}</h2>
 
             {card.ultimaExecucao ? (
-              <div className="mt-2 flex-1 text-sm text-slate-500">
+              <Link to={`/integracao/execucoes/${card.ultimaExecucao.id}`} className="mt-2 flex-1 text-sm text-slate-500 hover:text-slate-700">
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_POR_STATUS[card.ultimaExecucao.status]}`}>
                   {card.ultimaExecucao.status}
                 </span>
                 <p className="mt-2">{fmtData(card.ultimaExecucao.executado_em)}</p>
                 {card.ultimaExecucao.qtde_registros !== null && <p>{card.ultimaExecucao.qtde_registros} registro(s)</p>}
-              </div>
+              </Link>
             ) : (
               <p className="mt-2 flex-1 text-sm text-slate-400">Nunca sincronizado.</p>
             )}
 
-            <button
-              type="button"
-              onClick={() => sincronizar(card.chave)}
-              disabled={sincronizando === card.chave}
-              className="mt-4 flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              <PlayCircle size={16} />
-              {sincronizando === card.chave ? 'Iniciando...' : 'Sincronizar agora'}
-            </button>
+            {card.ultimaExecucao?.status === 'iniciado' ? (
+              <Link
+                to={`/integracao/execucoes/${card.ultimaExecucao.id}`}
+                className="mt-4 flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <Eye size={16} />
+                Acompanhar execução em andamento
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => sincronizar(card.chave)}
+                disabled={sincronizando === card.chave}
+                className="mt-4 flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                <PlayCircle size={16} />
+                {sincronizando === card.chave ? 'Iniciando...' : 'Sincronizar agora'}
+              </button>
+            )}
           </div>
         ))}
       </div>
