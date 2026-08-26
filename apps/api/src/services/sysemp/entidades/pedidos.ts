@@ -1,19 +1,40 @@
 import type { PoolConnection } from '../../../config/database.js';
 import { inteiro, valor } from '../dbUtil.js';
-import { registrarConsumidorFila } from '../fila.js';
+import { registrarConsumidorFila, type LinhaFilaPendente } from '../fila.js';
 import { sysempPost } from '../client.js';
 
 /**
- * Consumidor de fila pra Pedidos de Venda (tipo_tabela 7). Ao contrário de
- * Nota Fiscal, cabeçalho e itens vêm de DOIS endpoints separados (não
- * aninhados) — o motor genérico da fila só busca o cabeçalho via
- * `endpoint_detalhe` ('/listarPedidos'); os itens são buscados aqui dentro,
- * num segundo request pra '/listarPedidosItens' filtrado pelo mesmo
- * id_nota_saida. Nomes de campo do payload espelham os usados no sync por
- * janela de data que isto substitui — não confirmados contra uma resposta
- * real de detalhe único; validar no primeiro evento real que passar pela
- * fila.
+ * Consumidor de fila pra Pedidos de Venda (tipo_tabela 7).
+ *
+ * Duas diferenças em relação a Nota Fiscal:
+ * 1. `/listarPedidos` NÃO aceita busca por id sozinho — exige
+ *    `data_inicial`/`data_final` (devolve HTTP 400 "Undefined property:
+ *    stdClass::$data_inicial" sem eles, confirmado em produção). Por isso
+ *    usa `buscarDetalhe` pra sobrescrever o fetch genérico da fila: monta
+ *    uma janela de +-2 dias em volta de quando o evento foi criado na
+ *    SysEmp (`datahora_criacao_sysemp`) e filtra pelo id_nota_saida certo
+ *    na resposta.
+ * 2. Cabeçalho e itens vêm de DOIS endpoints separados (não aninhados) —
+ *    os itens são buscados dentro de `gravarPedido`, num segundo request
+ *    pra '/listarPedidosItens' filtrado pelo mesmo id_nota_saida.
  */
+
+const JANELA_DIAS = 2;
+
+async function buscarDetalhePedido(idRegistro: number, linhaFila: LinhaFilaPendente): Promise<Record<string, unknown> | null> {
+  const dataBase = linhaFila.datahora_criacao_sysemp ?? new Date();
+  const inicio = new Date(dataBase);
+  inicio.setDate(inicio.getDate() - JANELA_DIAS);
+  const fim = new Date(dataBase);
+  fim.setDate(fim.getDate() + JANELA_DIAS);
+
+  const resposta = await sysempPost<{ retorno: Record<string, unknown>[] }>('/listarPedidos', {
+    data_inicial: inicio.toISOString().slice(0, 10),
+    data_final: fim.toISOString().slice(0, 10),
+  });
+  const lista = resposta.retorno ?? [];
+  return lista.find((p) => inteiro(p, 'id_nota_saida') === idRegistro) ?? null;
+}
 
 interface PedidoPayload {
   codigo_empresa?: number;
@@ -81,10 +102,22 @@ async function gravarPedido(connection: PoolConnection, payload: Record<string, 
     ],
   );
 
+  // /listarPedidosItens provavelmente tem a mesma limitação de
+  // /listarPedidos (só aceita data_inicial/data_final, não id sozinho) --
+  // usa a data do próprio cabeçalho que acabou de ser buscado como âncora
+  // da janela, e filtra pelo id_nota_saida certo na resposta.
+  const dataAncora = valor(pedido, 'data_pedido') ?? valor(pedido, 'data_venda');
+  const dataBase = dataAncora ? new Date(String(dataAncora)) : new Date();
+  const inicioItens = new Date(dataBase);
+  inicioItens.setDate(inicioItens.getDate() - JANELA_DIAS);
+  const fimItens = new Date(dataBase);
+  fimItens.setDate(fimItens.getDate() + JANELA_DIAS);
+
   const respostaItens = await sysempPost<{ retorno: Record<string, unknown>[] }>('/listarPedidosItens', {
-    id_nota_saida: String(idRegistro),
+    data_inicial: inicioItens.toISOString().slice(0, 10),
+    data_final: fimItens.toISOString().slice(0, 10),
   });
-  const itens = respostaItens.retorno ?? [];
+  const itens = (respostaItens.retorno ?? []).filter((item) => inteiro(item, 'id_nota_saida') === idRegistro);
 
   // Sem chave natural por item (só id auto_increment) — delete + insert
   // evita duplicar item ao reprocessar o mesmo evento de fila.
@@ -112,4 +145,4 @@ async function gravarPedido(connection: PoolConnection, payload: Record<string, 
   }
 }
 
-registrarConsumidorFila({ tipoTabela: 7, gravar: gravarPedido });
+registrarConsumidorFila({ tipoTabela: 7, gravar: gravarPedido, buscarDetalhe: buscarDetalhePedido });

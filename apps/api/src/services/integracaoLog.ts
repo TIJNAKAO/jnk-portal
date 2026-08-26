@@ -13,6 +13,48 @@ import { pool } from '../config/database.js';
 export const logEmitter = new EventEmitter();
 logEmitter.setMaxListeners(50);
 
+const MINUTOS_INATIVIDADE_ORFAO = 3;
+
+/**
+ * Evita duas execuções concorrentes da mesma entidade — sem essa checagem,
+ * clicar em "Sincronizar agora" com uma já rodando (ou o cron disparar em
+ * cima de uma sincronização manual ainda em andamento) faz dois processos
+ * disputarem as mesmas linhas de fila/tabelas. Chamada por ambos os
+ * pontos de entrada (routes/integracaoPainel.ts e scripts/cronSincronizar.ts).
+ *
+ * Se a execução "iniciado" mais recente ficou sem nenhuma atividade
+ * (nenhuma linha nova em integracao_log_detalhe) por mais de alguns
+ * minutos, considera órfã — o processo que rodava ela provavelmente
+ * morreu antes de chamar `finalizar` (ex: um deploy reiniciou o
+ * container no meio) — marca como erro e libera pra uma nova execução
+ * começar. Devolve o id da execução viva, se houver.
+ */
+export async function idExecucaoEmAndamento(entidade: string): Promise<number | null> {
+  const [linhas] = await pool.query<RowDataPacket[]>(
+    "SELECT id, executado_em FROM integracao_log WHERE entidade = ? AND status = 'iniciado' ORDER BY executado_em DESC LIMIT 1",
+    [entidade],
+  );
+  const emAndamento = linhas[0];
+  if (!emAndamento) return null;
+
+  const [detalhes] = await pool.query<RowDataPacket[]>(
+    'SELECT MAX(criado_em) AS ultimo FROM integracao_log_detalhe WHERE id_log = ?',
+    [emAndamento.id],
+  );
+  const ultimaAtividade = detalhes[0]?.ultimo ?? emAndamento.executado_em;
+  const minutosParado = (Date.now() - new Date(ultimaAtividade).getTime()) / 60000;
+
+  if (minutosParado < MINUTOS_INATIVIDADE_ORFAO) {
+    return emAndamento.id as number;
+  }
+
+  await pool.query(
+    "UPDATE integracao_log SET status = 'erro', mensagem = 'Execução interrompida (processo reiniciado) e nunca finalizada.' WHERE id = ?",
+    [emAndamento.id],
+  );
+  return null;
+}
+
 export async function iniciar(entidade: string): Promise<number> {
   const [resultado] = await pool.query<ResultSetHeader>(
     'INSERT INTO integracao_log (entidade, status) VALUES (?, ?)',

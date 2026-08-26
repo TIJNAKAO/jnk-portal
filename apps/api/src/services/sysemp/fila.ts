@@ -5,10 +5,27 @@ import * as integracaoLog from '../integracaoLog.js';
 import type { ResultadoSincronizacao } from '../integracaoLog.js';
 import { sysempPost } from './client.js';
 
+export interface LinhaFilaPendente extends RowDataPacket {
+  id_fila: number;
+  tipo_tabela: number;
+  acao: 'I' | 'U' | 'D';
+  id_registro: number;
+  datahora_criacao_sysemp: Date | null;
+  datahora_processamento_sysemp: Date | null;
+}
+
 export interface ConsumidorFila {
   tipoTabela: number;
   /** Grava o efeito de um evento (I/U/D) nas tabelas de destino desta entidade. */
   gravar: (connection: PoolConnection, detalhe: Record<string, unknown> | null, acao: 'I' | 'U' | 'D', idRegistro: number) => Promise<void>;
+  /**
+   * Sobrescreve como o detalhe de um evento é buscado — por padrão, a fila
+   * chama `config.endpoint_detalhe` com `{[config.campo_id_detalhe]: idRegistro}`.
+   * Usar quando o endpoint da SysEmp não aceita busca por id sozinho (ex:
+   * `/listarPedidos`, que exige `data_inicial`/`data_final` e devolve HTTP
+   * 400 sem eles — confirmado em produção).
+   */
+  buscarDetalhe?: (idRegistro: number, linhaFila: LinhaFilaPendente) => Promise<Record<string, unknown> | null>;
 }
 
 const registro = new Map<number, ConsumidorFila>();
@@ -135,7 +152,7 @@ export async function sincronizarFila(chaveConfig: string, idLog: number): Promi
       throw error;
     }
 
-    const [pendentes] = await pool.query<RowDataPacket[]>(
+    const [pendentes] = await pool.query<LinhaFilaPendente[]>(
       'SELECT * FROM sysemp_fila WHERE tipo_tabela = ? AND (consumido = FALSE OR confirmado_sysemp = FALSE)',
       [config.tipo_tabela],
     );
@@ -156,6 +173,9 @@ export async function sincronizarFila(chaveConfig: string, idLog: number): Promi
           await withTransaction(async (connection) => {
             if (acao === 'D') {
               await consumidor.gravar(connection, null, 'D', idRegistro);
+            } else if (consumidor.buscarDetalhe) {
+              const registroDetalhe = await consumidor.buscarDetalhe(idRegistro, linha);
+              await consumidor.gravar(connection, registroDetalhe, acao, idRegistro);
             } else {
               if (!config.endpoint_detalhe || !config.campo_id_detalhe) {
                 throw new Error(`Config de fila '${chaveConfig}' sem endpoint_detalhe/campo_id_detalhe.`);

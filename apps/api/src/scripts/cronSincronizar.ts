@@ -1,6 +1,6 @@
 import { pool } from '../config/database.js';
 import { buscarEntidadeIntegracao } from '../services/integracaoRegistry.js';
-import { finalizar, iniciar } from '../services/integracaoLog.js';
+import { finalizar, idExecucaoEmAndamento, iniciar } from '../services/integracaoLog.js';
 
 /**
  * Entrada usada pelos jobs SCHEDULED do App Platform — roda uma sincronização
@@ -20,6 +20,15 @@ async function main() {
   if (!entidade) {
     console.error(`[cron] entidade '${chave}' nao encontrada no registro.`);
     process.exitCode = 1;
+    return;
+  }
+
+  // Mesma checagem usada pelo botao manual do Painel -- sem ela, o cron
+  // agendado poderia disparar em cima de uma sincronizacao ainda em
+  // andamento (manual ou de uma rodada anterior que ainda nao terminou).
+  const idLogEmAndamento = await idExecucaoEmAndamento(entidade.chave);
+  if (idLogEmAndamento) {
+    console.log(`[cron] ${chave}: ja existe execucao em andamento (idLog=${idLogEmAndamento}), pulando esta rodada.`);
     return;
   }
 

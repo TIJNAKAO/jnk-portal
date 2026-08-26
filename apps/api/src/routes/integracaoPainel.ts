@@ -4,7 +4,7 @@ import { pool } from '../config/database.js';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { buscarEntidadeIntegracao, ENTIDADES_INTEGRACAO } from '../services/integracaoRegistry.js';
-import { executarEmBackground } from '../services/integracaoLog.js';
+import { executarEmBackground, idExecucaoEmAndamento } from '../services/integracaoLog.js';
 
 export const integracaoPainelRouter = Router();
 
@@ -36,16 +36,9 @@ integracaoPainelRouter.post('/:chave/sincronizar', requirePermissao(ROTA, 'podeE
     return;
   }
 
-  // Sem essa checagem, clicar em "Sincronizar agora" com uma execução já
-  // rodando não reinicia nada — só soma uma segunda execução concorrente
-  // por cima da primeira, disputando as mesmas linhas de fila/tabelas.
-  // Reaproveita a execução em andamento em vez de duplicar.
-  const [emAndamento] = await pool.query<RowDataPacket[]>(
-    "SELECT id FROM integracao_log WHERE entidade = ? AND status = 'iniciado' ORDER BY executado_em DESC LIMIT 1",
-    [entidade.chave],
-  );
-  if (emAndamento[0]) {
-    res.status(200).json({ idLog: emAndamento[0].id, jaEmAndamento: true });
+  const idLogEmAndamento = await idExecucaoEmAndamento(entidade.chave);
+  if (idLogEmAndamento) {
+    res.status(200).json({ idLog: idLogEmAndamento, jaEmAndamento: true });
     return;
   }
 
