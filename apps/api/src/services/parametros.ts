@@ -29,7 +29,6 @@ export const DEFINICAO_CAMPOS: Record<CategoriaParametro, DefinicaoCampo[]> = {
     { chave: 'BASE_URL', sensivel: false },
     { chave: 'TOKEN', sensivel: true },
     { chave: 'TIMEOUT_SEGUNDOS', sensivel: false },
-    { chave: 'PEDIDOS_DIAS_RETROATIVOS', sensivel: false },
   ],
   MERCADO_LIVRE: [
     { chave: 'APP_ID', sensivel: false },
