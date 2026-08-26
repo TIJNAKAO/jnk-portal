@@ -249,6 +249,15 @@ export interface GerarScriptConfigurarAgenteOpcoes {
 export function gerarScriptConfigurarAgente({ agenteUrl, apiUrl, apiKey }: GerarScriptConfigurarAgenteOpcoes): string {
   const agora = new Date();
   const carimboIso = agora.toISOString().slice(0, 19);
+  // O Agendador de Tarefas do Windows interpreta StartBoundary sem sufixo de
+  // fuso ('Z'/offset) como HORA LOCAL da máquina — mas carimboIso vem de
+  // Date.toISOString(), que é sempre UTC. Num fuso atrás de UTC (ex: Brasil,
+  // UTC-3), isso fazia o Agendador achar que o boot trigger só vale a partir
+  // de um horário ainda no futuro, e o job simplesmente não disparava nos
+  // reinícios até esse horário chegar. Fixo no passado evita a ambiguidade
+  // de fuso inteiramente — só serve como "piso" pro trigger de boot valer
+  // sempre, não precisa ser um valor real.
+  const inicioTriggerBoot = '2020-01-01T00:00:00';
 
   const appsettingsJson = JSON.stringify({ ApiUrl: apiUrl, ApiKey: apiKey, IdEmpresa: null }, null, 2);
 
@@ -261,7 +270,7 @@ export function gerarScriptConfigurarAgente({ agenteUrl, apiUrl, apiKey }: Gerar
   </RegistrationInfo>
   <Triggers>
     <BootTrigger>
-      <StartBoundary>${carimboIso}</StartBoundary>
+      <StartBoundary>${inicioTriggerBoot}</StartBoundary>
       <Enabled>true</Enabled>
     </BootTrigger>
   </Triggers>
