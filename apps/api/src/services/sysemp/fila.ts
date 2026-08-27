@@ -152,8 +152,13 @@ export async function sincronizarFila(chaveConfig: string, idLog: number): Promi
       throw error;
     }
 
+    // ORDER BY id_fila é obrigatório: id_fila é a sequência global de
+    // eventos da SysEmp — processar fora dessa ordem (ou pular um evento
+    // com erro pra tentar os seguintes) descompassa o estado local em
+    // relação à ordem real das mudanças, especialmente quando há mais de
+    // um evento pendente pro mesmo id_registro.
     const [pendentes] = await pool.query<LinhaFilaPendente[]>(
-      'SELECT * FROM sysemp_fila WHERE tipo_tabela = ? AND (consumido = FALSE OR confirmado_sysemp = FALSE)',
+      'SELECT * FROM sysemp_fila WHERE tipo_tabela = ? AND (consumido = FALSE OR confirmado_sysemp = FALSE) ORDER BY id_fila ASC',
       [config.tipo_tabela],
     );
 
@@ -193,13 +198,19 @@ export async function sincronizarFila(chaveConfig: string, idLog: number): Promi
           jaConsumido = true;
         } catch (error) {
           await pool.query('UPDATE sysemp_fila SET erro_consumo = ? WHERE id_fila = ?', [(error as Error).message.slice(0, 500), idFila]);
+          const mensagem = `Falha ao consumir id_fila=${idFila} (id_registro=${idRegistro}): ${(error as Error).message}`;
           await integracaoLog.detalhe(idLog, {
             pagina: idFila,
             status: 'erro',
-            mensagem: `Falha ao consumir id_fila=${idFila} (id_registro=${idRegistro}): ${(error as Error).message}`,
+            mensagem,
             duracaoMs: Date.now() - inicioRegistro,
           });
-          continue; // não confirma o que não foi consumido — reprocessa na próxima chamada
+          // Não segue pros próximos id_fila: eventos posteriores podem ser
+          // do mesmo id_registro, e processá-los fora de ordem descompassa
+          // a sequência de atualização local. Encerra a execução inteira
+          // aqui (erro_consumo fica setado, consumido continua FALSE) — a
+          // próxima chamada retoma exatamente deste id_fila em diante.
+          throw new Error(mensagem);
         }
       }
 
