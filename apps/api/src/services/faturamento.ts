@@ -7,7 +7,7 @@ import {
   type InsumosFaturamento,
 } from './faturamentoCalculos.js';
 import { montarFiltroComEscopo, type FiltroFaturamento } from './faturamentoFiltros.js';
-import { condicaoEscopo, type EmpresaPermitida } from './escopoEmpresas.js';
+import { condicaoEscopo, type FilialPermitida } from './escopoFilial.js';
 
 /**
  * Consultas do módulo Faturamento sobre `etl_fatcom` — a tabela-fato que
@@ -115,7 +115,7 @@ function aplicarDerivados(linha: LinhaFaturamento): LinhaRelatorio {
 
 export async function buscarLinhasPaginadas(
   filtros: FiltroFaturamento,
-  escopo: EmpresaPermitida[],
+  escopo: FilialPermitida[],
   pagina: number,
   tamanhoPagina: number,
   ordenacao: Ordenacao = {},
@@ -138,7 +138,7 @@ export async function buscarLinhasPaginadas(
 
 export async function buscarLinhasCompletas(
   filtros: FiltroFaturamento,
-  escopo: EmpresaPermitida[],
+  escopo: FilialPermitida[],
   ordenacao: Ordenacao = {},
 ): Promise<LinhaRelatorio[]> {
   const { where, params } = montarFiltroComEscopo(filtros, escopo);
@@ -216,7 +216,7 @@ const SELECT_AGREGADO = `${somasSql()}, ${somasSql(COM_CUSTO)},
 async function agregarPor(
   coluna: string,
   filtros: FiltroFaturamento,
-  escopo: EmpresaPermitida[],
+  escopo: FilialPermitida[],
   limite = 15,
 ): Promise<AgregadoFaturamento[]> {
   const { where, params } = montarFiltroComEscopo(filtros, escopo);
@@ -250,7 +250,7 @@ export interface ResumoFaturamento {
   atualizadoEm: Date | null;
 }
 
-export async function buscarResumo(filtros: FiltroFaturamento, escopo: EmpresaPermitida[]): Promise<ResumoFaturamento> {
+export async function buscarResumo(filtros: FiltroFaturamento, escopo: FilialPermitida[]): Promise<ResumoFaturamento> {
   const { where, params } = montarFiltroComEscopo(filtros, escopo);
 
   const [totaisRows] = await pool.query<RowDataPacket[]>(
@@ -305,7 +305,7 @@ export async function buscarResumo(filtros: FiltroFaturamento, escopo: EmpresaPe
 }
 
 /** Evolução mensal sai em ordem cronológica, não por valor — é uma série temporal. */
-async function agregarPorPeriodo(filtros: FiltroFaturamento, escopo: EmpresaPermitida[]): Promise<AgregadoFaturamento[]> {
+async function agregarPorPeriodo(filtros: FiltroFaturamento, escopo: FilialPermitida[]): Promise<AgregadoFaturamento[]> {
   const { where, params } = montarFiltroComEscopo(filtros, escopo);
   const [linhas] = await pool.query<RowDataPacket[]>(
     `SELECT periodo AS rotulo, ${SELECT_AGREGADO}
@@ -339,12 +339,23 @@ export interface FiltrosDisponiveis {
  * que ele não pode ver já revelaria que ela existe e quanto movimenta assim
  * que aparecesse num rótulo.
  */
-export async function buscarFiltrosDisponiveis(escopo: EmpresaPermitida[]): Promise<FiltrosDisponiveis> {
+export async function buscarFiltrosDisponiveis(escopo: FilialPermitida[]): Promise<FiltrosDisponiveis> {
   const { where: esc, params: pEsc } = condicaoEscopo(escopo);
 
+  // A opção de empresa vale `recno`, não `cd_filial`: é o que a tela devolve
+  // em `FiltroFaturamento.empresas` e o que `montarFiltroComEscopo` espera. O
+  // código do ERP se repete entre origens (cd_filial 1 é Barueri na SysEmp e
+  // outra filial no KPL), então usá-lo aqui faria o filtro de empresa
+  // devolver a filial errada — ou nenhuma — sem erro nenhum.
+  const { where: escEmpresas, params: pEscEmpresas } = condicaoEscopo(escopo, 'f.origem_dados', 'f.cd_filial');
   const [empresas] = await pool.query<RowDataPacket[]>(
-    `SELECT cd_filial, MIN(dc_filial) AS dc_filial FROM etl_fatcom WHERE ${esc} GROUP BY cd_filial ORDER BY dc_filial`,
-    pEsc,
+    `SELECT cf.recno, MIN(f.dc_filial) AS dc_filial
+     FROM etl_fatcom f
+     JOIN config_filial cf ON cf.origem_dados = f.origem_dados AND cf.cd_filial = f.cd_filial
+     WHERE ${escEmpresas}
+     GROUP BY cf.recno
+     ORDER BY dc_filial`,
+    pEscEmpresas,
   );
   const [marcas] = await pool.query<RowDataPacket[]>(
     `SELECT DISTINCT marca FROM etl_fatcom WHERE ${esc} AND marca <> '' ORDER BY marca`,
@@ -367,7 +378,9 @@ export async function buscarFiltrosDisponiveis(escopo: EmpresaPermitida[]): Prom
     linhas.map((l) => ({ valor: String(l[coluna]), rotulo: String(l[coluna]) }));
 
   return {
-    empresas: empresas.map((e) => ({ valor: String(e.cd_filial), rotulo: String(e.dc_filial) })),
+    // `valor` é o recno de `config_filial`, não o cd_filial do ERP — ver
+    // comentário acima sobre por que o código do ERP não serve aqui.
+    empresas: empresas.map((e) => ({ valor: String(e.recno), rotulo: String(e.dc_filial) })),
     marcas: texto(marcas, 'marca'),
     canais: texto(canais, 'canal'),
     origens: texto(origens, 'origem_dados'),

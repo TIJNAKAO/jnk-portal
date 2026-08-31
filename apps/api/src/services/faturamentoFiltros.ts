@@ -1,4 +1,4 @@
-import { aplicarEscopo, condicaoEscopo, type EmpresaPermitida } from './escopoEmpresas.js';
+import { aplicarEscopo, condicaoEscopo, type FilialPermitida } from './escopoFilial.js';
 
 /**
  * Filtros das consultas de faturamento sobre `etl_fatcom`.
@@ -11,7 +11,7 @@ import { aplicarEscopo, condicaoEscopo, type EmpresaPermitida } from './escopoEm
 export interface FiltroFaturamento {
   /** `SYSEMP` e/ou `KPL`. Vazio traz todas as origens. */
   origens?: string[];
-  /** `cd_filial` — a empresa dentro da origem. */
+  /** `recno` das filiais escolhidas na tela. Sempre interseccionado com o escopo. */
   empresas?: number[];
   marcas?: string[];
   canais?: string[];
@@ -99,7 +99,7 @@ export function montarFiltro(filtros: FiltroFaturamento): ClausulaFiltro {
  */
 export function montarFiltroComEscopo(
   filtros: FiltroFaturamento,
-  escopoUsuario: EmpresaPermitida[],
+  escopoUsuario: FilialPermitida[],
 ): ClausulaFiltro {
   const escopoEfetivo = aplicarEscopo(filtros.empresas, escopoUsuario);
 

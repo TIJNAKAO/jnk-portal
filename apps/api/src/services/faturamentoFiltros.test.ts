@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { montarFiltro, montarFiltroComEscopo, type FiltroFaturamento } from './faturamentoFiltros.js';
+import type { FilialPermitida } from './escopoFilial.js';
 
 /**
  * Montagem do WHERE das consultas de faturamento sobre `etl_fatcom`.
@@ -124,9 +125,9 @@ describe('montarFiltro', () => {
 });
 
 describe('montarFiltroComEscopo', () => {
-  const escopoJnk = [
-    { origem: 'SYSEMP', cdFilial: 1 },
-    { origem: 'SYSEMP', cdFilial: 2 },
+  const escopoJnk: FilialPermitida[] = [
+    { recno: 1, origem: 'SYSEMP', cdFilial: 1, nome: 'Barueri', grupo: 'JNK', empresa: null },
+    { recno: 2, origem: 'SYSEMP', cdFilial: 2, nome: 'Pinheiros', grupo: 'JNK', empresa: null },
   ];
 
   test('sem escolha de empresa, restringe ao escopo do usuário', () => {
@@ -136,14 +137,14 @@ describe('montarFiltroComEscopo', () => {
     expect(params).toEqual(['S', 'SYSEMP', 1, 'SYSEMP', 2]);
   });
 
-  test('empresa escolhida dentro do escopo é respeitada', () => {
+  test('filial escolhida dentro do escopo é respeitada', () => {
     expect(montarFiltroComEscopo({ empresas: [2] }, escopoJnk).params).toEqual(['S', 'SYSEMP', 2]);
   });
 
-  test('empresa escolhida FORA do escopo não retorna nada — não vaza', () => {
-    // A empresa 3 (NK2) chega pela query string. Quem só tem JNK não pode
-    // vê-la de jeito nenhum, e a consulta precisa devolver vazio.
-    expect(montarFiltroComEscopo({ empresas: [3] }, escopoJnk).where).toContain('1 = 0');
+  test('filial escolhida FORA do escopo não retorna nada — não vaza', () => {
+    // O recno 99 chega pela query string. Quem só tem JNK não pode vê-lo de
+    // jeito nenhum, e a consulta precisa devolver vazio.
+    expect(montarFiltroComEscopo({ empresas: [99] }, escopoJnk).where).toContain('1 = 0');
   });
 
   test('usuário sem nenhuma empresa vinculada não enxerga nada', () => {
