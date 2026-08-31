@@ -431,6 +431,13 @@ static_sites:
     source_dir: /
     build_command: npm install && npm run build:shared && npm run build:portal
     output_dir: apps/portal/dist
+    # OBRIGATÓRIO para uma SPA. Sem isto, só "/" responde: qualquer acesso
+    # direto a uma rota do React (recarregar em /modules, abrir um link de
+    # /faturamento/notas-fiscais, F5 em qualquer tela) faz o servidor estático
+    # procurar um arquivo naquele caminho, não achar, e devolver 404 — mesmo
+    # com a aplicação inteira funcionando. Navegar a partir da raiz esconde o
+    # problema, porque aí o roteamento acontece no cliente.
+    catchall_document: index.html
     routes:
       - path: /
     envs:

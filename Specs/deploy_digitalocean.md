@@ -222,6 +222,18 @@ WHERE u.email = 'email@jnakao.com.br' AND p.nome = 'Administrador';
    `{"status":"ok","database":"ok"}`.
 2. `https://portal.jnakao.com.br` → tela de login do Portal.
 3. Login com o usuário criado na seção 7.
+4. **Recarregue (F5) já dentro do portal, numa rota interna como `/modules`.**
+   Tem que continuar funcionando. Se voltar 404, falta `catchall_document:
+   index.html` no componente estático do App Spec.
+
+> **Por que o passo 4 existe.** O portal é uma SPA: o roteamento acontece no
+> navegador. Sem `catchall_document`, o servidor estático só conhece o arquivo
+> `/index.html` — qualquer pedido direto a `/modules`, `/login` ou
+> `/faturamento/notas-fiscais` procura um arquivo naquele caminho, não acha, e
+> devolve 404. Navegar a partir da raiz esconde o problema por completo, porque
+> aí nenhuma rota interna chega ao servidor. Isso passou despercebido até
+> 31/08/2026, quando um Ctrl+Shift+R numa tela interna expôs a falha: a
+> aplicação inteira funcionava, mas nenhum link direto ou F5 funcionava.
 
 ---
 
