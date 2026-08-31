@@ -307,11 +307,29 @@ Gráficos com **Recharts**, seguindo a skill `dataviz`.
 
 ## 6. Fase 5 — Integração ao portal
 
-- Migration de seed: módulo `FATURAMENTO` em `modulos_sistema` (ícone
-  `Receipt`) e as duas telas em `telas_modulo`, no formato de
-  `013_estoque_seed.sql`.
+- Migrations de seed: `019_faturamento_seed.sql` cria o módulo `FATURAMENTO`
+  (ícone `Receipt`, registrado em `lib/icons.ts`) e a tela de Notas Fiscais;
+  `020_faturamento_dashboard_seed.sql` acrescenta a tela de Dashboard. São
+  separadas porque uma linha em `telas_modulo` aparece no menu: só pode existir
+  depois da rota que ela aponta.
 - Rotas em `apps/portal/src/App.tsx`; routers em `apps/api/src/app.ts`.
-- Permissões não exigem código novo: `requirePermissao` já resolve por rota.
+
+### 6.1. Conceder a permissão é um passo manual — e obrigatório
+
+**Criar o módulo não o torna visível.** `buscarPermissoesEfetivas` não tem
+exceção para administrador: o Hub lista apenas módulos com linha em
+`perfis_telas` ou `permissoes_usuario`. Um módulo recém-seedado tem zero
+permissões e fica invisível para todos, inclusive para quem o instalou.
+
+Nenhuma migration do projeto concede permissão — é decisão de negócio, tomada
+em **Configurador → Perfis → [perfil] → marcar as telas → Salvar**. A tela
+lista todas as telas do sistema (`LEFT JOIN perfis_telas`), então a do módulo
+novo aparece desmarcada, pronta para liberar.
+
+Referência de como o módulo Estoque foi liberado: Administrador com as quatro
+ações, Gerente somente visualizar. Faturamento expõe custo, margem e taxa de
+marketplace — mais sensível que estoque, então a liberação foi deixada
+deliberadamente a cargo do administrador, perfil a perfil.
 
 ---
 
