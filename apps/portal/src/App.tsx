@@ -14,6 +14,7 @@ import { PerfilPermissoesPage } from './pages/config/PerfilPermissoesPage';
 import { PerfisPage } from './pages/config/PerfisPage';
 import { UsuariosPage } from './pages/config/UsuariosPage';
 import { CurvaAbcPage } from './pages/estoque/CurvaAbcPage';
+import { NotasFiscaisPage } from './pages/faturamento/NotasFiscaisPage';
 import { ExecucaoDetalhePage } from './pages/integracao/ExecucaoDetalhePage';
 import { ExecucoesPage } from './pages/integracao/ExecucoesPage';
 import { FilaPage } from './pages/integracao/FilaPage';
@@ -73,6 +74,8 @@ export function App() {
             <Route path="/integracao/mercado-livre" element={<MercadoLivrePage />} />
 
             <Route path="/estoque/curva-abc" element={<CurvaAbcPage />} />
+
+            <Route path="/faturamento/notas-fiscais" element={<NotasFiscaisPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/modules" replace />} />

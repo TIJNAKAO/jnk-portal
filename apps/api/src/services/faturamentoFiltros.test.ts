@@ -66,6 +66,33 @@ describe('montarFiltro', () => {
     expect(params).toEqual(['S']);
   });
 
+  test('busca procura em número da NF, cliente e produto ao mesmo tempo', () => {
+    const { where, params } = montarFiltro({ busca: 'makita' });
+
+    expect(where).toContain('nf LIKE ?');
+    expect(where).toContain('dc_clifor LIKE ?');
+    expect(where).toContain('dc_produto LIKE ?');
+    expect(where).toContain('cd_produto LIKE ?');
+    expect(params).toEqual(['S', '%makita%', '%makita%', '%makita%', '%makita%']);
+  });
+
+  test('as alternativas da busca ficam entre parênteses, para não vazar o OR', () => {
+    const { where } = montarFiltro({ busca: 'x', empresas: [1] });
+
+    // Sem os parênteses, `A AND B OR C` traria linhas de outra empresa.
+    expect(where).toContain('(nf LIKE ?');
+    expect(where).toMatch(/\(nf LIKE \?.*\)/);
+  });
+
+  test('busca só com espaços é ignorada', () => {
+    expect(montarFiltro({ busca: '   ' }).params).toEqual(['S']);
+  });
+
+  test('caracteres curinga do LIKE na busca são escapados', () => {
+    // Sem escape, "100%" viraria "qualquer coisa começando com 100".
+    expect(montarFiltro({ busca: '100%' }).params[1]).toBe('%100\\%%');
+  });
+
   test('os parâmetros seguem a mesma ordem em que as condições aparecem no WHERE', () => {
     const filtros: FiltroFaturamento = {
       origens: ['SYSEMP'],

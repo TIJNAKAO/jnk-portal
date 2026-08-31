@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { authRouter } from './routes/auth.js';
 import { avisosRouter } from './routes/avisos.js';
 import { estoqueCurvaAbcRouter } from './routes/estoqueCurvaAbc.js';
+import { faturamentoNotasFiscaisRouter } from './routes/faturamentoNotasFiscais.js';
 import { filiaisRouter } from './routes/filiais.js';
 import { healthRouter } from './routes/health.js';
 import { integracaoExecucoesRouter } from './routes/integracaoExecucoes.js';
@@ -73,6 +74,8 @@ app.use('/api/integracao/parametros-fila', integracaoParametrosFilaRouter);
 app.use('/api/integracao/mercado-livre', mercadoLivreRouter);
 
 app.use('/api/estoque/curva-abc', estoqueCurvaAbcRouter);
+
+app.use('/api/faturamento/notas-fiscais', faturamentoNotasFiscaisRouter);
 
 app.use((req, res) => {
   res.status(404).json({ erro: `Rota não encontrada: ${req.method} ${req.path}` });

@@ -20,6 +20,19 @@ export interface FiltroFaturamento {
   tipoOperacao?: 'S' | 'E' | 'ambos';
   /** `undefined` traz tudo; `true`/`false` restringe a `ctrl_financeiro`. */
   geraFinanceiro?: boolean;
+  /** Texto livre, procurado em número da NF, cliente, código e descrição do produto. */
+  busca?: string;
+}
+
+/** Colunas varridas pela busca livre. */
+const COLUNAS_BUSCA = ['nf', 'dc_clifor', 'cd_produto', 'dc_produto'] as const;
+
+/**
+ * Neutraliza os curingas do LIKE. Sem isso, buscar "100%" traria tudo que
+ * começa com 100, e "_" casaria com qualquer caractere.
+ */
+function escaparLike(termo: string): string {
+  return termo.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 export interface ClausulaFiltro {
@@ -60,6 +73,14 @@ export function montarFiltro(filtros: FiltroFaturamento): ClausulaFiltro {
   if (filtros.geraFinanceiro !== undefined) {
     condicoes.push('ctrl_financeiro = ?');
     params.push(filtros.geraFinanceiro ? 'S' : 'N');
+  }
+
+  const busca = filtros.busca?.trim();
+  if (busca) {
+    // Os parênteses são essenciais: sem eles, `empresa = ? AND a OR b` traria
+    // linhas de outras empresas, porque AND tem precedência sobre OR.
+    condicoes.push(`(${COLUNAS_BUSCA.map((c) => `${c} LIKE ?`).join(' OR ')})`);
+    params.push(...COLUNAS_BUSCA.map(() => `%${escaparLike(busca)}%`));
   }
 
   // `1 = 1` mantém o WHERE sempre válido quando nenhum filtro sobrou.
