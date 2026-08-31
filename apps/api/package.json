@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx db/migrate.ts",
     "cron:sincronizar": "tsx src/scripts/cronSincronizar.ts",
-    "backfill:nf": "tsx src/scripts/backfillNotasFiscais.ts"
+    "backfill:nf": "tsx src/scripts/backfillNotasFiscais.ts",
+    "etl:fatcom:recarregar": "tsx src/scripts/recarregarFatcom.ts"
   },
   "dependencies": {
     "@jnk-portal/shared": "*",

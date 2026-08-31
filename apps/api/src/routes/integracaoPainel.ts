@@ -16,13 +16,27 @@ integracaoPainelRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async 
   const cards = await Promise.all(
     ENTIDADES_INTEGRACAO.map(async (entidade) => {
       const [ultimaExecucao] = await pool.query<RowDataPacket[]>(
-        'SELECT id, status, qtde_registros, executado_em FROM integracao_log WHERE entidade = ? ORDER BY executado_em DESC LIMIT 1',
+        'SELECT id, status, qtde_registros, mensagem, executado_em FROM integracao_log WHERE entidade = ? ORDER BY executado_em DESC LIMIT 1',
         [entidade.chave],
       );
+
+      // Falhas desde o último sucesso. O ETL Fatcom acumulou 94 execuções em
+      // erro sem ninguém notar, porque o card só mostrava "a última falhou" —
+      // indistinguível de um tropeço isolado. Ver spec_modulo_faturamento.md.
+      const [falhas] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS total FROM integracao_log
+         WHERE entidade = ? AND status = 'erro'
+           AND executado_em > COALESCE(
+             (SELECT MAX(executado_em) FROM integracao_log WHERE entidade = ? AND status = 'sucesso'),
+             '1970-01-01 00:00:00')`,
+        [entidade.chave, entidade.chave],
+      );
+
       return {
         chave: entidade.chave,
         nome: entidade.nome,
         ultimaExecucao: ultimaExecucao[0] ?? null,
+        falhasConsecutivas: Number(falhas[0]?.total ?? 0),
       };
     }),
   );

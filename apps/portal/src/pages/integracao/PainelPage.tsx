@@ -1,4 +1,4 @@
-import { Eye, PlayCircle } from 'lucide-react';
+import { AlertTriangle, Eye, PlayCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApi } from '../../lib/useApi';
@@ -7,6 +7,7 @@ interface UltimaExecucao {
   id: number;
   status: 'iniciado' | 'sucesso' | 'erro' | 'cancelado';
   qtde_registros: number | null;
+  mensagem: string | null;
   executado_em: string;
 }
 
@@ -14,6 +15,8 @@ interface CardEntidade {
   chave: string;
   nome: string;
   ultimaExecucao: UltimaExecucao | null;
+  /** Execuções em erro desde o último sucesso — distingue tropeço isolado de integração parada. */
+  falhasConsecutivas: number;
 }
 
 const BADGE_POR_STATUS: Record<string, string> = {
@@ -60,8 +63,27 @@ export function PainelPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => (
-          <div key={card.chave} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5">
+          <div
+            key={card.chave}
+            className={`flex flex-col rounded-xl border bg-white p-5 ${
+              card.falhasConsecutivas >= 3 ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200'
+            }`}
+          >
             <h2 className="font-medium text-slate-900">{card.nome}</h2>
+
+            {/* Uma integração parada há dias mostrava só "a última falhou", indistinguível
+                de um tropeço isolado — foi assim que o ETL Fatcom acumulou 94 falhas. */}
+            {card.falhasConsecutivas >= 3 && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">
+                    {card.falhasConsecutivas} falhas seguidas — sem nenhum sucesso desde então.
+                  </p>
+                  {card.ultimaExecucao?.mensagem && <p className="mt-1 break-words">{card.ultimaExecucao.mensagem}</p>}
+                </div>
+              </div>
+            )}
 
             {card.ultimaExecucao ? (
               <Link to={`/integracao/execucoes/${card.ultimaExecucao.id}`} className="mt-2 flex-1 text-sm text-slate-500 hover:text-slate-700">
