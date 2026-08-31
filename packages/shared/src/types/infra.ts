@@ -42,7 +42,17 @@ export interface UsuarioSessao {
   filiaisPermitidas: Filial[];
   preferencias: UsuarioPreferencias;
   modulosPermitidos: ModuloAcesso[];
-  versaoSistema: string; // Utilizado para validação de cache forçado no cliente
+  /**
+   * Versão da API (`APP_VERSION`). Informativa apenas.
+   *
+   * Já foi a base da recarga forçada, mas não funcionava: era comparada com o
+   * `VITE_APP_VERSION` do portal, e as duas eram constantes fixas do App Spec,
+   * de componentes que compilam separadamente — nunca divergiam, então a
+   * recarga nunca disparava. Quem detecta versão nova hoje é
+   * `apps/portal/src/lib/atualizacao.ts`, comparando o bundle carregado com o
+   * `version.json` do próprio build do portal.
+   */
+  versaoSistema: string;
 }
 
 export type AcaoPermissao = 'podeVisualizar' | 'podeCriar' | 'podeEditar' | 'podeDeletar';
