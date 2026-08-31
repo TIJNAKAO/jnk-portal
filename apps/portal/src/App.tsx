@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShellLayout } from './components/AppShellLayout';
 import { ForceUpdateGuard } from './components/ForceUpdateGuard';
@@ -33,6 +34,15 @@ import { ResponsaveisPage } from './pages/ti/ResponsaveisPage';
 import { SoftwareMaquinasPage } from './pages/ti/SoftwareMaquinasPage';
 import { SoftwaresAprovadosPage } from './pages/ti/SoftwaresAprovadosPage';
 import { TermoEquipamentoPage } from './pages/ti/TermoEquipamentoPage';
+
+/**
+ * Única tela carregada sob demanda: a biblioteca de gráficos sozinha dobra o
+ * bundle (de 85 KB para 205 KB gzip). Quem nunca abre o dashboard não deve
+ * pagar por ele em toda visita ao portal.
+ */
+const DashboardPage = lazy(() =>
+  import('./pages/faturamento/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
 
 export function App() {
   return (
@@ -75,6 +85,14 @@ export function App() {
 
             <Route path="/estoque/curva-abc" element={<CurvaAbcPage />} />
 
+            <Route
+              path="/faturamento/dashboard"
+              element={
+                <Suspense fallback={<p className="p-6 text-sm text-slate-400">Carregando dashboard…</p>}>
+                  <DashboardPage />
+                </Suspense>
+              }
+            />
             <Route path="/faturamento/notas-fiscais" element={<NotasFiscaisPage />} />
           </Route>
 
