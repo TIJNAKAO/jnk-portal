@@ -6,6 +6,13 @@
 --
 -- ORDEM OBRIGATORIA: as FKs impedem qualquer outra. Remover as constraints,
 -- remapear os valores, so entao recriar apontando para config_filial.
+--
+-- ACOPLAMENTO COM O CODIGO: esta migration remove `usuarios_empresas` e
+-- `filiais`. O codigo que ainda le essas tabelas (`services/escopoEmpresas.ts`
+-- e `routes/usuarios.ts`) precisa ter sido substituido ANTES ou no MESMO
+-- deploy que aplica esta migration. Rodar esta migration contra um banco cujo
+-- codigo ainda usa `usuarios_empresas`/`filiais` quebra as rotas de usuario e
+-- o escopo de acesso, com erro de tabela inexistente.
 
 -- ---- 1. Remover as FKs que apontam para filiais ----
 ALTER TABLE usuarios_filiais    DROP FOREIGN KEY usuarios_filiais_ibfk_2;
@@ -35,6 +42,24 @@ UPDATE logs_acesso
 SET filial_id = NULL
 WHERE filial_id IS NOT NULL
   AND filial_id NOT IN (SELECT recno FROM config_filial);
+
+-- ---- Guarda: aborta ANTES de qualquer DELETE se alguma filial nao casar ----
+-- O remapeamento abaixo e destrutivo: apaga os vinculos antigos e insere so os
+-- que casaram. Um nome de filial fora do esperado sumiria em silencio e, num
+-- sistema falha-fechada, tiraria todo o acesso do usuario.
+-- A tabela abaixo so aceita um valor 1: se existir QUALQUER filial sem grupo
+-- correspondente em config_filial, o segundo SELECT devolve mais uma linha 1,
+-- viola a chave primaria e derruba a migration aqui, com o banco intacto.
+CREATE TEMPORARY TABLE guarda_filiais (marca INT PRIMARY KEY);
+INSERT INTO guarda_filiais (marca)
+SELECT 1
+UNION ALL
+SELECT 1 FROM filiais f
+WHERE NOT EXISTS (
+    SELECT 1 FROM config_filial cf
+    WHERE cf.grupo = CASE f.nome WHEN 'JNakao' THEN 'JNK' ELSE f.nome END
+);
+DROP TEMPORARY TABLE guarda_filiais;
 
 -- ---- 3. Migrar os vinculos de usuario ----
 -- Os vinculos atuais sao por grupo (a filial "JNakao" == grupo JNK). Cada
