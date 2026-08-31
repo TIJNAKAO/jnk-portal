@@ -7,91 +7,101 @@ com duas telas: um **Dashboard** filtrável (empresa, marca, canal, datas) e um
 **Relatório de Notas Fiscais** exportável para Excel, no grão de item de NF,
 com apuração de impostos, taxa de marketplace, custo e margem.
 
-O módulo consome o dado que o módulo Integração já sincroniza da SysEmp
-(`Specs/spec_modulo_integracao.md`), que deixou explicitamente pendente o
-"Relatório de Margem" (seção 6.7 daquele spec).
+A base das duas telas é **`etl_fatcom`** — a tabela-fato de faturamento, uma
+linha por item de NF, que é o ponto de consolidação dos dois ERPs da empresa:
+o **SysEmp** (atual) e o **KPL** (legado). A coluna `origem_dados` distingue
+as origens. O módulo Integração (`Specs/spec_modulo_integracao.md`) já previa
+essa tabela e deixou o "Relatório de Margem" explicitamente pendente na sua
+seção 6.7.
 
-### 0.1. Diagnóstico do dado real (31/08/2026)
+### 0.1. Três bugs de produção encontrados no diagnóstico
 
-Antes de desenhar qualquer tela, o banco de produção foi consultado (somente
-leitura). Os números abaixo fundamentam todas as decisões deste spec.
+Antes de desenhar qualquer tela, o banco de produção foi consultado. O que
+apareceu mudou a ordem do trabalho: a fundação de dados estava quebrada em
+três pontos independentes, todos silenciosos.
+
+**Bug 1 — a gravação de NF descartava todo o bloco fiscal.** O consumidor de
+fila criado em 19/08/2026 (`dfee4df`) gravava apenas 8 colunas do item.
+ICMS, ICMS-ST, DIFAL, IPI, PIS, COFINS, FECP, frete seller, comissão e valor
+líquido existiam no schema, vinham no payload da SysEmp e eram jogados fora.
+1.321 itens afetados entre 19/08 e 31/08, crescendo ~1.300/mês.
+
+**Bug 2 — o ETL Fatcom falhava em 100% das execuções.** 94 de 94 execuções em
+erro com `Data too long for column 'cst' at row 300`: 8 itens em 30.389 têm
+CST de 4 caracteres (`"0102"`) contra uma coluna `CHAR(3)`. A carga inteira
+caía de hora em hora desde o deploy, deixando a tabela congelada em 19/08 com
+70% de cobertura.
+
+**Bug 3 — a chave única colidia.** 8.205 notas sem número (`nota_numero` = `''`
+ou `'0'`) compartilhavam a mesma chave `(empresa, número, série)` e se
+sobrescreviam: 7.232 linhas silenciosamente substituídas por outras.
+
+Nenhum dos três gerou alarme. Todos foram descobertos porque fomos olhar o
+dado. O padrão comum — descarte silencioso — é o que a seção 2.5 endereça.
+
+### 0.2. O dado real (31/08/2026)
 
 | Medida | Valor |
 |---|---|
-| Notas fiscais | 30.752 (29.903 saídas, 849 entradas) |
+| Notas fiscais | 30.763 (29.903 saídas, 849 entradas) |
 | Itens de NF | 34.813 |
+| Notas autorizadas pela SEFAZ | 20.870 |
 | Período coberto | 12/01/2026 a 31/08/2026 |
 | Volume corrente | ~6.000 itens/mês |
-| Empresas | 9 (grupos JNK, NK2, CNK2) |
+| Empresas SysEmp | 9 — mas apenas **3 CNPJs distintos** |
 | Canais de venda | 19 (marketplaces + BALCAO) |
 | Marcas | 262 (com padding de espaços — exige `TRIM`) |
-| Notas canceladas | 819 (`status_nota = '101'`) |
-| Devoluções | ~150/mês, `valor_nota` negativo |
-| Histórico legado `bkpkpl_*` | 838.974 notas / 1.047.585 itens |
+| Cobertura de custo | `custo_formacao` 77%, `custo_medio` 64% |
+| Legado KPL | 838.974 notas, 17/08/2017 a 04/03/2026 |
 
-**Impostos efetivamente usados** (dos itens com bloco fiscal): PIS/COFINS
-33.413 · ICMS 21.428 · DIFAL 15.411 · IPI 4.388 · FECP 440 · ICMS-ST 219.
+**Impostos efetivamente usados:** PIS/COFINS 33.413 · ICMS 21.428 ·
+DIFAL 15.411 · IPI 4.388 · FECP 440 · ICMS-ST 219.
 
-**Cobertura de custo** sobre os itens vendidos: `custo_formacao` 77%,
-`custo_medio` 64%. Nenhum dos dois cobre tudo.
-
-**`etl_fatcom` está defasado** — 24.305 linhas, parando em 06/08. Por isso o
-módulo lê direto de `sysemp_nota_fiscal` + `sysemp_nota_fiscal_item`, que são
-a fonte viva e completa, e **não** da camada ETL.
-
-### 0.2. A regressão fiscal encontrada
-
-O diagnóstico revelou um bug de produção anterior a este módulo:
-
-| Grupo | Itens | Emissão | `synced_at` | `id_nota_saida` |
-|---|---|---|---|---|
-| Com bloco fiscal | 33.492 | 12/01 → 19/08 | desde 29/07 | 186 → 109.157 |
-| **Sem** bloco fiscal | 1.321 | 18/08 → 31/08 | desde **19/08 17:30** | 109.161 → 153.861 |
-
-O corte coincide com o commit `dfee4df` (19/08/2026), que criou o consumidor
-de fila atual. Esse consumidor gravava apenas 8 colunas do item e descartava
-ICMS, ICMS-ST, DIFAL, IPI, PIS, COFINS, FECP, frete seller, comissão e valor
-líquido — colunas que **já existiam** no schema e **já vinham** no payload da
-SysEmp. Os 33.492 itens completos vieram da carga do projeto anterior.
-
-**Causa raiz:** os nomes dos campos no payload não seguem o padrão das colunas
-de destino, e a versão anterior foi escrita por inferência, sem validação
-contra uma resposta real. A correção está na seção 2.
+**Sobreposição de períodos:** o KPL vai até março/2026 e a SysEmp começa em
+janeiro/2026. São ~2 meses de sobreposição — risco de dupla contagem quando os
+fatos do KPL forem carregados.
 
 ---
 
 ## 1. Decisões validadas
 
-Decisões tomadas com o cliente, com a justificativa que as sustenta.
+1. **Base dos relatórios: `etl_fatcom`**, não as tabelas `sysemp_*` direto.
+   É onde os dois ERPs se consolidam.
+2. **Corrigir a fundação antes das telas** — Fases 1 e 1b.
+3. **Custo:** `custo_formacao` com fallback para `custo_medio`, por produto **e**
+   empresa, **congelado** na linha do fato. Sem custo, a margem sai **vazia**,
+   nunca zero — zero seria lido como "margem nula" em vez de "custo desconhecido".
+4. **Só entra no fato o que a SEFAZ autorizou** (protocolo presente).
+   Canceladas nunca entram; devoluções entram e ficam sob filtro.
+5. **Líquido e margem calculados na camada de consulta**, com dedução
+   explícita — não se usa o `vr_item_liq` da SysEmp (ver 3.2).
+6. **Fatos do KPL ficam para depois**; a dimensão de empresa já é consolidada
+   agora (seção 2.6).
+7. **Dashboard:** KPIs + evolução mensal, ranking por canal e marca, análise de
+   margem, distribuição por UF.
 
-1. **Fonte de dados: tabelas `sysemp_nota_fiscal` e `sysemp_nota_fiscal_item`
-   diretamente**, não `etl_fatcom` — a camada ETL está defasada e incompleta.
-2. **A regressão fiscal é corrigida primeiro**, antes de qualquer tela. Sem
-   isso o relatório nasceria correto até 19/08 e vazio dali em diante.
-3. **Custo:** `custo_formacao` com fallback para `custo_medio`
-   (`sysemp_estoque_fisico`, por produto **e** empresa). Cobre o máximo
-   possível; quando não há custo, a margem sai **vazia**, nunca zero — zero
-   seria lido como "margem nula" em vez de "custo desconhecido".
-4. **Canceladas nunca entram**; devoluções ficam sob um filtro "Tipo de
-   operação" (só saídas por padrão).
-5. **Líquido e margem são calculados no portal**, com dedução explícita —
-   não se usa o `vr_item_liq` da SysEmp (ver 3.2).
-6. **Histórico legado fica de fora**, mas a camada de consulta é desenhada
-   para aceitar uma segunda origem sem reescrita.
-7. **Dashboard cobre:** KPIs + evolução mensal, ranking por canal e marca,
-   análise de margem, e distribuição por UF.
+### 1.1. Insumos no fato, derivados na consulta
+
+`etl_fatcom` materializa **fatos** — impostos, custo unitário congelado,
+comissão, frete seller. LÍQUIDO, MARGEM e % MARGEM são **regras**, calculadas
+na camada de consulta.
+
+A razão é prática: fórmula dentro de SQL de ETL é difícil de testar, e mudar a
+definição de margem exigiria reprocessar a tabela inteira. Com a separação, as
+fórmulas ficam num único lugar em TypeScript, cobertas por teste, e um ajuste
+de regra vira deploy em vez de recarga.
 
 ---
 
-## 2. Fase 1 — Correção da gravação de Notas Fiscais
+## 2. Fase 1 e 1b — Correção da fundação
 
-**Status: implementada e aplicada em produção em 31/08/2026.**
+**Status: implementadas, aplicadas em produção e publicadas em 31/08/2026.**
 
 ### 2.1. Validação contra o payload real
 
-Primeiro passo obrigatório, e exatamente o que faltou na versão anterior: três
-NFs reais de produção foram consultadas via `/listarNotasFiscais` — uma de
-balcão sem imposto, uma de marketplace interestadual com DIFAL, e uma de
+Primeiro passo, e exatamente o que faltou na versão que introduziu o Bug 1:
+três NFs reais de produção foram consultadas via `/listarNotasFiscais` — uma
+de balcão sem imposto, uma de marketplace interestadual com DIFAL, e uma de
 marketplace com IPI.
 
 Os nomes confirmados **não** seguem o padrão das colunas:
@@ -108,108 +118,147 @@ Os nomes confirmados **não** seguem o padrão das colunas:
 | `chave_nfe` / `protocolo_nfe` | `chavenfe` / `protocolonfe` |
 
 Particularidades de formato tratadas: `gera_financeiro` chega como `"S"`/`"N"`
-(coluna é `BOOLEAN`); datas de cancelamento chegam como
-`"2026-08-30 22:41:55.99543"`, que `DATETIME` não aceita; ids sem vínculo
-chegam como `0`/`"0"` em vez de nulo.
+(coluna é `BOOLEAN`); datas de cancelamento vêm como
+`"2026-08-30 22:41:55.99543"`, que `DATETIME` não aceita; ids sem vínculo vêm
+como `0`.
 
-### 2.2. Alterações de schema — `016_nf_campos_fiscais.sql`
+### 2.2. Gravação de NF — `016_nf_campos_fiscais.sql`
 
-As colunas fiscais já existiam. Foram criadas apenas as que o payload traz e
-não tinham destino:
+As colunas fiscais já existiam. Criadas apenas as que o payload traz e não
+tinham destino: no item, `valor_unitario_liquido` e `quantidade_reservada`; no
+cabeçalho, `tipo_documento`, `tipo_pedido`, `numero_pedido_marketplace`,
+`data_pedido`, `data_venda`, `data_entrega` e `mensagem_nota`. Mais o índice
+`idx_canal_venda`.
 
-- **Item:** `valor_unitario_liquido`, `quantidade_reservada`
-- **Cabeçalho:** `tipo_documento`, `tipo_pedido`,
-  `numero_pedido_marketplace`, `data_pedido`, `data_venda`, `data_entrega`,
-  `mensagem_nota`
-- **Índice:** `idx_canal_venda` — canal é o eixo principal do dashboard e não
-  tinha índice
+O consumidor passou a persistir o payload inteiro: **46 colunas no item, 62 no
+cabeçalho**. O `INSERT` e o `ON DUPLICATE KEY UPDATE` são gerados de um único
+mapa coluna→valor — foi a divergência entre essas duas listas escritas à mão
+que deixou o Bug 1 passar.
 
-Aliases deliberadamente **não** duplicados em coluna nova (mesmo significado,
-nome diferente no payload; resolvidos por `COALESCE` no consumidor):
-`item.valor_comissao` → `valor_comissao_ml`; `item.valor_frete` → `vr_frete`;
-`valor_total_nota` → `valor_nota`; `codigo_empresa`/`codigo_cliente`/
-`codigo_vendedor`/`codigo_transportadora` → seus respectivos `id_*`.
+**Backfill:** `npm run backfill:nf` rebusca e regrava notas já consumidas. Não
+passa pela fila de propósito, porque esses eventos já foram confirmados na
+SysEmp e não voltariam sozinhos. Critério `valor_icms IS NULL`, que distingue
+"não gravado" de imposto zero legítimo. Executado: **1.190 notas, 0 falhas, 25
+cancelamentos recuperados**.
 
-### 2.3. Reescrita do consumidor
+### 2.3. ETL Fatcom — `017_fatcom_correcao.sql`
 
-`apps/api/src/services/sysemp/entidades/notasFiscais.ts` passa a persistir o
-payload inteiro: **46 colunas no item** e **62 no cabeçalho**.
+**Larguras.** `cst` de `CHAR(3)` para `VARCHAR(4)` (a causa das 94 falhas);
+`dc_filial` de 25 para 100 — truncava razões sociais de até 60 caracteres, e
+"Empresa" é a primeira coluna do relatório; `dc_clifor`, `dc_produto` e `um`
+passam a acompanhar a origem.
 
-O `INSERT ... ON DUPLICATE KEY UPDATE` é montado a partir de um mapa
-coluna→valor (`montarUpsert`), em vez de duas listas SQL escritas à mão. Foi
-justamente o descompasso entre essas duas listas que permitiu ao bug anterior
-passar despercebido: agora elas não podem divergir.
+**Colunas novas.** `vt_fecp`; `vu_custo` (nulável, para distinguir custo
+desconhecido de custo zero); `ref_pendente`.
 
-Helpers acrescentados em `dbUtil.ts`: `simNao` (`"S"`/`"N"` → boolean),
-`dataHoraSysemp` (normaliza fração de segundo e timezone) e `inteiroNaoZero`
-(trata `0` como ausência de vínculo).
+**Reescrita do ETL:**
+- `LEFT JOIN` em vez de `INNER JOIN`, com `ref_pendente` marcando cliente ou
+  produto ainda não sincronizado. Antes, esses itens sumiam da soma sem aviso.
+- Custo congelado: `vu_custo` e `vt_custo` ficam fora do `ON DUPLICATE KEY
+  UPDATE`, então a margem de um mês fechado não muda quando o custo sobe.
+- Canceladas excluídas, com limpeza retroativa de notas canceladas após já
+  terem sido carregadas.
+- `vt_nota` recebe o total da **nota**, repetido em cada item (antes recebia o
+  total do item). Somar essa coluna duplica em notas multi-item — o relatório
+  sinaliza.
+- Comissão e frete seller por item, com rateio pró-rata do cabeçalho como
+  fallback. Como 93% das notas têm um único item, o rateio quase não atua.
+- `LEFT()` em toda coluna de texto, para que dado fora do formato estrague uma
+  célula em vez de parar o faturamento do mês.
 
-### 2.4. Backfill
+### 2.4. Critério de faturamento e recuperação do número da NF
 
-`apps/api/src/scripts/backfillNotasFiscais.ts` (`npm run backfill:nf`)
-rebusca e regrava as notas afetadas. Não passa pela fila de propósito: os
-eventos dessas notas já foram consumidos e confirmados na SysEmp, então não
-voltariam sozinhos.
+Só entram notas **autorizadas pela SEFAZ** (`protocolo_nfe` presente). As
+8.205 notas sem número eram majoritariamente pré-notas ainda não emitidas
+(R$ 1,37 milhão, sem protocolo) e colidiam todas na mesma chave única.
 
-Critério de seleção: `valor_icms IS NULL`. Distingue com precisão o que a
-versão antiga não gravou (`NULL`) de imposto zero legítimo (`0.0000`) — uma
-nota de balcão com ICMS zero tem a coluna preenchida com zero, não nula.
+Restavam 89 notas autorizadas mas sem número gravado, que colidiam entre si.
+Para essas, número e série são extraídos da **chave de acesso da NF-e**, que os
+carrega em posição fixa (série nos dígitos 23–25, número nos 26–34). A
+extração foi conferida contra as 22.523 notas que têm número **e** chave:
+**bate em 100%**.
 
-É idempotente e aceita `--dry-run` e `--limite N`.
+**Resultado da recarga:** 24.494 linhas, cobertura **100%** dos itens
+elegíveis, zero colisões, custo unitário em 76%, período indo até 31/08 (antes
+parava em 06/08).
+
+### 2.5. Tornar a falha visível
+
+Os três bugs sobreviveram porque nada os denunciava. O Painel de Integrações
+mostrava apenas "a última execução falhou" — indistinguível de um tropeço
+isolado. Agora o card exibe **falhas consecutivas desde o último sucesso**, com
+destaque visual a partir de três. Noventa e quatro falhas seguidas deixam de
+ser algo que só aparece para quem for procurar.
+
+### 2.6. Consolidação da dimensão empresa — `018_etl_empresa_kpl.sql`
+
+`etl_empresa` tinha apenas as 9 linhas SysEmp. As 4 filiais do KPL entram como
+**seed**, não como ETL: o vínculo entre código de unidade de negócio e CNPJ não
+existe em nenhuma tabela `bkpkpl_*` — é conhecimento de negócio. E o KPL está
+congelado desde 04/03/2026, então esses dados não mudam mais.
+
+| origem | grupo | cd_filial | dc_filial | CNPJ |
+|---|---|---|---|---|
+| KPL | JNK | 1 | JNK Barueri | 53.794.996/0001-10 |
+| KPL | NK2 | 2 | NK2 Barueri | 19.933.110/0001-34 |
+| KPL | JNK | 3 | JNK Louveira | 53.794.996/0004-63 |
+| KPL | JNK | 4 | JNK Pinheiro | 53.794.996/0003-82 |
+
+A chave é `(origem_dados, cd_filial)` e o **CNPJ aparece repetido entre as
+origens de propósito**: o join a partir de `etl_fatcom` é sempre por origem +
+filial. O CNPJ fica como atributo, para agrupar a mesma pessoa jurídica entre
+os dois ERPs quando o relatório quiser essa visão.
+
+**Descoberta relevante:** na SysEmp, as 9 "empresas" são apenas **3 CNPJs**.
+O CNPJ 53.794.996/0003-82 aparece cinco vezes (ids 2, 5, 6, 7 e 8) — uma linha
+por conta de fulfillment de marketplace. "Empresa" na SysEmp é uma unidade
+operacional, não uma pessoa jurídica. JNK Louveira existe só no KPL.
+
+**Armadilha registrada para a futura carga dos fatos KPL:** em
+`bkpkpl_nf_saida`, a coluna `nf_cod_interno_da_unidade_de_negocio` **não é
+confiável** como chave — o código 3 aponta para "FBM" em quase todo o
+histórico mas para "PDV" em 3.093 notas de 2020, e 926 notas vêm sem código. A
+identidade correta é o **nome** da unidade:
+
+```
+'J NAKAO LTDA'                                    -> cd_filial 1 (JNK Barueri)
+'NK2 IMPORTACAO E EXPORTACAO DE FERRAMENTAS LTDA' -> cd_filial 2 (NK2 Barueri)
+'CASA J NAKAO LT - FBM'                           -> cd_filial 3 (JNK Louveira)
+'CASA J NAKAO LT - PDV'                           -> cd_filial 4 (JNK Pinheiro)
+```
 
 ---
 
 ## 3. Fase 2 — Camada de consulta
 
-`apps/api/src/services/faturamento.ts`. Uma consulta base única, compartilhada
-pelas duas telas, unindo cabeçalho + item + empresa + parceiro + produto +
-custo.
+`apps/api/src/services/faturamento.ts`, lendo `etl_fatcom` — uma tabela, sem
+joins. Empresa, marca, canal e datas já são colunas do fato.
 
-### 3.1. Filtros e regras fixas
+### 3.1. Filtros
 
-**Filtros:** empresas, marcas (com `TRIM`), canais, período, tipo de operação,
-e "gera financeiro".
-
-**Regras sempre aplicadas:**
-- Exclui canceladas: `status_nota = '101'` **ou** `data_cancelamento_nfe`
-  preenchida. A segunda condição é a confiável — `status_nota` fica vazio em
-  7.602 notas.
-- Exclui `deleted = TRUE` em cabeçalho e item.
-- Padrão `entrada_saida = 'S'`; devoluções entram só via filtro.
-
-**Custo:** `COALESCE(NULLIF(custo_formacao,0), NULLIF(custo_medio,0))`,
-casado por `id_produto` **e** `id_empresa`.
-
-**Comissão e frete seller:** usa o valor por item (`valor_comissao_ml`,
-`frete_seller`); quando ausente, rateia o valor do cabeçalho
-proporcionalmente a `vr_total_bruto / total_produtos`. Como 93% das notas têm
-um único item, o rateio raramente entra em ação.
+Empresas, marcas, canais, período, tipo de operação (saídas por padrão) e
+"gera financeiro" (`ctrl_financeiro`). Origem (`SYSEMP`/`KPL`) fica disponível
+para quando os fatos do KPL existirem.
 
 ### 3.2. Fórmulas
 
 ```
-LÍQUIDO  = Vlr Total Mercadoria − ICMS − ICMS ST − IPI − PIS − COFINS − DIFAL
-                                − Comissão Marketplace − Frete Seller
-MARGEM   = LÍQUIDO − (Custo Unitário × Qtde)
-% MARGEM = MARGEM ÷ Vlr Total Mercadoria
+LÍQUIDO  = vt_merc − vt_icms − vt_icms_st − vt_ipi − vt_pis − vt_cofins
+                   − vt_icms_difal − vt_fecp − vt_tx_fatur − vt_add_frete
+MARGEM   = LÍQUIDO − vt_custo
+% MARGEM = MARGEM ÷ vt_merc
 ```
 
-`MARGEM` e `% MARGEM` ficam **nulas** quando não há custo para o item.
+`MARGEM` e `% MARGEM` ficam **nulas** quando `vu_custo` é nulo.
 
-> **Não usar `vr_item_liq` como valor líquido.** A sonda de payload provou que
-> ele é base de ICMS, não receita líquida:
+> **Não usar `vt_liquido` como valor líquido.** Ele carrega o `vr_item_liq` da
+> SysEmp, que é base de ICMS, não receita líquida. A sonda de payload provou:
 > ```
-> NF 124992: 727,95 − 37,00 (desconto) + 8,00 (frete)              = 698,95
+> NF 124992: 727,95 − 37,00 (desconto) + 8,00 (frete)               = 698,95
 > NF 114165: 166,67 − 12,22 (desconto) + 23,99 (frete) + 9,28 (IPI) = 187,72
 > ```
-> Ou seja, `mercadoria − desconto + frete + IPI`. Usá-lo como líquido
-> comercial produziria margem errada para mais.
-
-### 3.3. Preparação para o legado
-
-A consulta base fica atrás de uma função que recebe a origem dos dados. Hoje
-existe só `'SYSEMP'`; acrescentar `'KPL'` (as tabelas `bkpkpl_*`) no futuro é
-somar um segundo `SELECT` na união, sem tocar em rota nem em tela.
+> Ou seja, `mercadoria − desconto + frete + IPI`. Usá-lo como líquido comercial
+> inflaria a margem.
 
 ---
 
@@ -217,25 +266,21 @@ somar um segundo `SELECT` na união, sem tocar em rota nem em tela.
 
 **Rota:** `/faturamento/notas-fiscais` · **API:** `/api/faturamento/notas-fiscais`
 
-Três endpoints, no mesmo padrão de `estoqueCurvaAbc`: `/filtros`, `/`
-(paginado) e `/exportar` (ExcelJS).
+Três endpoints no padrão de `estoqueCurvaAbc`: `/filtros`, `/` (paginado) e
+`/exportar` (ExcelJS).
 
-### 4.1. Colunas
-
-Empresa · Data do faturamento · Número da NF · Série · Nome do cliente · UF do
-cliente · Código do produto · Descrição do produto · **Marca** · **Canal** ·
-Quantidade · Valor unitário · Valor total mercadoria · Valor ICMS · Valor ICMS
-ST · Valor IPI · Valor PIS · Valor COFINS · Valor DIFAL · **Valor FECP** ·
-Valor Total da NF · Valor Frete Seller · Valor da Taxa do Marketplace ·
+**Colunas:** Empresa · Data do faturamento · Número da NF · Série · Nome do
+cliente · UF do cliente · Código do produto · Descrição do produto · Marca ·
+Canal · Quantidade · Valor unitário · Valor total mercadoria · Valor ICMS ·
+Valor ICMS ST · Valor IPI · Valor PIS · Valor COFINS · Valor DIFAL · Valor
+FECP · Valor Total da NF · Valor Frete Seller · Valor da Taxa do Marketplace ·
 Valor líquido · Custo unitário · Margem · % da margem.
 
-`Marca` e `Canal` foram acrescentados por serem filtros do relatório — sem
-eles quem recebe a planilha não consegue reagrupar. `FECP` vem da versão
-anterior deste spec.
+`Marca` e `Canal` foram acrescentados por serem filtros do relatório — sem eles
+quem recebe a planilha não consegue reagrupar. `FECP` vem da versão anterior
+deste spec.
 
-### 4.2. Performance
-
-~6.000 itens/mês, ~72.000 no ano. Export síncrono é adequado; acima de 100.000
+**Performance:** ~6.000 itens/mês. Export síncrono é adequado; acima de 100.000
 linhas a tela avisa antes de gerar.
 
 ---
@@ -244,18 +289,17 @@ linhas a tela avisa antes de gerar.
 
 **Rota:** `/faturamento/dashboard` · **API:** `/api/faturamento/dashboard`
 
-Um único endpoint devolve todas as agregações sobre os mesmos filtros, para
-evitar seis idas ao servidor.
+Um único endpoint devolve todas as agregações sobre os mesmos filtros.
 
 - **KPIs:** faturamento bruto, devoluções, líquido, qtde de NFs, ticket médio,
   margem %, e **cobertura de custo** — o percentual de itens sobre os quais a
   margem foi calculável. Indicador de honestidade do próprio painel.
 - **Evolução mensal** de faturamento e margem.
 - **Ranking por canal e por marca.**
-- **Análise de margem:** margem % por canal e marca, melhores e piores
-  produtos.
-- **Distribuição por UF** — relevante porque 15.411 itens têm DIFAL, ou seja,
-  operação interestadual é parte grande do negócio.
+- **Análise de margem:** margem % por canal e marca, melhores e piores produtos.
+- **Distribuição por UF** — relevante porque 15.411 itens têm DIFAL.
+- **"Atualizado em"**, vindo de `MAX(atualizado_em)`: o dado é do último ETL,
+  não ao vivo.
 
 Gráficos com **Recharts**, seguindo a skill `dataviz`.
 
@@ -273,25 +317,27 @@ Gráficos com **Recharts**, seguindo a skill `dataviz`.
 
 ## 7. Testes
 
-O repositório não tem infraestrutura de teste. Este módulo introduz
-**Vitest** cobrindo apenas a camada de cálculo — fórmulas de líquido e margem,
-rateio de comissão, fallback de custo e exclusão de canceladas. Não cobre UI
-nem banco.
+O repositório não tem infraestrutura de teste. Este módulo introduz **Vitest**
+cobrindo apenas a camada de cálculo — fórmulas de líquido e margem, exclusão de
+canceladas, tratamento de custo ausente. Não cobre UI nem banco.
 
-A justificativa é o próprio histórico: a regressão da seção 0.2 passou dez
-dias em produção sem ninguém perceber, porque nada verificava o resultado da
-gravação. Cálculo de margem errado é igualmente silencioso — chega errado numa
-reunião, não num log de erro.
+A justificativa é o próprio histórico desta spec: três bugs sobreviveram em
+produção porque nada verificava o resultado. Cálculo de margem errado é
+igualmente silencioso — chega errado numa reunião, não num log de erro.
 
 ---
 
 ## 8. Pendências conhecidas
 
-1. **`etl_fatcom` continua defasado.** Este módulo não depende mais dele, mas
-   ele segue alimentando o registro de integrações e para eventual consumo
-   externo (Excel/Power BI). Decidir se é atualizado, corrigido ou aposentado.
-2. **Cobertura de custo de 77%.** Um quarto dos itens vendidos sai sem margem.
-   Melhorar isso depende da SysEmp, não do portal.
-3. **7.602 notas sem `status_nota`.** O filtro de canceladas usa
-   `data_cancelamento_nfe` como sinal principal justamente por isso, mas vale
-   entender por que o status vem vazio.
+1. **Fatos do KPL** — 838.974 notas e 1.047.585 itens ainda fora de
+   `etl_fatcom`. A dimensão de empresa já está pronta (2.6) e a armadilha do
+   código de unidade de negócio está documentada. Vira spec própria.
+2. **Sobreposição jan–mar/2026** entre os dois ERPs precisa ser resolvida antes
+   da carga do KPL, sob risco de dupla contagem.
+3. **Cobertura de custo de 76%.** Um quarto dos itens vendidos sai sem margem;
+   melhorar isso depende da SysEmp.
+4. **7.310 pré-notas** (R$ 1,37 milhão) ficam fora do faturamento por não
+   terem autorização da SEFAZ. Se muitas nunca forem autorizadas, vale
+   entender por quê.
+5. **`dc_fantasia` truncado em 25 caracteres** em `etl_empresa` produz rótulos
+   como "FULL ML CNK2 COM, IMP E E". Cosmético, mas aparece em filtro.
