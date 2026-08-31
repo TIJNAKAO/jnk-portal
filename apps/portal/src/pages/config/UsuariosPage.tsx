@@ -30,29 +30,50 @@ interface FormState {
   whatsapp: string;
   filiaisIds: number[];
   perfisIds: number[];
+  /** Empresas do ERP, no formato "SYSEMP:2". */
+  empresas: string[];
 }
 
-const FORM_VAZIO: FormState = { nome: '', email: '', senha: '', whatsapp: '', filiaisIds: [], perfisIds: [] };
+/** Empresa do ERP disponivel para vinculo — vem consolidada de SysEmp e KPL. */
+interface EmpresaErp {
+  valor: string;
+  origem: string;
+  grupo: string;
+  nome: string;
+}
+
+const FORM_VAZIO: FormState = {
+  nome: '',
+  email: '',
+  senha: '',
+  whatsapp: '',
+  filiaisIds: [],
+  perfisIds: [],
+  empresas: [],
+};
 
 export function UsuariosPage() {
   const api = useApi();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [filiais, setFiliais] = useState<Filial[]>([]);
   const [perfis, setPerfis] = useState<Perfil[]>([]);
+  const [empresasErp, setEmpresasErp] = useState<EmpresaErp[]>([]);
   const [editando, setEditando] = useState<Usuario | null>(null);
   const [form, setForm] = useState<FormState>(FORM_VAZIO);
   const [formAberto, setFormAberto] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   async function carregar() {
-    const [u, f, p] = await Promise.all([
+    const [u, f, p, e] = await Promise.all([
       api<Usuario[]>('/usuarios'),
       api<Filial[]>('/filiais'),
       api<Perfil[]>('/perfis'),
+      api<EmpresaErp[]>('/usuarios/empresas-erp'),
     ]);
     setUsuarios(u);
     setFiliais(f);
     setPerfis(p);
+    setEmpresasErp(e);
   }
 
   useEffect(() => {
@@ -66,15 +87,31 @@ export function UsuariosPage() {
     setErro(null);
   }
 
-  function abrirEdicao(usuario: Usuario) {
+  async function abrirEdicao(usuario: Usuario) {
     setEditando(usuario);
-    setForm({ nome: usuario.nome, email: usuario.email, senha: '', whatsapp: usuario.whatsapp ?? '', filiaisIds: [], perfisIds: [] });
     setFormAberto(true);
     setErro(null);
+    // Empresas vem marcadas com o que ja esta vinculado: diferente de filial e
+    // perfil, aqui desmarcar tudo e uma acao valida (tirar todo o acesso), e
+    // "vazio = manter" esconderia isso do administrador.
+    const empresas = await api<string[]>(`/usuarios/${usuario.id}/empresas-erp`).catch(() => [] as string[]);
+    setForm({
+      nome: usuario.nome,
+      email: usuario.email,
+      senha: '',
+      whatsapp: usuario.whatsapp ?? '',
+      filiaisIds: [],
+      perfisIds: [],
+      empresas,
+    });
   }
 
   function alternarSelecao(lista: number[], id: number): number[] {
     return lista.includes(id) ? lista.filter((v) => v !== id) : [...lista, id];
+  }
+
+  function alternarEmpresa(valor: string): string[] {
+    return form.empresas.includes(valor) ? form.empresas.filter((v) => v !== valor) : [...form.empresas, valor];
   }
 
   async function salvar(e: React.FormEvent) {
@@ -86,6 +123,8 @@ export function UsuariosPage() {
         if (form.senha) body.senha = form.senha;
         if (form.filiaisIds.length > 0) body.filiaisIds = form.filiaisIds;
         if (form.perfisIds.length > 0) body.perfisIds = form.perfisIds;
+        // Sempre enviado, inclusive vazio: e assim que se remove todo o acesso.
+        body.empresas = form.empresas;
         await api(`/usuarios/${editando.id}`, { method: 'PUT', body });
       } else {
         await api('/usuarios', { method: 'POST', body: form });
@@ -177,6 +216,39 @@ export function UsuariosPage() {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div>
+            <p className="mb-1 text-sm font-medium text-slate-700">Empresas do ERP</p>
+            <p className="mb-2 text-xs text-slate-500">
+              Quais empresas este usuário vê nos relatórios de Faturamento e Estoque. Diferente de Filial, que define a
+              unidade organizacional. <strong>Nenhuma marcada significa nenhum acesso a dado do ERP.</strong>
+            </p>
+            {Object.entries(
+              empresasErp.reduce<Record<string, EmpresaErp[]>>((acc, empresa) => {
+                (acc[`${empresa.origem} · ${empresa.grupo}`] ??= []).push(empresa);
+                return acc;
+              }, {}),
+            ).map(([grupo, lista]) => (
+              <div key={grupo} className="mb-2">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">{grupo}</p>
+                <div className="flex flex-wrap gap-2">
+                  {lista.map((empresa) => (
+                    <label
+                      key={empresa.valor}
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.empresas.includes(empresa.valor)}
+                        onChange={() => setForm({ ...form, empresas: alternarEmpresa(empresa.valor) })}
+                      />
+                      {empresa.nome}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div>

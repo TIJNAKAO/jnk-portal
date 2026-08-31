@@ -6,7 +6,8 @@ import {
   calcularPercentualMargem,
   type InsumosFaturamento,
 } from './faturamentoCalculos.js';
-import { montarFiltro, type FiltroFaturamento } from './faturamentoFiltros.js';
+import { montarFiltroComEscopo, type FiltroFaturamento } from './faturamentoFiltros.js';
+import { condicaoEscopo, type EmpresaPermitida } from './escopoEmpresas.js';
 
 /**
  * Consultas do módulo Faturamento sobre `etl_fatcom` — a tabela-fato que
@@ -114,11 +115,12 @@ function aplicarDerivados(linha: LinhaFaturamento): LinhaRelatorio {
 
 export async function buscarLinhasPaginadas(
   filtros: FiltroFaturamento,
+  escopo: EmpresaPermitida[],
   pagina: number,
   tamanhoPagina: number,
   ordenacao: Ordenacao = {},
 ): Promise<{ linhas: LinhaRelatorio[]; total: number }> {
-  const { where, params } = montarFiltro(filtros);
+  const { where, params } = montarFiltroComEscopo(filtros, escopo);
 
   const [totalRows] = await pool.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS total FROM etl_fatcom WHERE ${where}`,
@@ -136,9 +138,10 @@ export async function buscarLinhasPaginadas(
 
 export async function buscarLinhasCompletas(
   filtros: FiltroFaturamento,
+  escopo: EmpresaPermitida[],
   ordenacao: Ordenacao = {},
 ): Promise<LinhaRelatorio[]> {
-  const { where, params } = montarFiltro(filtros);
+  const { where, params } = montarFiltroComEscopo(filtros, escopo);
   const [linhas] = await pool.query<LinhaFaturamento[]>(
     `${SELECT_LINHA} WHERE ${where} ${montarOrderBy(ordenacao)}`,
     params,
@@ -210,8 +213,13 @@ const SELECT_AGREGADO = `${somasSql()}, ${somasSql(COM_CUSTO)},
     COUNT(*) AS itens,
     COALESCE(SUM(${COM_CUSTO}), 0) AS itens_com_custo`;
 
-async function agregarPor(coluna: string, filtros: FiltroFaturamento, limite = 15): Promise<AgregadoFaturamento[]> {
-  const { where, params } = montarFiltro(filtros);
+async function agregarPor(
+  coluna: string,
+  filtros: FiltroFaturamento,
+  escopo: EmpresaPermitida[],
+  limite = 15,
+): Promise<AgregadoFaturamento[]> {
+  const { where, params } = montarFiltroComEscopo(filtros, escopo);
   const [linhas] = await pool.query<RowDataPacket[]>(
     `SELECT ${coluna} AS rotulo, ${SELECT_AGREGADO}
      FROM etl_fatcom WHERE ${where}
@@ -242,8 +250,8 @@ export interface ResumoFaturamento {
   atualizadoEm: Date | null;
 }
 
-export async function buscarResumo(filtros: FiltroFaturamento): Promise<ResumoFaturamento> {
-  const { where, params } = montarFiltro(filtros);
+export async function buscarResumo(filtros: FiltroFaturamento, escopo: EmpresaPermitida[]): Promise<ResumoFaturamento> {
+  const { where, params } = montarFiltroComEscopo(filtros, escopo);
 
   const [totaisRows] = await pool.query<RowDataPacket[]>(
     `SELECT ${SELECT_AGREGADO},
@@ -257,7 +265,7 @@ export async function buscarResumo(filtros: FiltroFaturamento): Promise<ResumoFa
 
   // Devoluções vêm de fora do filtro de operação — o KPI as mostra ao lado do
   // bruto, mesmo quando a tela está vendo só saídas.
-  const filtroDevolucoes = montarFiltro({ ...filtros, tipoOperacao: 'E' });
+  const filtroDevolucoes = montarFiltroComEscopo({ ...filtros, tipoOperacao: 'E' }, escopo);
   const [devolucoesRows] = await pool.query<RowDataPacket[]>(
     `SELECT COALESCE(SUM(vt_merc), 0) AS total FROM etl_fatcom WHERE ${filtroDevolucoes.where}`,
     filtroDevolucoes.params,
@@ -268,11 +276,11 @@ export async function buscarResumo(filtros: FiltroFaturamento): Promise<ResumoFa
   const itensComCusto = Number(totais.itens_com_custo ?? 0);
 
   const [evolucaoMensal, porCanal, porMarca, porUf, porEmpresa] = await Promise.all([
-    agregarPorPeriodo(filtros),
-    agregarPor('canal', filtros),
-    agregarPor('marca', filtros),
-    agregarPor('uf', filtros),
-    agregarPor('dc_filial', filtros),
+    agregarPorPeriodo(filtros, escopo),
+    agregarPor('canal', filtros, escopo),
+    agregarPor('marca', filtros, escopo),
+    agregarPor('uf', filtros, escopo),
+    agregarPor('dc_filial', filtros, escopo),
   ]);
 
   return {
@@ -297,8 +305,8 @@ export async function buscarResumo(filtros: FiltroFaturamento): Promise<ResumoFa
 }
 
 /** Evolução mensal sai em ordem cronológica, não por valor — é uma série temporal. */
-async function agregarPorPeriodo(filtros: FiltroFaturamento): Promise<AgregadoFaturamento[]> {
-  const { where, params } = montarFiltro(filtros);
+async function agregarPorPeriodo(filtros: FiltroFaturamento, escopo: EmpresaPermitida[]): Promise<AgregadoFaturamento[]> {
+  const { where, params } = montarFiltroComEscopo(filtros, escopo);
   const [linhas] = await pool.query<RowDataPacket[]>(
     `SELECT periodo AS rotulo, ${SELECT_AGREGADO}
      FROM etl_fatcom WHERE ${where}
@@ -326,22 +334,33 @@ export interface FiltrosDisponiveis {
 /**
  * As opções saem do próprio fato, não dos cadastros: oferecer uma marca que
  * não tem nenhuma venda produz filtro que devolve tela vazia.
+ *
+ * Restritas ao escopo do usuário, e não só por estética: listar uma empresa
+ * que ele não pode ver já revelaria que ela existe e quanto movimenta assim
+ * que aparecesse num rótulo.
  */
-export async function buscarFiltrosDisponiveis(): Promise<FiltrosDisponiveis> {
+export async function buscarFiltrosDisponiveis(escopo: EmpresaPermitida[]): Promise<FiltrosDisponiveis> {
+  const { where: esc, params: pEsc } = condicaoEscopo(escopo);
+
   const [empresas] = await pool.query<RowDataPacket[]>(
-    `SELECT cd_filial, MIN(dc_filial) AS dc_filial FROM etl_fatcom GROUP BY cd_filial ORDER BY dc_filial`,
+    `SELECT cd_filial, MIN(dc_filial) AS dc_filial FROM etl_fatcom WHERE ${esc} GROUP BY cd_filial ORDER BY dc_filial`,
+    pEsc,
   );
   const [marcas] = await pool.query<RowDataPacket[]>(
-    `SELECT DISTINCT marca FROM etl_fatcom WHERE marca <> '' ORDER BY marca`,
+    `SELECT DISTINCT marca FROM etl_fatcom WHERE ${esc} AND marca <> '' ORDER BY marca`,
+    pEsc,
   );
   const [canais] = await pool.query<RowDataPacket[]>(
-    `SELECT DISTINCT canal FROM etl_fatcom WHERE canal <> '' ORDER BY canal`,
+    `SELECT DISTINCT canal FROM etl_fatcom WHERE ${esc} AND canal <> '' ORDER BY canal`,
+    pEsc,
   );
   const [origens] = await pool.query<RowDataPacket[]>(
-    `SELECT DISTINCT origem_dados FROM etl_fatcom ORDER BY origem_dados`,
+    `SELECT DISTINCT origem_dados FROM etl_fatcom WHERE ${esc} ORDER BY origem_dados`,
+    pEsc,
   );
   const [periodo] = await pool.query<RowDataPacket[]>(
-    `SELECT MIN(dt_movto) AS minimo, MAX(dt_movto) AS maximo FROM etl_fatcom`,
+    `SELECT MIN(dt_movto) AS minimo, MAX(dt_movto) AS maximo FROM etl_fatcom WHERE ${esc}`,
+    pEsc,
   );
 
   const texto = (linhas: RowDataPacket[], coluna: string): OpcaoFiltro[] =>

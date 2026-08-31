@@ -373,3 +373,59 @@ igualmente silencioso — chega errado numa reunião, não num log de erro.
    3.271 linhas já produz divergência de R$ 0,009 contra o agregado. Irrelevante
    hoje, mas é precisão de ponto flutuante em dinheiro — vale converter para
    `DECIMAL(14,4)` antes que o volume cresça.
+
+---
+
+## 9. Escopo de empresas por usuário
+
+Um usuário só vê, nos relatórios, as empresas do ERP às quais está vinculado.
+
+### 9.1. Por que não reaproveitar `filiais`
+
+**Filial** é unidade organizacional: é o que o módulo TI usa para localizar um
+equipamento, o que Avisos e Log de Acesso filtram, e o que o seletor da barra
+lateral troca. **Empresa** é entidade do ERP.
+
+Colapsar os dois quebraria o TI — "FULL SHOPEE CASA J NAKAO" não é um lugar
+onde existem computadores. E os números não permitem: das 9 empresas da
+SysEmp, cinco compartilham o CNPJ 53.794.996/0003-82; são contas de fulfillment
+de marketplace, não companhias distintas.
+
+Casar por CNPJ também não resolve: o CNPJ cadastrado na filial "JNakao" é o de
+Pinheiros (…0003-82), que deixa de fora a empresa 1 (Barueri, …0001-10), também
+JNakao. Só `grupo_empresa` (JNK/NK2/CNK2) cobre as nove corretamente.
+
+### 9.2. Modelo
+
+`usuarios_empresas (usuario_id, origem_dados, cd_filial)` — a chave casa com
+`etl_empresa`, então já nasce cobrindo as 4 empresas do KPL além das 9 da
+SysEmp. Semeada em `021_usuarios_empresas.sql` a partir do vínculo de filial
+existente, casando pelo grupo.
+
+### 9.3. Regras, em `services/escopoEmpresas.ts`
+
+- **Falha fechada:** sem vínculo, o usuário não vê nada. A ausência de
+  configuração nunca vira acesso total. `condicaoEscopo([])` devolve `1 = 0`,
+  não uma condição vazia — a diferença entre não ver nada e ver tudo.
+- **O escopo intersecciona, nunca substitui:** o código da empresa chega pela
+  query string; pedir uma empresa fora do escopo devolve vazio, jamais a
+  concede.
+- **Origem faz parte da identidade:** o código 1 é Barueri na SysEmp e JNK
+  Barueri no KPL. Tabelas de uma origem só (`sysemp_estoque_fisico`) usam
+  `condicaoEscopoDeUmaOrigem`, que filtra por origem antes de usar os códigos.
+- **As opções de filtro também são restritas.** Listar uma empresa fora do
+  escopo já revelaria que ela existe e quanto movimenta.
+
+Aplicado ao Faturamento **e** à Curva ABC do Estoque, que tinha a mesma falha.
+
+Verificado em produção: faturamento total R$ 7.696.209 sem escopo contra
+R$ 7.559.859 com o escopo do administrador — a diferença de R$ 136.350 é
+exatamente NK2 + CNK2. Pedir `?empresas=3` fora do escopo devolve R$ 0.
+
+### 9.4. Consequência operacional
+
+A semeadura derivou do vínculo de filial, e ambos os usuários tinham apenas
+"JNakao". Portanto **NK2 e CNK2 estão invisíveis para todos** até que o
+administrador marque essas empresas em Configurador → Usuários. A seção
+"Empresas do ERP" do formulário é sempre enviada, inclusive vazia — é assim
+que se remove todo o acesso.

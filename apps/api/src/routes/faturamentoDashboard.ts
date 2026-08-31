@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
+import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
 import { buscarFiltrosDisponiveis, buscarResumo, type FiltroFaturamento } from '../services/faturamento.js';
 
 export const faturamentoDashboardRouter = Router();
@@ -31,8 +32,8 @@ function extrairFiltros(query: Record<string, string | undefined>): FiltroFatura
   };
 }
 
-faturamentoDashboardRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (_req, res) => {
-  res.json(await buscarFiltrosDisponiveis());
+faturamentoDashboardRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+  res.json(await buscarFiltrosDisponiveis(await buscarEmpresasPermitidas(req.usuario!.id)));
 });
 
 /**
@@ -42,5 +43,5 @@ faturamentoDashboardRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualiza
  */
 faturamentoDashboardRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const filtros = extrairFiltros(req.query as Record<string, string | undefined>);
-  res.json(await buscarResumo(filtros));
+  res.json(await buscarResumo(filtros, await buscarEmpresasPermitidas(req.usuario!.id)));
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { montarFiltro, type FiltroFaturamento } from './faturamentoFiltros.js';
+import { montarFiltro, montarFiltroComEscopo, type FiltroFaturamento } from './faturamentoFiltros.js';
 
 /**
  * Montagem do WHERE das consultas de faturamento sobre `etl_fatcom`.
@@ -120,5 +120,39 @@ describe('montarFiltro', () => {
     expect(posicoes.every((p) => p >= 0)).toBe(true);
 
     expect(params).toEqual(['S', 'SYSEMP', 2, 'MAKITA', 'BALCAO', '2026-01-01', '2026-12-31', 'S']);
+  });
+});
+
+describe('montarFiltroComEscopo', () => {
+  const escopoJnk = [
+    { origem: 'SYSEMP', cdFilial: 1 },
+    { origem: 'SYSEMP', cdFilial: 2 },
+  ];
+
+  test('sem escolha de empresa, restringe ao escopo do usuário', () => {
+    const { where, params } = montarFiltroComEscopo({}, escopoJnk);
+
+    expect(where).toContain('(origem_dados = ? AND cd_filial = ?)');
+    expect(params).toEqual(['S', 'SYSEMP', 1, 'SYSEMP', 2]);
+  });
+
+  test('empresa escolhida dentro do escopo é respeitada', () => {
+    expect(montarFiltroComEscopo({ empresas: [2] }, escopoJnk).params).toEqual(['S', 'SYSEMP', 2]);
+  });
+
+  test('empresa escolhida FORA do escopo não retorna nada — não vaza', () => {
+    // A empresa 3 (NK2) chega pela query string. Quem só tem JNK não pode
+    // vê-la de jeito nenhum, e a consulta precisa devolver vazio.
+    expect(montarFiltroComEscopo({ empresas: [3] }, escopoJnk).where).toContain('1 = 0');
+  });
+
+  test('usuário sem nenhuma empresa vinculada não enxerga nada', () => {
+    expect(montarFiltroComEscopo({}, []).where).toContain('1 = 0');
+  });
+
+  test('o escopo é somado por AND, nunca substitui os filtros da tela', () => {
+    const { where } = montarFiltroComEscopo({ marcas: ['MAKITA'] }, escopoJnk);
+    expect(where).toContain('marca IN (?)');
+    expect(where).toContain(' AND ');
   });
 });

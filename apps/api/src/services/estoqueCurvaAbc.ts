@@ -1,5 +1,6 @@
 import type { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
+import { condicaoEscopoDeUmaOrigem, type EmpresaPermitida } from './escopoEmpresas.js';
 
 export interface FiltroCurvaAbc {
   empresas?: number[];
@@ -20,9 +21,16 @@ export interface LinhaCurvaAbc extends RowDataPacket {
   vt_custo: number;
 }
 
-function montarFiltro(filtros: FiltroCurvaAbc): { where: string; params: unknown[] } {
+function montarFiltro(filtros: FiltroCurvaAbc, escopo: EmpresaPermitida[]): { where: string; params: unknown[] } {
   const condicoes: string[] = ['ef.deleted = FALSE', 'ef.saldo_disponivel > 0'];
   const params: unknown[] = [];
+
+  // Escopo do usuário primeiro, sempre: a escolha da tela é aplicada dentro
+  // dele, nunca por cima. Estoque só tem dado da SysEmp.
+  const escopoSql = condicaoEscopoDeUmaOrigem(escopo, 'SYSEMP', 'ef.id_empresa');
+  condicoes.push(escopoSql.where);
+  params.push(...escopoSql.params);
+
   if (filtros.empresas?.length) {
     condicoes.push(`ef.id_empresa IN (${filtros.empresas.map(() => '?').join(',')})`);
     params.push(...filtros.empresas);
@@ -40,8 +48,8 @@ function montarFiltro(filtros: FiltroCurvaAbc): { where: string; params: unknown
  * é atualizado de hora em hora pelo cron, não precisa de tabela ETL própria.
  * Ver Specs/spec_modulo_estoque.md.
  */
-function montarCte(filtros: FiltroCurvaAbc): { sql: string; params: unknown[] } {
-  const { where, params } = montarFiltro(filtros);
+function montarCte(filtros: FiltroCurvaAbc, escopo: EmpresaPermitida[]): { sql: string; params: unknown[] } {
+  const { where, params } = montarFiltro(filtros, escopo);
   const sql = `
     WITH base AS (
       SELECT
@@ -88,10 +96,11 @@ function montarCte(filtros: FiltroCurvaAbc): { sql: string; params: unknown[] } 
 
 export async function buscarCurvaAbcPaginada(
   filtros: FiltroCurvaAbc,
+  escopo: EmpresaPermitida[],
   pagina: number,
   tamanhoPagina: number,
 ): Promise<{ linhas: LinhaCurvaAbc[]; total: number }> {
-  const { sql, params } = montarCte(filtros);
+  const { sql, params } = montarCte(filtros, escopo);
 
   const [totalRows] = await pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM (${sql}) contagem`, params);
   const total = totalRows[0]?.total ?? 0;
@@ -106,8 +115,11 @@ export async function buscarCurvaAbcPaginada(
   return { linhas, total };
 }
 
-export async function buscarCurvaAbcCompleta(filtros: FiltroCurvaAbc): Promise<LinhaCurvaAbc[]> {
-  const { sql, params } = montarCte(filtros);
+export async function buscarCurvaAbcCompleta(
+  filtros: FiltroCurvaAbc,
+  escopo: EmpresaPermitida[],
+): Promise<LinhaCurvaAbc[]> {
+  const { sql, params } = montarCte(filtros, escopo);
   const [linhas] = await pool.query<LinhaCurvaAbc[]>(`${sql} ORDER BY ordem`, params);
   return linhas;
 }
@@ -117,9 +129,14 @@ export interface OpcaoFiltro {
   rotulo: string;
 }
 
-export async function buscarFiltrosDisponiveis(): Promise<{ empresas: OpcaoFiltro[]; marcas: OpcaoFiltro[] }> {
+export async function buscarFiltrosDisponiveis(
+  escopo: EmpresaPermitida[],
+): Promise<{ empresas: OpcaoFiltro[]; marcas: OpcaoFiltro[] }> {
+  // Listar uma empresa fora do escopo já revelaria que ela existe.
+  const esc = condicaoEscopoDeUmaOrigem(escopo, 'SYSEMP', 'id_empresa');
   const [empresas] = await pool.query<RowDataPacket[]>(
-    `SELECT id_empresa, fantasia FROM sysemp_empresa WHERE ativa = TRUE ORDER BY fantasia`,
+    `SELECT id_empresa, fantasia FROM sysemp_empresa WHERE ativa = TRUE AND ${esc.where} ORDER BY fantasia`,
+    esc.params,
   );
   const [marcas] = await pool.query<RowDataPacket[]>(
     `SELECT DISTINCT descricao_marca FROM sysemp_produto WHERE descricao_marca IS NOT NULL AND descricao_marca <> '' ORDER BY descricao_marca`,

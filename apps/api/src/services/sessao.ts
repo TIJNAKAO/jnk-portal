@@ -49,6 +49,17 @@ export async function montarUsuarioSessao(usuarioId: number, filialAtivaId: numb
     buscarModulosPermitidos(usuarioId),
   ]);
 
+  // Escopo de empresas do ERP — dimensão separada da filial. Ver
+  // services/escopoEmpresas.ts.
+  const [empresasRows] = await pool.query<RowDataPacket[]>(
+    `SELECT ue.origem_dados, ue.cd_filial, e.dc_fantasia, e.grupo
+     FROM usuarios_empresas ue
+     LEFT JOIN etl_empresa e ON e.origem_dados = ue.origem_dados AND e.cd_filial = ue.cd_filial
+     WHERE ue.usuario_id = ?
+     ORDER BY ue.origem_dados, ue.cd_filial`,
+    [usuarioId],
+  );
+
   const usuario = usuarioRow;
   if (!usuario) {
     throw new Error(`Usuário ${usuarioId} não encontrado ao montar sessão.`);
@@ -68,6 +79,12 @@ export async function montarUsuarioSessao(usuarioId: number, filialAtivaId: numb
     ativo: Boolean(usuario.ativo),
     filialAtivaId,
     filiaisPermitidas,
+    empresasPermitidas: empresasRows.map((e) => ({
+      origem: e.origem_dados as string,
+      cdFilial: e.cd_filial as number,
+      nome: (e.dc_fantasia as string | null) ?? `${e.origem_dados} ${e.cd_filial}`,
+      grupo: (e.grupo as string | null) ?? '',
+    })),
     preferencias: {
       temaUi: preferenciasRow?.tema_ui ?? 'LIGHT',
       estiloBotoes: preferenciasRow?.estilo_botoes ?? 'SOLID',

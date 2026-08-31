@@ -31,6 +31,15 @@ export interface ModuloAcesso {
   telas: PermissaoTela[];
 }
 
+/** Uma empresa do ERP, identificada pelo par origem + código (o mesmo de `etl_empresa`). */
+export interface EmpresaAcesso {
+  /** `SYSEMP` ou `KPL`. O código 1 é uma empresa em cada origem — o par é que identifica. */
+  origem: string;
+  cdFilial: number;
+  nome: string;
+  grupo: string;
+}
+
 export interface UsuarioSessao {
   id: number;
   nome: string;
@@ -40,6 +49,16 @@ export interface UsuarioSessao {
   filialAtivaId: number;
   moduloAtivoChave?: string; // Controla qual aplicativo está selecionado na sessão
   filiaisPermitidas: Filial[];
+  /**
+   * Empresas do ERP que este usuário pode ver nos relatórios.
+   *
+   * Dimensão separada de `filiaisPermitidas`: filial é unidade organizacional
+   * (onde fica um equipamento, o seletor da barra lateral), empresa é entidade
+   * do ERP — e cinco das nove empresas da SysEmp são o mesmo CNPJ, apenas
+   * contas de fulfillment de marketplace. Lista vazia significa **nenhum
+   * acesso**, nunca acesso total.
+   */
+  empresasPermitidas: EmpresaAcesso[];
   preferencias: UsuarioPreferencias;
   modulosPermitidos: ModuloAcesso[];
   /**

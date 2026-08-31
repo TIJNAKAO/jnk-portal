@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
+import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
 import {
   buscarFiltrosDisponiveis,
   buscarLinhasCompletas,
@@ -50,8 +51,8 @@ function extrairOrdenacao(query: Record<string, string | undefined>): Ordenacao 
   return { coluna: query.ordenarPor, direcao: query.direcao === 'asc' ? 'asc' : 'desc' };
 }
 
-faturamentoNotasFiscaisRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (_req, res) => {
-  res.json(await buscarFiltrosDisponiveis());
+faturamentoNotasFiscaisRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+  res.json(await buscarFiltrosDisponiveis(await buscarEmpresasPermitidas(req.usuario!.id)));
 });
 
 faturamentoNotasFiscaisRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
@@ -61,6 +62,7 @@ faturamentoNotasFiscaisRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'),
 
   const { linhas, total } = await buscarLinhasPaginadas(
     extrairFiltros(query),
+    await buscarEmpresasPermitidas(req.usuario!.id),
     pagina,
     tamanhoPagina,
     extrairOrdenacao(query),
@@ -122,7 +124,11 @@ function linhaParaExcel(l: LinhaRelatorio) {
 
 faturamentoNotasFiscaisRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const query = req.query as Record<string, string | undefined>;
-  const linhas = await buscarLinhasCompletas(extrairFiltros(query), extrairOrdenacao(query));
+  const linhas = await buscarLinhasCompletas(
+    extrairFiltros(query),
+    await buscarEmpresasPermitidas(req.usuario!.id),
+    extrairOrdenacao(query),
+  );
 
   if (linhas.length > LIMITE_EXPORTACAO) {
     res.status(413).json({

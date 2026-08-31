@@ -1,3 +1,5 @@
+import { aplicarEscopo, condicaoEscopo, type EmpresaPermitida } from './escopoEmpresas.js';
+
 /**
  * Filtros das consultas de faturamento sobre `etl_fatcom`.
  *
@@ -85,4 +87,29 @@ export function montarFiltro(filtros: FiltroFaturamento): ClausulaFiltro {
 
   // `1 = 1` mantém o WHERE sempre válido quando nenhum filtro sobrou.
   return { where: condicoes.length > 0 ? condicoes.join(' AND ') : '1 = 1', params };
+}
+
+/**
+ * Filtro da tela **interseccionado** com o escopo de empresas do usuário.
+ *
+ * É esta função, e não `montarFiltro`, que as consultas devem usar: o código
+ * da empresa chega pela query string, então pedir uma empresa fora do escopo
+ * nunca pode concedê-la. A escolha da tela é aplicada *dentro* do que a pessoa
+ * já pode ver, e o escopo entra por AND — nunca substitui os demais filtros.
+ */
+export function montarFiltroComEscopo(
+  filtros: FiltroFaturamento,
+  escopoUsuario: EmpresaPermitida[],
+): ClausulaFiltro {
+  const escopoEfetivo = aplicarEscopo(filtros.empresas, escopoUsuario);
+
+  // `empresas` sai do filtro comum: quem restringe empresa agora é o escopo,
+  // que carrega origem junto e por isso não confunde SYSEMP 1 com KPL 1.
+  const base = montarFiltro({ ...filtros, empresas: undefined });
+  const escopo = condicaoEscopo(escopoEfetivo);
+
+  return {
+    where: `${base.where} AND ${escopo.where}`,
+    params: [...base.params, ...escopo.params],
+  };
 }

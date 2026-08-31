@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
+import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
 import {
   buscarCurvaAbcCompleta,
   buscarCurvaAbcPaginada,
@@ -22,8 +23,8 @@ function extrairFiltros(query: Record<string, string | undefined>): FiltroCurvaA
   };
 }
 
-estoqueCurvaAbcRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (_req, res) => {
-  res.json(await buscarFiltrosDisponiveis());
+estoqueCurvaAbcRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+  res.json(await buscarFiltrosDisponiveis(await buscarEmpresasPermitidas(req.usuario!.id)));
 });
 
 estoqueCurvaAbcRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
@@ -31,13 +32,14 @@ estoqueCurvaAbcRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (
   const pagina = Math.max(1, Number(req.query.pagina) || 1);
   const tamanhoPagina = Math.min(200, Math.max(1, Number(req.query.tamanhoPagina) || 50));
 
-  const { linhas, total } = await buscarCurvaAbcPaginada(filtros, pagina, tamanhoPagina);
+  const escopo = await buscarEmpresasPermitidas(req.usuario!.id);
+  const { linhas, total } = await buscarCurvaAbcPaginada(filtros, escopo, pagina, tamanhoPagina);
   res.json({ linhas, total, pagina, tamanhoPagina });
 });
 
 estoqueCurvaAbcRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const filtros = extrairFiltros(req.query as Record<string, string | undefined>);
-  const linhas = await buscarCurvaAbcCompleta(filtros);
+  const linhas = await buscarCurvaAbcCompleta(filtros, await buscarEmpresasPermitidas(req.usuario!.id));
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Curva ABC');
