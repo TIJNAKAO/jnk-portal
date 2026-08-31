@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx db/migrate.ts",
     "cron:sincronizar": "tsx src/scripts/cronSincronizar.ts",
     "backfill:nf": "tsx src/scripts/backfillNotasFiscais.ts",
-    "etl:fatcom:recarregar": "tsx src/scripts/recarregarFatcom.ts"
+    "etl:fatcom:recarregar": "tsx src/scripts/recarregarFatcom.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@jnk-portal/shared": "*",
@@ -35,6 +37,7 @@
     "@types/node": "^22.9.0",
     "@types/nodemailer": "^6.4.16",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.11"
   }
 }

@@ -341,3 +341,17 @@ igualmente silencioso — chega errado numa reunião, não num log de erro.
    entender por quê.
 5. **`dc_fantasia` truncado em 25 caracteres** em `etl_empresa` produz rótulos
    como "FULL ML CNK2 COM, IMP E E". Cosmético, mas aparece em filtro.
+6. **A margem apurada é "margem sobre receita líquida", não lucro.** A fórmula
+   deduz ICMS, PIS e COFINS integralmente da receita e compara com um custo de
+   estoque que é **bruto** — inclui os tributos pagos na compra. Como parte
+   desses tributos gera crédito na entrada, deduzir a saída inteira contra um
+   custo cheio subestima o resultado. Com os dados de 31/08/2026 isso produz
+   margem global de **1,7%**: mercadoria R$ 7,68 mi, deduções de 27,5%, custo
+   equivalente a 71% da mercadoria. A conta fecha e é consistente, mas não é
+   lucro contábil. Para virar margem de verdade, seria preciso comparar
+   receita líquida com **custo líquido de créditos** — decisão a tomar com a
+   contabilidade antes de o número circular como "margem" em reunião.
+7. **Colunas de valor em `etl_fatcom` são `FLOAT`**, não `DECIMAL`. Somar
+   3.271 linhas já produz divergência de R$ 0,009 contra o agregado. Irrelevante
+   hoje, mas é precisão de ponto flutuante em dinheiro — vale converter para
+   `DECIMAL(14,4)` antes que o volume cresça.
