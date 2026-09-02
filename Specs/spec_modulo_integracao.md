@@ -165,10 +165,25 @@ seguem fora da fila.
 |---|---|---|---|---|
 | 2 | NF Venda | `/listarNotasFiscais` | `id_nota_saida` | `sysemp_nota_fiscal` + `sysemp_nota_fiscal_item` |
 | 3 | NF Compra | `/listarNotasFiscais` | `id_nota_saida` | mesmas tabelas de NF Venda (`entrada_saida='E'`) |
-| 4 | Parceiro | `/listarParceiros` | `codigo` (**não confirmado** — linha nasce `ativo=FALSE`) | `sysemp_parceiro` |
+| 4 | Parceiro | `/listarParceiros` | `id_registro` (a migration 015 seedou `codigo`, não confirmado, com a linha inativa; **produção corrigiu para `id_registro` e ativou**, pela tela 5.4) | `sysemp_parceiro` |
 | 6 | Preço | `/listarPrecoVenda` | `id_produto` | `sysemp_preco` |
 | 7 | Pedido de Venda | `/listarPedidos` + `/listarPedidosItens` | `id_nota_saida` (via `buscarDetalhe`) | `sysemp_pedido` + `sysemp_pedido_item` |
 | 9 | Saldo Estoque | `/listarSaldoEstoqueFisico` | `protocolo_estoque` | `sysemp_estoque_fisico` |
+
+**O que a migration seeda é só o valor inicial** — a linha é editável na
+tela 5.4, e produção diverge das migrations. Medido em 02/09/2026:
+`limite_pagina` é 10000 em Estoque, 500 em NF, 300 em Parceiros e 50 em
+Pedidos; Parceiros teve o `campo_id_detalhe` corrigido e foi ativado por
+lá. Ao investigar comportamento de sincronização, **ler a linha no banco,
+não a migration**.
+
+Nas entidades que sobrescrevem `buscarDetalhe` (Pedido e Preço),
+`endpoint_detalhe` e `campo_id_detalhe` viram **campos documentais**: o
+consumidor chama o endpoint fixo no código e ignora a config. Editá-los
+na tela não muda nada — o card de Pedido, por exemplo, mostra
+`/listarNotasFiscais` como endpoint de detalhe, valor errado que passou
+despercebido justamente por não ser lido. `ativo` e `limite_pagina`, ao
+contrário, são lidos pelo motor e valem pra todas.
 
 Regras específicas de cada consumidor:
 
