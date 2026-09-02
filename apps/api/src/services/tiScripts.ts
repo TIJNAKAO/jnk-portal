@@ -13,6 +13,79 @@ function comBom(script: string): string {
   return BOM_UTF8 + script;
 }
 
+/**
+ * `cmd.exe` trunca linha de comando acima disto. Um base64 de script grande
+ * passa fácil, então o corpo é quebrado em pedaços bem menores.
+ */
+export const LIMITE_LINHA_CMD = 8191;
+
+/** Folga generosa sobre o limite: cabe o `>>"%B64%" echo ` e sobra. */
+const TAMANHO_PEDACO_BASE64 = 500;
+
+/**
+ * Embrulha um script PowerShell num `.bat` que o usuário final executa com
+ * duplo clique.
+ *
+ * Um `.ps1` não é executável no Windows: duplo clique abre o Bloco de
+ * Notas, e mesmo por "Executar com PowerShell" ele esbarra em
+ * ExecutionPolicy e na falta de elevação. O `.bat` resolve os três — pede
+ * elevação sozinho, chama o PowerShell com `-ExecutionPolicy Bypass` e roda.
+ *
+ * O PowerShell viaja em **base64**, não colado como texto, e essa é a
+ * decisão central: dentro de um `.bat` o `cmd.exe` interpretaria `%`, `&`,
+ * `|`, `>` e `^` do script (o de atualizar programas tem todos), e leria
+ * acento no codepage do console em vez de UTF-8. Em base64 o corpo é ASCII
+ * puro, chega intacto e o BOM que o PowerShell 5.1 precisa vai junto.
+ *
+ * Por isso também o `.bat` não pode ter BOM próprio nem caractere
+ * acentuado: o `cmd.exe` tentaria executar os bytes do BOM como comando.
+ */
+export function empacotarComoBat(nomeBase: string, scriptPowerShell: string): string {
+  const nomeSeguro = nomeBase
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+
+  const base64 = Buffer.from(scriptPowerShell, 'utf8').toString('base64');
+  const pedacos: string[] = [];
+  for (let i = 0; i < base64.length; i += TAMANHO_PEDACO_BASE64) {
+    pedacos.push(base64.slice(i, i + TAMANHO_PEDACO_BASE64));
+  }
+
+  const linhasBase64 = pedacos.map((pedaco, indice) => `${indice === 0 ? '>' : '>>'}"%B64%" echo ${pedaco}`);
+
+  return [
+    '@echo off',
+    'setlocal',
+    `rem Gerado pelo Inventario de TI - ${nomeSeguro}`,
+    'rem O PowerShell vai embutido em base64: ver services/tiScripts.ts',
+    '',
+    'net session >nul 2>&1',
+    'if errorlevel 1 (',
+    '  echo Solicitando privilegios de administrador...',
+    `  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"`,
+    '  exit /b',
+    ')',
+    '',
+    `set "B64=%TEMP%\\${nomeSeguro}.b64"`,
+    `set "PS1=%TEMP%\\${nomeSeguro}.ps1"`,
+    '',
+    ...linhasBase64,
+    '',
+    `powershell -NoProfile -ExecutionPolicy Bypass -Command "[IO.File]::WriteAllBytes($env:PS1, [Convert]::FromBase64String(((Get-Content $env:B64 -Raw) -replace '\\s','')))"`,
+    'powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"',
+    '',
+    'del "%B64%" >nul 2>&1',
+    'del "%PS1%" >nul 2>&1',
+    '',
+    'echo.',
+    'pause',
+    '',
+  ].join('\r\n');
+}
+
 interface ProgramaCatalogo {
   nome: string;
   wingetId: string;
@@ -32,7 +105,7 @@ interface ItemIndesejado {
  * winget", são pacotes built-in removidos via Appx/AppxProvisioned (pra não
  * voltar em perfil de usuário novo), com fallback via winget pros que
  * também têm instalador clássico (Spotify). Ver Specs/spec_modulo_ti.md,
- * seção 4.6.
+ * seção 5.6.
  */
 export const CATALOGO_INDESEJADOS: ItemIndesejado[] = [
   { id: 'xbox_app', nome: 'Xbox (app)', appx: 'Microsoft.GamingApp' },

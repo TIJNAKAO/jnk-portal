@@ -1,6 +1,6 @@
 # Especificação Técnica: Módulo TI
 
-## 0. Contexto e Origem
+## 1. Contexto e Origem
 
 Este spec cobre o módulo `TI` do Hub de Aplicativos como um todo — um único
 módulo (`chave_modulo = 'TI'`), não uma tela isolada — reunindo inventário de
@@ -8,7 +8,7 @@ equipamentos, catálogo/instalação/atualização de programas, departamentos,
 responsáveis e auditoria de coleta. Todas essas partes giram em torno do
 mesmo modelo de dados (`ti_equipamento`/`ti_inventario_coleta`) e por isso
 ficam num spec só, em vez de fragmentadas em vários documentos (ver decisão
-na seção 0.3).
+na seção 1.3).
 
 O conteúdo adapta pra arquitetura do jnk-portal (monorepo TS + MySQL, ver
 `Specs/spec_infra_portal_base_monorepo.md`) um sistema já construído e validado
@@ -17,14 +17,14 @@ parte de **Inventário de Equipamentos de TI**, que ali é PHP + tabelas `tb_pc_
 Não é um redesenho: é o mesmo modelo de dados e as mesmas telas, traduzidos pra
 Node/Express + React + MySQL (jnk-portal já é MySQL, então o schema em si quase
 não muda) e encaixados no padrão de módulo/RBAC que a Infra do jnk-portal já
-define (seção 5 do spec base: `modulos_sistema`, `telas_modulo`,
+define (seção 6 do spec base: `modulos_sistema`, `telas_modulo`,
 `requirePermissao`).
 
 **Nada abaixo está implementado ainda — este documento é pra validação antes
 de qualquer código.** Depois de aprovado, vira o novo módulo `TI` no Hub de
 Aplicativos.
 
-### 0.1. O que é reaproveitado sem mudança
+### 1.1. O que é reaproveitado sem mudança
 
 - **O agente Windows (`agente-inventario-pc/`, .NET 8)** — console app já
   testado ponta a ponta (coleta + envio completo em ~8s, 203 programas,
@@ -33,7 +33,7 @@ Aplicativos.
   autenticado por header `X-Api-Key`. **Não precisa reescrever nem
   recompilar o agente** — só apontar `appsettings.json` (`ApiUrl`) pro novo
   endpoint do jnk-portal e gerar um token novo. O contrato JSON do payload
-  (seção 4) é copiado exatamente do que o agente já envia hoje.
+  (seção 5) é copiado exatamente do que o agente já envia hoje.
 - **O modelo de dados** — praticamente 1:1, só traduzido de "empresa"
   (`tb_empresas` do projeto antigo) pra **filial** (`filiais`, que já existe
   no jnk-portal) e de "usuário responsável" pro `usuarios` que já existe.
@@ -43,19 +43,19 @@ Aplicativos.
   Programas) — mesmo conteúdo de script, só o endpoint que gera muda de
   PHP pra Express.
 
-### 0.2. O que muda de propósito
+### 1.2. O que muda de propósito
 
 - Autenticação de usuário humano nas telas passa a ser o JWT + RBAC do
-  jnk-portal (`requirePermissao`, Perfis de Acesso — seção 5/6 do spec
+  jnk-portal (`requirePermissao`, Perfis de Acesso — seção 6/7 do spec
   base), não o `Auth::requireTela()` do projeto antigo.
 - Autenticação do **agente** (máquina, não humano) continua sendo só o
   token (`X-Api-Key`), **fora** do JWT de sessão — é um endpoint público
   diferente, sem tela de login envolvida.
 - Todas as telas administrativas viram rotas do módulo `TI` no Hub,
-  seguindo o padrão de `/config/*` que o Configurador já usa (seção 5 do
+  seguindo o padrão de `/config/*` que o Configurador já usa (seção 6 do
   spec base) — aqui como `/ti/*`.
 
-### 0.3. Por que um spec só, não um por tela/funcionalidade
+### 1.3. Por que um spec só, não um por tela/funcionalidade
 
 Inventário, catálogo/instalar/atualizar programas, departamentos,
 responsáveis e auditoria não são funcionalidades independentes — todas
@@ -70,7 +70,7 @@ próprio — mas isso é hipotético, não motivo pra fragmentar agora.
 
 ---
 
-## 1. Módulo no Hub de Aplicativos
+## 2. Módulo no Hub de Aplicativos
 
 Novo módulo em `modulos_sistema`:
 
@@ -92,15 +92,15 @@ Telas (`telas_modulo`), cada uma com sua própria linha em `permissoes_usuario`/
 | Atribuir Responsáveis | `/ti/responsaveis` | |
 | Catálogo de Programas | `/ti/catalogo-programas` | |
 | Instalar Programas | `/ti/instalar-programas` | Gera script `.ps1` |
-| Atualizar Programas | `/ti/atualizar-programas` | Gera script `.ps1` |
+| Atualizar Programas | `/ti/atualizar-programas` | Gera `.bat` executável |
 | Softwares Aprovados | `/ti/softwares-aprovados` | Inclui drill-down "máquinas com este software" |
 | Auditoria de Coleta | `/ti/auditoria-coleta` | |
 
 ---
 
-## 2. Modelo de Dados (MySQL)
+## 3. Modelo de Dados (MySQL)
 
-Segue a convenção do spec base (seção 3): `snake_case`, `utf8mb4`,
+Segue a convenção do spec base (seção 4): `snake_case`, `utf8mb4`,
 `AUTO_INCREMENT`, `BOOLEAN`, `DATETIME DEFAULT CURRENT_TIMESTAMP`. Prefixo
 `ti_` (em vez de `tb_pc_` do projeto antigo) — sem prefixo `tb_`, já que
 nenhuma outra tabela do jnk-portal usa esse prefixo.
@@ -121,13 +121,13 @@ CREATE TABLE ti_catalogo_programa (
     nome                      VARCHAR(150) NOT NULL,
     winget_id                 VARCHAR(150) NOT NULL,
     ativo                     BOOLEAN DEFAULT TRUE,
-    configurar_acesso_remoto  BOOLEAN DEFAULT FALSE, -- pós-instalação específica do AnyDesk (seção 7)
+    configurar_acesso_remoto  BOOLEAN DEFAULT FALSE, -- pós-instalação específica do AnyDesk (seção 8)
     criado_em                 DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_winget_id (winget_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Cadastro de equipamentos (1 linha por máquina).
--- Ver seção 0.3 sobre filial_id ser NULL-ável aqui — desvio deliberado da
+-- Ver seção 1.3 sobre filial_id ser NULL-ável aqui — desvio deliberado da
 -- diretriz geral do spec base (filial_id NOT NULL em toda tabela de negócio).
 CREATE TABLE ti_equipamento (
     id                      INT AUTO_INCREMENT PRIMARY KEY,
@@ -155,7 +155,7 @@ CREATE TABLE ti_equipamento (
     FOREIGN KEY (id_usuario_responsavel) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Fotos do equipamento — ver seção 8 sobre BLOB x DigitalOcean Spaces.
+-- Fotos do equipamento — ver seção 9 sobre BLOB x DigitalOcean Spaces.
 CREATE TABLE ti_equipamento_foto (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     id_equipamento  INT NOT NULL,
@@ -347,9 +347,9 @@ CREATE TABLE ti_api_token (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
-### 2.1. Por que `ti_equipamento.filial_id` é `NULL`-ável
+### 3.1. Por que `ti_equipamento.filial_id` é `NULL`-ável
 
-A diretriz do spec base (seção 3) exige `filial_id INT NOT NULL` em toda
+A diretriz do spec base (seção 4) exige `filial_id INT NOT NULL` em toda
 tabela de negócio nova, pra isolamento garantido por filial. Aqui é um
 **desvio deliberado**, herdado do comportamento já validado no projeto
 original: o agente roda numa máquina que pode ser instalada **antes** de
@@ -364,7 +364,7 @@ tornar `IdEmpresa` obrigatório no agente antes de aceitar a primeira coleta.
 
 ---
 
-## 3. Endpoint de Ingestão (agente → API)
+## 4. Endpoint de Ingestão (agente → API)
 
 `POST /api/ti/inventario` — **fora do JWT de sessão**, autenticado só por
 `X-Api-Key` (validado contra `ti_api_token.token`, `ativo = TRUE`). Contrato
@@ -415,13 +415,13 @@ nunca atualiza uma coleta antiga.
 
 ---
 
-## 4. Telas do Módulo
+## 5. Telas do Módulo
 
 Todas seguem o padrão de permissão granular do Configurador
 (`requirePermissao(rotaTela, acao)`), reaproveitando os mesmos componentes de
 tabela/filtro/exportação que o resto do jnk-portal usa.
 
-### 4.1. Equipamentos (`/ti/equipamentos`)
+### 5.1. Equipamentos (`/ti/equipamentos`)
 
 Lista todo `ti_equipamento`, com o resumo da última coleta de cada um (SO,
 processador, RAM total) e filtros por filial/responsável/departamento.
@@ -429,7 +429,7 @@ Clicar num equipamento abre o **histórico** (`/ti/equipamentos/:id`):
 
 - Dados cadastrais editáveis (apelido, patrimônio, departamento).
 - Galeria de fotos (upload múltiplo, só aceita `image/*`, exclusão
-  individual) — ver seção 8 sobre onde ficam armazenadas.
+  individual) — ver seção 9 sobre onde ficam armazenadas.
 - Snapshot atual (última coleta): SO, processador, placa-mãe, BIOS, RAM
   total, contadores (discos, redes, programas, USB).
 - Tabela de discos e de dispositivos USB já conectados.
@@ -437,35 +437,35 @@ Clicar num equipamento abre o **histórico** (`/ti/equipamentos/:id`):
   duas e comparar.
 - Link "ID do AnyDesk: Conectar" (`anydesk:<id>`) quando a última coleta
   trouxe um ID válido.
-- Link pra gerar o Termo de Responsabilidade (seção 9).
+- Link pra gerar o Termo de Responsabilidade (seção 8).
 
-### 4.2. Comparar Coletas (`/ti/equipamentos/:id/comparar?de=&para=`)
+### 5.2. Comparar Coletas (`/ti/equipamentos/:id/comparar?de=&para=`)
 
-Roda o diff (seção 6) entre duas coletas da mesma máquina e mostra uma
+Roda o diff (seção 7) entre duas coletas da mesma máquina e mostra uma
 tabela única (Categoria / Item / Tipo / Campo / De / Para), exportável.
 Confere que as duas coletas realmente pertencem ao equipamento da URL antes
 de comparar (evita comparar coleta de uma máquina com outra por URL
 adulterada).
 
-### 4.3. Departamentos (`/ti/departamentos`)
+### 5.3. Departamentos (`/ti/departamentos`)
 
 CRUD simples (nome, ativo/inativo). Exclusão física — `FOREIGN KEY ...
 ON DELETE SET NULL` em `ti_equipamento.id_departamento`, então excluir um
 departamento não quebra equipamento nenhum, só some a classificação.
 
-### 4.4. Atribuir Responsáveis (`/ti/responsaveis`)
+### 5.4. Atribuir Responsáveis (`/ti/responsaveis`)
 
 Grade única (computador + filial + `<select>` de responsável por linha) com
 um botão "Salvar" só — mais rápido que editar equipamento por equipamento
 quando é preciso atribuir vários de uma vez. Filtro por filial.
 
-### 4.5. Catálogo de Programas (`/ti/catalogo-programas`)
+### 5.5. Catálogo de Programas (`/ti/catalogo-programas`)
 
 CRUD (nome, `winget_id`, ativo, flag `configurar_acesso_remoto`). Alimenta o
 checklist de "Instalar Programas". `winget_id` é o identificador exato do
 pacote (descobre-se rodando `winget search "nome"` numa máquina Windows).
 
-### 4.6. Instalar Programas (`/ti/instalar-programas`)
+### 5.6. Instalar Programas (`/ti/instalar-programas`)
 
 Tela que **gera um arquivo `.ps1`** (download direto, não executa nada
 remotamente) a partir de três seleções independentes:
@@ -490,22 +490,44 @@ estiver na máquina — o site nunca executa comando remoto nenhum, só gera o
 arquivo. Baixar/rodar o `.ps1` fica pro técnico, tipicamente numa máquina
 recém-formatada.
 
-### 4.7. Gerar Scripts (`/ti/gerar-scripts`)
+### 5.7. Gerar Scripts (`/ti/gerar-scripts`)
 
-Hub de scripts PowerShell (.ps1) pra automação em máquinas Windows — cada
-script é um card na tela, todos seguindo o mesmo padrão: botão gera o
-arquivo, nada roda a partir do clique, rodar é sempre manual na máquina de
-destino. Cresce ao longo do tempo (novos cards) sem precisar de tela nova
+Hub de automações pra máquinas Windows — cada script é um card na tela,
+todos seguindo o mesmo padrão: botão gera o arquivo, nada roda a partir do
+clique, rodar é sempre manual na máquina de destino.
+
+**Os dois cards deste hub saem como `.bat` executável, não `.ps1`** (desde
+02/09/2026). O motivo é que um `.ps1` não é executável no Windows: duplo
+clique abre o Bloco de Notas, e mesmo pelo menu "Executar com PowerShell"
+ele ainda esbarra em ExecutionPolicy e na falta de elevação. O `.bat`
+resolve os três de uma vez — pede elevação sozinho (`net session` +
+`Start-Process -Verb RunAs`), chama o PowerShell com `-ExecutionPolicy
+Bypass` e roda. Ver `empacotarComoBat` em `services/tiScripts.ts`.
+
+`.exe` foi descartado: exigiria compilar a cada download, e um binário não
+assinado é justamente o que o SmartScreen e o antivírus bloqueiam na
+máquina do usuário final — trocaria um atrito por outro pior.
+
+**O PowerShell viaja dentro do `.bat` em base64**, não colado como texto, e
+essa é a decisão que faz o empacotamento funcionar. Colado, o `cmd.exe`
+interpretaria `%`, `&`, `|`, `>` e `^` do script (o de atualizar programas
+tem todos) e leria acento no codepage do console em vez de UTF-8. Em base64
+o corpo é ASCII puro, chega intacto, e o BOM que o PowerShell 5.1 precisa
+vai junto. Duas consequências que o teste cobre: o `.bat` em si **não pode**
+ter BOM (o `cmd.exe` tentaria executar os bytes do BOM como comando), e o
+base64 é quebrado em pedaços de 500 caracteres porque o `cmd.exe` trunca
+linha acima de 8191 — em uma linha só, um script grande sairia corrompido
+em silêncio. Cresce ao longo do tempo (novos cards) sem precisar de tela nova
 no Hub — é a mesma `rota_tela`/permissão pra todos os scripts deste hub.
 
-**Card 1 — Atualizar Programas e Drivers.** Gera um `.ps1` fixo (não
+**Card 1 — Atualizar Programas e Drivers.** Gera um script fixo (não
 depende de nenhuma seleção) que roda `winget upgrade --all --silent` e
 consulta o Windows Update só por drivers pendentes (via COM
 `Microsoft.Update.Session`, nativo do Windows — não precisa de módulo do
 PowerShell Gallery). Não mexe em atualização de sistema/segurança do
 Windows, só driver.
 
-**Card 2 — Configurar Agente de Inventário.** Gera um `.ps1` que instala o
+**Card 2 — Configurar Agente de Inventário.** Gera um script que instala o
 agente (`agente-inventario-pc/`) numa máquina nova, em três passos:
 
 1. Baixa `AgenteInventarioPC.exe` de uma URL configurável.
@@ -529,21 +551,22 @@ Três valores novos em **Parâmetros → TI** alimentam este script:
 `https://portal.jnakao.com.br/downloads/AgenteInventarioPC.exe`, servido
 pela rota pública `/downloads` da API a partir de
 [`downloads/`](../downloads) na raiz do monorepo, ver
-`Specs/deploy_digitalocean.md`, seção 10), `AGENTE_API_URL` (endpoint
+`Specs/deploy_digitalocean.md`, seção 11), `AGENTE_API_URL` (endpoint
 de ingestão, `/api/ti/inventario`) e `AGENTE_API_KEY` (token — sensível,
 mesmo tratamento de criptografia que `SMTP_PASSWORD`). Sem os três
 configurados, o endpoint recusa gerar o script (`422`) em vez de devolver
 algo quebrado.
 
-**Cuidado de codificação:** todo `.ps1` gerado (os três) leva um BOM UTF-8
-no início do conteúdo. Sem isso, o Windows PowerShell 5.1 (ainda comum em
+**Cuidado de codificação:** todo PowerShell gerado (os três) leva um BOM
+UTF-8 no início do conteúdo — nos dois cards deste hub, dentro do base64
+embutido no `.bat`; em Instalar Programas, no `.ps1` baixado direto. Sem isso, o Windows PowerShell 5.1 (ainda comum em
 máquina de usuário final) lê o arquivo com um codepage de 1 byte por
 padrão e corrompe qualquer caractere acentuado — inclusive nome de
 programa com acento cadastrado no Catálogo. Descoberto testando o parser
 de PowerShell diretamente contra o `.ps1` baixado de verdade (não só
 lendo o código-fonte TS).
 
-### 4.8. Softwares Aprovados (`/ti/softwares-aprovados`)
+### 5.8. Softwares Aprovados (`/ti/softwares-aprovados`)
 
 Lista todo nome de software **instalado agora** (só a última coleta de cada
 equipamento — não "já visto alguma vez"; desinstalou de todos, some da
@@ -558,7 +581,7 @@ Clicar num software abre **Máquinas com o Software**
 (`/ti/softwares-aprovados/maquinas?nome=`): quais equipamentos têm aquele
 software na última coleta, com responsável e versão instalada.
 
-### 4.9. Auditoria de Coleta (`/ti/auditoria-coleta`)
+### 5.9. Auditoria de Coleta (`/ti/auditoria-coleta`)
 
 Todo equipamento ativo, ordenado por dias desde a última coleta (quem nunca
 coletou aparece primeiro — pior caso). Cores: até 2 dias = normal (cobre
@@ -567,7 +590,7 @@ achar máquina com agente desinstalado/quebrado ou desligada há muito tempo.
 
 ---
 
-## 5. Lógica de Comparação de Coletas (diff)
+## 6. Lógica de Comparação de Coletas (diff)
 
 Porta de `src/PcInventario.php` pra TypeScript (`apps/api/src/services/tiDiff.ts`,
 sugestão de nome), mesma lógica:
@@ -598,14 +621,14 @@ sugestão de nome), mesma lógica:
 
 ---
 
-## 6. Fotos do Equipamento — decisão em aberto
+## 7. Fotos do Equipamento — decisão em aberto
 
 O projeto original guarda fotos como `LONGBLOB` **dentro do MySQL**
 (não em disco), com o comentário explícito: *"o container do App Platform é
 efêmero e some a cada deploy, disco local não sobreviveria."* Duas opções
 pro jnk-portal, que precisam de uma decisão explícita antes de implementar:
 
-1. **Manter `LONGBLOB` no MySQL** (replicar exatamente como está — seção 2,
+1. **Manter `LONGBLOB` no MySQL** (replicar exatamente como está — seção 3,
    `ti_equipamento_foto.conteudo`). Mais simples, zero infraestrutura nova,
    mas cresce o tamanho do banco gerenciado da DO (que é cobrado por
    armazenamento) com dados binários que um object storage resolveria melhor.
@@ -621,7 +644,7 @@ rotas (upload direto vs. gerar URL assinada).
 
 ---
 
-## 7. Termo de Responsabilidade (`/ti/equipamentos/:id/termo`)
+## 8. Termo de Responsabilidade (`/ti/equipamentos/:id/termo`)
 
 Relatório individual **imprimível** (o navegador gera o PDF via "Imprimir →
 Salvar como PDF" — não depende de nenhuma biblioteca de PDF no servidor):
@@ -629,18 +652,18 @@ foto do equipamento + dados do responsável + hardware/software de uma coleta
 escolhida + texto de política de uso + linha de assinatura.
 
 O texto da política é editável na própria tela e reaproveita a infra que já
-existe: **Parâmetros do Sistema** (spec base, seção 8) ganha uma nova
+existe: **Parâmetros do Sistema** (spec base, seção 9) ganha uma nova
 categoria `TI` com um campo `TERMO_POLITICA_TEXTO` (não sensível) — mesmo
 mecanismo de "editar e salvar" que `EMAIL`/`WHATSAPP`/`TELEGRAM` já usam, só
 mais uma categoria na lista fechada `DEFINICAO_CAMPOS`.
 
 ---
 
-## 8. Decisões Validadas e Status de Implementação
+## 9. Decisões Validadas e Status de Implementação
 
 Pontos que estavam em aberto, já validados com o usuário:
 
-1. **`filial_id` opcional em `ti_equipamento`** — mantido opcional (seção 2.1),
+1. **`filial_id` opcional em `ti_equipamento`** — mantido opcional (seção 3.1),
    como no projeto original.
 2. **Armazenamento de fotos** — MySQL `LONGBLOB` (`ti_equipamento_foto`),
    replicando o que já existe. Migrar pra DigitalOcean Spaces fica em
@@ -667,7 +690,7 @@ Pontos que estavam em aberto, já validados com o usuário:
 | Atribuir Responsáveis | ✅ Implementado |
 | Catálogo de Programas | ✅ Implementado |
 | Instalar Programas (gera `.ps1`) | ✅ Implementado |
-| Gerar Scripts — hub de scripts, renomeado de "Atualizar Programas" (seção 4.7) | ✅ Implementado — cards: Atualizar Programas e Drivers, Configurar Agente de Inventário |
+| Gerar Scripts — hub de scripts, renomeado de "Atualizar Programas" (seção 5.7) | ✅ Implementado — cards: Atualizar Programas e Drivers, Configurar Agente de Inventário |
 | Softwares Aprovados + máquinas por software | ✅ Implementado |
 | Auditoria de Coleta | ✅ Implementado |
 

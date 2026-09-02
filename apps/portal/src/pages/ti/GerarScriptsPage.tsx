@@ -54,8 +54,8 @@ export function GerarScriptsPage() {
       <div>
         <h1 className="text-lg font-semibold text-slate-900">Gerar Scripts</h1>
         <p className="text-sm text-slate-500">
-          Scripts PowerShell (.ps1) pra automatizar tarefas em equipamentos Windows. Baixe na máquina e rode como
-          Administrador — nada roda automaticamente a partir do clique aqui.
+          Scripts pra automatizar tarefas em equipamentos Windows, gerados como <strong>.bat</strong> executável: o
+          usuário dá duplo clique e o próprio arquivo pede elevação. Nada roda automaticamente a partir do clique aqui.
         </p>
       </div>
 
@@ -64,9 +64,9 @@ export function GerarScriptsPage() {
           icone={<RefreshCw size={20} />}
           titulo="Atualizar Programas e Drivers"
           descricao="Roda winget upgrade --all (silencioso) e verifica/instala drivers pendentes via Windows Update."
-          nomeBotao="Gerar Script (.ps1)"
+          nomeBotao="Gerar Executável (.bat)"
           onGerar={() =>
-            apiDownload('/ti/gerar-scripts/atualizar-programas', { nomeArquivo: 'atualizar_programas.ps1' })
+            apiDownload('/ti/gerar-scripts/atualizar-programas', { nomeArquivo: 'atualizar_programas.bat' })
           }
         />
 
@@ -74,9 +74,9 @@ export function GerarScriptsPage() {
           icone={<Wrench size={20} />}
           titulo="Configurar Agente de Inventário"
           descricao="Baixa o AgenteInventarioPC.exe, instala em C:\Program Files\RRCMTOOLS e registra a tarefa agendada que roda a cada reinicialização (como SYSTEM)."
-          nomeBotao="Gerar Script (.ps1)"
+          nomeBotao="Gerar Executável (.bat)"
           onGerar={() =>
-            apiDownload('/ti/gerar-scripts/configurar-agente', { nomeArquivo: 'configurar_agente.ps1' })
+            apiDownload('/ti/gerar-scripts/configurar-agente', { nomeArquivo: 'configurar_agente.bat' })
           }
         />
       </div>

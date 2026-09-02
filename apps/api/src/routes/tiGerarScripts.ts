@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { obterParametro } from '../services/parametros.js';
-import { gerarScriptAtualizarProgramas, gerarScriptConfigurarAgente } from '../services/tiScripts.js';
+import { empacotarComoBat, gerarScriptAtualizarProgramas, gerarScriptConfigurarAgente } from '../services/tiScripts.js';
 
 export const tiGerarScriptsRouter = Router();
 
@@ -11,10 +11,12 @@ const ROTA = '/ti/gerar-scripts';
 tiGerarScriptsRouter.use(authTenant);
 
 tiGerarScriptsRouter.get('/atualizar-programas', requirePermissao(ROTA, 'podeVisualizar'), (_req, res) => {
-  const script = gerarScriptAtualizarProgramas();
-  res.setHeader('Content-Type', 'text/plain; charset=UTF-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="atualizar_programas.ps1"');
-  res.send(script);
+  // .bat em vez de .ps1: um .ps1 abre no Bloco de Notas no duplo clique, e
+  // mesmo por "Executar com PowerShell" esbarra em ExecutionPolicy e falta
+  // de elevacao. O .bat resolve os tres. Ver empacotarComoBat.
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', 'attachment; filename="atualizar_programas.bat"');
+  res.send(empacotarComoBat('atualizar_programas', gerarScriptAtualizarProgramas()));
 });
 
 // Depende de TI → Parâmetros estar configurado (URL de download do agente,
@@ -36,7 +38,7 @@ tiGerarScriptsRouter.get('/configurar-agente', requirePermissao(ROTA, 'podeVisua
   }
 
   const script = gerarScriptConfigurarAgente({ agenteUrl, apiUrl, apiKey });
-  res.setHeader('Content-Type', 'text/plain; charset=UTF-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="configurar_agente.ps1"');
-  res.send(script);
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', 'attachment; filename="configurar_agente.bat"');
+  res.send(empacotarComoBat('configurar_agente', script));
 });
