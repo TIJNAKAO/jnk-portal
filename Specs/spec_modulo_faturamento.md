@@ -1,6 +1,6 @@
 # Especificação Técnica: Módulo Faturamento
 
-## 0. Contexto
+## 1. Contexto
 
 Adotando o conceito de HUB de Aplicativos, criar o aplicativo **Faturamento**
 com duas telas: um **Dashboard** filtrável (empresa, marca, canal, datas) e um
@@ -12,9 +12,9 @@ linha por item de NF, que é o ponto de consolidação dos dois ERPs da empresa:
 o **SysEmp** (atual) e o **KPL** (legado). A coluna `origem_dados` distingue
 as origens. O módulo Integração (`Specs/spec_modulo_integracao.md`) já previa
 essa tabela e deixou o "Relatório de Margem" explicitamente pendente na sua
-seção 6.7.
+seção 7.7.
 
-### 0.1. Três bugs de produção encontrados no diagnóstico
+### 1.1. Três bugs de produção encontrados no diagnóstico
 
 Antes de desenhar qualquer tela, o banco de produção foi consultado. O que
 apareceu mudou a ordem do trabalho: a fundação de dados estava quebrada em
@@ -37,9 +37,9 @@ ou `'0'`) compartilhavam a mesma chave `(empresa, número, série)` e se
 sobrescreviam: 7.232 linhas silenciosamente substituídas por outras.
 
 Nenhum dos três gerou alarme. Todos foram descobertos porque fomos olhar o
-dado. O padrão comum — descarte silencioso — é o que a seção 2.5 endereça.
+dado. O padrão comum — descarte silencioso — é o que a seção 3.5 endereça.
 
-### 0.2. O dado real (31/08/2026)
+### 1.2. O dado real (31/08/2026)
 
 | Medida | Valor |
 |---|---|
@@ -63,7 +63,7 @@ fatos do KPL forem carregados.
 
 ---
 
-## 1. Decisões validadas
+## 2. Decisões validadas
 
 1. **Base dos relatórios: `etl_fatcom`**, não as tabelas `sysemp_*` direto.
    É onde os dois ERPs se consolidam.
@@ -76,11 +76,11 @@ fatos do KPL forem carregados.
 5. **Líquido e margem calculados na camada de consulta**, com dedução
    explícita — não se usa o `vr_item_liq` da SysEmp (ver 3.2).
 6. **Fatos do KPL ficam para depois**; a dimensão de empresa já é consolidada
-   agora (seção 2.6).
+   agora (seção 3.6).
 7. **Dashboard:** KPIs + evolução mensal, ranking por canal e marca, análise de
    margem, distribuição por UF.
 
-### 1.1. Insumos no fato, derivados na consulta
+### 2.1. Insumos no fato, derivados na consulta
 
 `etl_fatcom` materializa **fatos** — impostos, custo unitário congelado,
 comissão, frete seller. LÍQUIDO, MARGEM e % MARGEM são **regras**, calculadas
@@ -93,11 +93,11 @@ de regra vira deploy em vez de recarga.
 
 ---
 
-## 2. Fase 1 e 1b — Correção da fundação
+## 3. Fase 1 e 1b — Correção da fundação
 
 **Status: implementadas, aplicadas em produção e publicadas em 31/08/2026.**
 
-### 2.1. Validação contra o payload real
+### 3.1. Validação contra o payload real
 
 Primeiro passo, e exatamente o que faltou na versão que introduziu o Bug 1:
 três NFs reais de produção foram consultadas via `/listarNotasFiscais` — uma
@@ -122,7 +122,7 @@ Particularidades de formato tratadas: `gera_financeiro` chega como `"S"`/`"N"`
 `"2026-08-30 22:41:55.99543"`, que `DATETIME` não aceita; ids sem vínculo vêm
 como `0`.
 
-### 2.2. Gravação de NF — `016_nf_campos_fiscais.sql`
+### 3.2. Gravação de NF — `016_nf_campos_fiscais.sql`
 
 As colunas fiscais já existiam. Criadas apenas as que o payload traz e não
 tinham destino: no item, `valor_unitario_liquido` e `quantidade_reservada`; no
@@ -141,7 +141,7 @@ SysEmp e não voltariam sozinhos. Critério `valor_icms IS NULL`, que distingue
 "não gravado" de imposto zero legítimo. Executado: **1.190 notas, 0 falhas, 25
 cancelamentos recuperados**.
 
-### 2.3. ETL Fatcom — `017_fatcom_correcao.sql`
+### 3.3. ETL Fatcom — `017_fatcom_correcao.sql`
 
 **Larguras.** `cst` de `CHAR(3)` para `VARCHAR(4)` (a causa das 94 falhas);
 `dc_filial` de 25 para 100 — truncava razões sociais de até 60 caracteres, e
@@ -166,7 +166,7 @@ desconhecido de custo zero); `ref_pendente`.
 - `LEFT()` em toda coluna de texto, para que dado fora do formato estrague uma
   célula em vez de parar o faturamento do mês.
 
-### 2.4. Critério de faturamento e recuperação do número da NF
+### 3.4. Critério de faturamento e recuperação do número da NF
 
 Só entram notas **autorizadas pela SEFAZ** (`protocolo_nfe` presente). As
 8.205 notas sem número eram majoritariamente pré-notas ainda não emitidas
@@ -182,7 +182,7 @@ extração foi conferida contra as 22.523 notas que têm número **e** chave:
 elegíveis, zero colisões, custo unitário em 76%, período indo até 31/08 (antes
 parava em 06/08).
 
-### 2.5. Tornar a falha visível
+### 3.5. Tornar a falha visível
 
 Os três bugs sobreviveram porque nada os denunciava. O Painel de Integrações
 mostrava apenas "a última execução falhou" — indistinguível de um tropeço
@@ -190,7 +190,7 @@ isolado. Agora o card exibe **falhas consecutivas desde o último sucesso**, com
 destaque visual a partir de três. Noventa e quatro falhas seguidas deixam de
 ser algo que só aparece para quem for procurar.
 
-### 2.6. Consolidação da dimensão empresa — `018_etl_empresa_kpl.sql`
+### 3.6. Consolidação da dimensão empresa — `018_etl_empresa_kpl.sql`
 
 `etl_empresa` tinha apenas as 9 linhas SysEmp. As 4 filiais do KPL entram como
 **seed**, não como ETL: o vínculo entre código de unidade de negócio e CNPJ não
@@ -229,18 +229,18 @@ identidade correta é o **nome** da unidade:
 
 ---
 
-## 3. Fase 2 — Camada de consulta
+## 4. Fase 2 — Camada de consulta
 
 `apps/api/src/services/faturamento.ts`, lendo `etl_fatcom` — uma tabela, sem
 joins. Empresa, marca, canal e datas já são colunas do fato.
 
-### 3.1. Filtros
+### 4.1. Filtros
 
 Empresas, marcas, canais, período, tipo de operação (saídas por padrão) e
 "gera financeiro" (`ctrl_financeiro`). Origem (`SYSEMP`/`KPL`) fica disponível
 para quando os fatos do KPL existirem.
 
-### 3.2. Fórmulas
+### 4.2. Fórmulas
 
 ```
 LÍQUIDO  = vt_merc − vt_icms − vt_icms_st − vt_ipi − vt_pis − vt_cofins
@@ -262,7 +262,7 @@ MARGEM   = LÍQUIDO − vt_custo
 
 ---
 
-## 4. Fase 3 — Relatório de Notas Fiscais
+## 5. Fase 3 — Relatório de Notas Fiscais
 
 **Rota:** `/faturamento/notas-fiscais` · **API:** `/api/faturamento/notas-fiscais`
 
@@ -285,7 +285,7 @@ linhas a tela avisa antes de gerar.
 
 ---
 
-## 5. Fase 4 — Dashboard
+## 6. Fase 4 — Dashboard
 
 **Rota:** `/faturamento/dashboard` · **API:** `/api/faturamento/dashboard`
 
@@ -305,7 +305,7 @@ Gráficos com **Recharts**, seguindo a skill `dataviz`.
 
 ---
 
-## 6. Fase 5 — Integração ao portal
+## 7. Fase 5 — Integração ao portal
 
 - Migrations de seed: `019_faturamento_seed.sql` cria o módulo `FATURAMENTO`
   (ícone `Receipt`, registrado em `lib/icons.ts`) e a tela de Notas Fiscais;
@@ -314,7 +314,7 @@ Gráficos com **Recharts**, seguindo a skill `dataviz`.
   depois da rota que ela aponta.
 - Rotas em `apps/portal/src/App.tsx`; routers em `apps/api/src/app.ts`.
 
-### 6.1. Conceder a permissão é um passo manual — e obrigatório
+### 7.1. Conceder a permissão é um passo manual — e obrigatório
 
 **Criar o módulo não o torna visível.** `buscarPermissoesEfetivas` não tem
 exceção para administrador: o Hub lista apenas módulos com linha em
@@ -333,7 +333,7 @@ deliberadamente a cargo do administrador, perfil a perfil.
 
 ---
 
-## 7. Testes
+## 8. Testes
 
 O repositório não tem infraestrutura de teste. Este módulo introduz **Vitest**
 cobrindo apenas a camada de cálculo — fórmulas de líquido e margem, exclusão de
@@ -345,7 +345,7 @@ igualmente silencioso — chega errado numa reunião, não num log de erro.
 
 ---
 
-## 8. Pendências conhecidas
+## 9. Pendências conhecidas
 
 1. **Fatos do KPL** — 838.974 notas e 1.047.585 itens ainda fora de
    `etl_fatcom`. A dimensão de empresa já está pronta (2.6) e a armadilha do
@@ -376,11 +376,11 @@ igualmente silencioso — chega errado numa reunião, não num log de erro.
 
 ---
 
-## 9. Escopo de empresas por usuário
+## 10. Escopo de empresas por usuário
 
 Um usuário só vê, nos relatórios, as empresas do ERP às quais está vinculado.
 
-### 9.1. Por que não reaproveitar `filiais`
+### 10.1. Por que não reaproveitar `filiais`
 
 **Filial** é unidade organizacional: é o que o módulo TI usa para localizar um
 equipamento, o que Avisos e Log de Acesso filtram, e o que o seletor da barra
@@ -395,14 +395,14 @@ Casar por CNPJ também não resolve: o CNPJ cadastrado na filial "JNakao" é o d
 Pinheiros (…0003-82), que deixa de fora a empresa 1 (Barueri, …0001-10), também
 JNakao. Só `grupo_empresa` (JNK/NK2/CNK2) cobre as nove corretamente.
 
-### 9.2. Modelo
+### 10.2. Modelo
 
 `usuarios_empresas (usuario_id, origem_dados, cd_filial)` — a chave casa com
 `etl_empresa`, então já nasce cobrindo as 4 empresas do KPL além das 9 da
 SysEmp. Semeada em `021_usuarios_empresas.sql` a partir do vínculo de filial
 existente, casando pelo grupo.
 
-### 9.3. Regras, em `services/escopoEmpresas.ts`
+### 10.3. Regras, em `services/escopoEmpresas.ts`
 
 - **Falha fechada:** sem vínculo, o usuário não vê nada. A ausência de
   configuração nunca vira acesso total. `condicaoEscopo([])` devolve `1 = 0`,
@@ -422,10 +422,42 @@ Verificado em produção: faturamento total R$ 7.696.209 sem escopo contra
 R$ 7.559.859 com o escopo do administrador — a diferença de R$ 136.350 é
 exatamente NK2 + CNK2. Pedir `?empresas=3` fora do escopo devolve R$ 0.
 
-### 9.4. Consequência operacional
+### 10.4. Consequência operacional
 
 A semeadura derivou do vínculo de filial, e ambos os usuários tinham apenas
 "JNakao". Portanto **NK2 e CNK2 estão invisíveis para todos** até que o
 administrador marque essas empresas em Configurador → Usuários. A seção
 "Empresas do ERP" do formulário é sempre enviada, inclusive vazia — é assim
 que se remove todo o acesso.
+
+---
+
+## 11. Consulta de Preços
+
+**Rota:** `/faturamento/precos` · **API:** `/api/faturamento/precos` ·
+**Seed:** `025_faturamento_precos_seed.sql`
+
+Consulta direta de `sysemp_preco`, a tabela alimentada pela fila da SysEmp
+(ver spec de Integração, seção 3.3). Colunas: empresa, código e descrição do
+produto, marca, tabela, condição de pagamento, preço de tabela, preço
+promocional, início e término da promoção, e data da última integração
+(`synced_at`). Filtros de empresa, marca, busca (código, descrição, código
+auxiliar ou código de barras) e "só promoção vigente"; paginada em 50 e
+ordenável por qualquer coluna.
+
+Duas particularidades que a distinguem das outras telas do módulo:
+
+- **Não passa por `etl_fatcom`.** É a única consulta do módulo que lê a
+  tabela sincronizada direto, sem camada de ETL — não há o que consolidar,
+  já que preço só existe na SysEmp e o KPL não entra nessa conta. Por isso
+  usa `condicaoEscopoDeUmaOrigem(escopo, 'SYSEMP', ...)`, e não
+  `condicaoEscopo`: ter a empresa 4 do KPL não pode liberar a 4 da SysEmp.
+- **Linha sem `id_empresa` não aparece pra ninguém.** São as gravadas pela
+  varredura antiga, anterior à migração pra fila, que não trazia a empresa.
+  Sem ela não há como decidir quem tem direito de ver aquele preço, e a
+  regra é falhar fechado (seção 10.3). Consequência prática, medida em
+  02/09/2026: das 249.251 linhas da tabela, apenas as que já passaram pela
+  fila são visíveis — as demais só aparecem conforme o produto delas tiver
+  evento de preço na SysEmp. Uma carga inicial que percorra
+  `/listarPrecoVenda` produto a produto resolveria de uma vez; ainda não
+  existe.

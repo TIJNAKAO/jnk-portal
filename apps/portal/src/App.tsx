@@ -16,6 +16,7 @@ import { PerfisPage } from './pages/config/PerfisPage';
 import { UsuariosPage } from './pages/config/UsuariosPage';
 import { CurvaAbcPage } from './pages/estoque/CurvaAbcPage';
 import { NotasFiscaisPage } from './pages/faturamento/NotasFiscaisPage';
+import { PrecosPage } from './pages/faturamento/PrecosPage';
 import { ExecucaoDetalhePage } from './pages/integracao/ExecucaoDetalhePage';
 import { ExecucoesPage } from './pages/integracao/ExecucoesPage';
 import { FilaPage } from './pages/integracao/FilaPage';
@@ -94,6 +95,7 @@ export function App() {
               }
             />
             <Route path="/faturamento/notas-fiscais" element={<NotasFiscaisPage />} />
+            <Route path="/faturamento/precos" element={<PrecosPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/modules" replace />} />
