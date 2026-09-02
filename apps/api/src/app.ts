@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { authRouter } from './routes/auth.js';
 import { avisosRouter } from './routes/avisos.js';
 import { estoqueCurvaAbcRouter } from './routes/estoqueCurvaAbc.js';
+import { estoqueSaldosRouter } from './routes/estoqueSaldos.js';
 import { faturamentoDashboardRouter } from './routes/faturamentoDashboard.js';
 import { faturamentoNotasFiscaisRouter } from './routes/faturamentoNotasFiscais.js';
 import { faturamentoPrecosRouter } from './routes/faturamentoPrecos.js';
@@ -76,6 +77,7 @@ app.use('/api/integracao/parametros-fila', integracaoParametrosFilaRouter);
 app.use('/api/integracao/mercado-livre', mercadoLivreRouter);
 
 app.use('/api/estoque/curva-abc', estoqueCurvaAbcRouter);
+app.use('/api/estoque/saldos', estoqueSaldosRouter);
 
 app.use('/api/faturamento/notas-fiscais', faturamentoNotasFiscaisRouter);
 app.use('/api/faturamento/dashboard', faturamentoDashboardRouter);

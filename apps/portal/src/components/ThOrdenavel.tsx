@@ -8,15 +8,25 @@ interface ThOrdenavelProps {
   direcao: DirecaoOrdenacao;
   onOrdenar: (campo: string) => void;
   className?: string;
+  /**
+   * Encosta o rótulo à direita, para alinhar com números. O botão interno é
+   * `flex`, então `text-right` no `<th>` não o moveria — precisa de
+   * `justify-end` e largura total.
+   */
+  alinharDireita?: boolean;
   children: ReactNode;
 }
 
 /** Cabeçalho de coluna clicável — mesmo padrão de ordenação em toda tabela do portal. */
-export function ThOrdenavel({ campo, campoOrdenado, direcao, onOrdenar, className, children }: ThOrdenavelProps) {
+export function ThOrdenavel({ campo, campoOrdenado, direcao, onOrdenar, className, alinharDireita, children }: ThOrdenavelProps) {
   const ativo = campoOrdenado === campo;
   return (
     <th className={className ?? 'p-3'}>
-      <button type="button" onClick={() => onOrdenar(campo)} className="flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900">
+      <button
+        type="button"
+        onClick={() => onOrdenar(campo)}
+        className={`flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900${alinharDireita ? ' w-full justify-end' : ''}`}
+      >
         {children}
         {ativo ? (
           direcao === 'asc' ? (

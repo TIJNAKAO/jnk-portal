@@ -140,6 +140,24 @@ export async function buscarPrecosPaginados(
   return { linhas, total };
 }
 
+/**
+ * Acima disto o Excel fica pesado demais para gerar dentro de uma request.
+ * `sysemp_preco` tem uma linha por produto × empresa × tabela × condição de
+ * pagamento, então cresce rápido — daí o teto mais alto que o de Notas
+ * Fiscais.
+ */
+export const LIMITE_EXPORTACAO = 300_000;
+
+/** Mesma consulta da tela, sem paginação — para a exportação em Excel. */
+export async function buscarPrecosCompletos(
+  filtro: FiltroPrecos,
+  escopo: EmpresaPermitida[],
+  ordenacao: Ordenacao,
+): Promise<LinhaPreco[]> {
+  const { linhas } = await buscarPrecosPaginados(filtro, escopo, 1, LIMITE_EXPORTACAO, ordenacao);
+  return linhas;
+}
+
 export interface OpcaoFiltro {
   valor: string;
   rotulo: string;

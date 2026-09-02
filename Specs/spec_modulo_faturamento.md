@@ -442,8 +442,10 @@ Consulta direta de `sysemp_preco`, a tabela alimentada pela fila da SysEmp
 produto, marca, tabela, condição de pagamento, preço de tabela, preço
 promocional, início e término da promoção, e data da última integração
 (`synced_at`). Filtros de empresa, marca, busca (código, descrição, código
-auxiliar ou código de barras) e "só promoção vigente"; paginada em 50 e
-ordenável por qualquer coluna.
+auxiliar ou código de barras) e "só promoção vigente"; paginada em 50,
+ordenável por qualquer coluna e exportável para Excel — a exportação passa
+pelo mesmo caminho da consulta, então não é porta lateral para o que a tela
+não mostraria.
 
 Duas particularidades que a distinguem das outras telas do módulo:
 

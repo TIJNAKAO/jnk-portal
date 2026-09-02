@@ -4,18 +4,22 @@ import { ThOrdenavel } from '../../components/ThOrdenavel';
 import type { DirecaoOrdenacao } from '../../lib/tabela';
 import { useApi, useApiDownload } from '../../lib/useApi';
 
-interface LinhaPreco {
+interface LinhaSaldo {
   id_empresa: number;
   empresa: string | null;
   id_produto: number;
   nome_produto: string | null;
   marca: string | null;
-  nome_tabela: string | null;
-  nome_condicao: string | null;
-  preco_tabela: number | null;
-  preco_promocao: number | null;
-  data_inicio_promocao: string | null;
-  data_termino_promocao: string | null;
+  saldo_disponivel: number | null;
+  estoque_principal: number | null;
+  estoque_reservado: number | null;
+  estoque_importacao: number | null;
+  estoque_avarias: number | null;
+  estoque_loja: number | null;
+  estoque_assistencia: number | null;
+  estoque_armazem_externo: number | null;
+  custo_formacao: number | null;
+  custo_medio: number | null;
   synced_at: string;
 }
 
@@ -26,14 +30,9 @@ interface OpcaoFiltro {
 
 const TAMANHO_PAGINA = 50;
 
-function moeda(v: number | null): string {
+function num(v: number | null): string {
   if (v === null || v === undefined) return '—';
   return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function data(v: string | null): string {
-  if (!v) return '—';
-  return new Date(v).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
 
 function dataHora(v: string | null): string {
@@ -41,11 +40,11 @@ function dataHora(v: string | null): string {
   return new Date(v).toLocaleString('pt-BR');
 }
 
-export function PrecosPage() {
+export function SaldosPage() {
   const api = useApi();
   const baixar = useApiDownload();
 
-  const [linhas, setLinhas] = useState<LinhaPreco[]>([]);
+  const [linhas, setLinhas] = useState<LinhaSaldo[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
   const [carregando, setCarregando] = useState(false);
@@ -61,12 +60,12 @@ export function PrecosPage() {
   const [empresa, setEmpresa] = useState('');
   const [marca, setMarca] = useState('');
   const [busca, setBusca] = useState('');
-  const [soPromocao, setSoPromocao] = useState(false);
+  const [soComSaldo, setSoComSaldo] = useState(false);
   const [ordenarPor, setOrdenarPor] = useState('nome_produto');
   const [direcao, setDirecao] = useState<DirecaoOrdenacao>('asc');
 
   useEffect(() => {
-    api<typeof opcoes>('/faturamento/precos/filtros')
+    api<typeof opcoes>('/estoque/saldos/filtros')
       .then(setOpcoes)
       .catch((e: Error) => setErro(e.message));
   }, [api]);
@@ -76,11 +75,11 @@ export function PrecosPage() {
     if (empresa) params.set('empresas', empresa);
     if (marca) params.set('marcas', marca);
     if (busca) params.set('busca', busca);
-    if (soPromocao) params.set('soPromocao', 'true');
+    if (soComSaldo) params.set('soComSaldo', 'true');
     params.set('ordenarPor', ordenarPor);
     params.set('direcao', direcao);
     return params;
-  }, [empresa, marca, busca, soPromocao, ordenarPor, direcao]);
+  }, [empresa, marca, busca, soComSaldo, ordenarPor, direcao]);
 
   const carregar = useCallback(
     async (paginaAlvo: number) => {
@@ -91,7 +90,7 @@ export function PrecosPage() {
         params.set('pagina', String(paginaAlvo));
         params.set('tamanhoPagina', String(TAMANHO_PAGINA));
 
-        const dados = await api<{ linhas: LinhaPreco[]; total: number }>(`/faturamento/precos?${params.toString()}`);
+        const dados = await api<{ linhas: LinhaSaldo[]; total: number }>(`/estoque/saldos?${params.toString()}`);
         setLinhas(dados.linhas);
         setTotal(dados.total);
         setPagina(paginaAlvo);
@@ -111,7 +110,7 @@ export function PrecosPage() {
   async function exportar() {
     setExportando(true);
     try {
-      await baixar(`/faturamento/precos/exportar?${queryFiltros().toString()}`, { nomeArquivo: 'precos.xlsx' });
+      await baixar(`/estoque/saldos/exportar?${queryFiltros().toString()}`, { nomeArquivo: 'estoque-saldos.xlsx' });
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -139,9 +138,9 @@ export function PrecosPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Preços</h1>
+          <h1 className="text-lg font-semibold text-slate-900">Saldo de Estoque</h1>
           <p className="text-sm text-slate-500">
-            Tabela de preços sincronizada da SysEmp, por empresa, tabela e condição de pagamento.
+            Estoque físico sincronizado da SysEmp, por produto e empresa.
             {opcoes.ultimaIntegracao && ` Última integração: ${dataHora(opcoes.ultimaIntegracao)}.`}
           </p>
         </div>
@@ -156,11 +155,7 @@ export function PrecosPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={empresa}
-          onChange={(e) => setEmpresa(e.target.value)}
-          className="min-h-[40px] rounded-lg border border-slate-300 px-3 text-sm"
-        >
+        <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} className="min-h-[40px] rounded-lg border border-slate-300 px-3 text-sm">
           <option value="">Todas as empresas</option>
           {opcoes.empresas.map((o) => (
             <option key={o.valor} value={o.valor}>
@@ -181,8 +176,8 @@ export function PrecosPage() {
         <CampoBusca valor={busca} onChange={setBusca} placeholder="Código, descrição ou código de barras" />
 
         <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={soPromocao} onChange={(e) => setSoPromocao(e.target.checked)} />
-          Só promoção vigente
+          <input type="checkbox" checked={soComSaldo} onChange={(e) => setSoComSaldo(e.target.checked)} />
+          Só com saldo
         </label>
       </div>
 
@@ -196,35 +191,43 @@ export function PrecosPage() {
               {th('id_produto', 'Código')}
               {th('nome_produto', 'Descrição do produto')}
               {th('marca', 'Marca')}
-              {th('nome_tabela', 'Tabela')}
-              {th('nome_condicao', 'Condição')}
-              {th('preco_tabela', 'Preço tabela', true)}
-              {th('preco_promocao', 'Preço promocional', true)}
-              {th('data_inicio_promocao', 'Início promoção')}
-              {th('data_termino_promocao', 'Término promoção')}
+              {th('saldo_disponivel', 'Disponível', true)}
+              {th('estoque_principal', 'Principal', true)}
+              {th('estoque_reservado', 'Reservada', true)}
+              {th('estoque_importacao', 'Importação', true)}
+              {th('estoque_avarias', 'Avarias', true)}
+              {th('estoque_loja', 'Loja', true)}
+              {th('estoque_assistencia', 'Assistência', true)}
+              {th('estoque_armazem_externo', 'Armazém externo', true)}
+              {th('custo_formacao', 'Custo formação', true)}
+              {th('custo_medio', 'Custo médio', true)}
               {th('synced_at', 'Data integração')}
             </tr>
           </thead>
           <tbody>
             {linhas.map((l) => (
-              <tr key={`${l.id_produto}-${l.id_empresa}-${l.nome_tabela}-${l.nome_condicao}`} className="border-b border-slate-100 last:border-0">
+              <tr key={`${l.id_produto}-${l.id_empresa}`} className="border-b border-slate-100 last:border-0">
                 <td className="p-3 text-slate-500">{l.empresa?.trim() || l.id_empresa}</td>
                 <td className="p-3">{l.id_produto}</td>
                 <td className="p-3">{l.nome_produto ?? '—'}</td>
                 <td className="p-3 text-slate-500">{l.marca ?? '—'}</td>
-                <td className="p-3 text-slate-500">{l.nome_tabela ?? '—'}</td>
-                <td className="p-3 text-slate-500">{l.nome_condicao ?? '—'}</td>
-                <td className="p-3 text-right tabular-nums">{moeda(l.preco_tabela)}</td>
-                <td className="p-3 text-right tabular-nums">{moeda(l.preco_promocao)}</td>
-                <td className="p-3 text-slate-500">{data(l.data_inicio_promocao)}</td>
-                <td className="p-3 text-slate-500">{data(l.data_termino_promocao)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.saldo_disponivel)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.estoque_principal)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.estoque_reservado)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.estoque_importacao)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.estoque_avarias)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.estoque_loja)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.estoque_assistencia)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.estoque_armazem_externo)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.custo_formacao)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.custo_medio)}</td>
                 <td className="p-3 text-slate-500">{dataHora(l.synced_at)}</td>
               </tr>
             ))}
             {linhas.length === 0 && !carregando && (
               <tr>
-                <td colSpan={11} className="p-6 text-center text-slate-400">
-                  Nenhum preço encontrado para estes filtros.
+                <td colSpan={15} className="p-6 text-center text-slate-400">
+                  Nenhum saldo encontrado para estes filtros.
                 </td>
               </tr>
             )}

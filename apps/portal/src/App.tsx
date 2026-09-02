@@ -15,6 +15,7 @@ import { PerfilPermissoesPage } from './pages/config/PerfilPermissoesPage';
 import { PerfisPage } from './pages/config/PerfisPage';
 import { UsuariosPage } from './pages/config/UsuariosPage';
 import { CurvaAbcPage } from './pages/estoque/CurvaAbcPage';
+import { SaldosPage } from './pages/estoque/SaldosPage';
 import { NotasFiscaisPage } from './pages/faturamento/NotasFiscaisPage';
 import { PrecosPage } from './pages/faturamento/PrecosPage';
 import { ExecucaoDetalhePage } from './pages/integracao/ExecucaoDetalhePage';
@@ -85,6 +86,7 @@ export function App() {
             <Route path="/integracao/mercado-livre" element={<MercadoLivrePage />} />
 
             <Route path="/estoque/curva-abc" element={<CurvaAbcPage />} />
+            <Route path="/estoque/saldos" element={<SaldosPage />} />
 
             <Route
               path="/faturamento/dashboard"
