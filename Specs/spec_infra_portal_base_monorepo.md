@@ -1,6 +1,6 @@
 # Especificação Técnica: Infraestrutura da Plataforma (Portal Base Multi-Filial) — Monorepo TS + MySQL (DigitalOcean)
 
-## 0. Status de Implementação
+## 1. Status de Implementação
 
 Este spec é o documento vivo do projeto: sempre que a implementação divergir dele
 (por necessidade técnica) ou adicionar algo além do que está descrito, este arquivo
@@ -11,23 +11,23 @@ checar esta seção.
 |---|---|
 | Monorepo (npm workspaces) + `packages/shared` | ✅ Implementado |
 | Conexão MySQL (`mysql2/promise`) + query parametrizada (`apps/api/src/config/database.ts`) | ✅ Implementado |
-| Schema MySQL (seção 3) — `apps/api/db/001..005_*.sql` + runner `apps/api/db/migrate.ts` | ✅ Implementado |
+| Schema MySQL (seção 4) — `apps/api/db/001..005_*.sql` + runner `apps/api/db/migrate.ts` | ✅ Implementado |
 | Auth JWT + isolamento de tenant (`authTenant`) | ✅ Implementado |
-| Login + seleção/troca de filial (seção 4.2) | ✅ Implementado |
-| Hub de aplicativos, quadro de avisos (seção 4.3) | ✅ Implementado |
-| Sidebar com troca de módulo (seção 4.4) | ✅ Implementado — falta "cargo" no card do usuário (não existe no modelo de dados, igual ao spec original) |
-| Force update (seção 4.1.2) | ✅ Implementado (`ForceUpdateGuard.tsx`) |
-| Resiliência offline — banner + persistência (seção 4.1.1) | ✅ Implementado (`useOnlineStatus`, `OfflineBanner`) — **falta o reenvio automático** da troca de filial quando o evento `online` dispara; hoje uma falha de rede em `switch-filial` só aparece como erro, sem retry. Pendente. |
+| Login + seleção/troca de filial (seção 5.2) | ✅ Implementado |
+| Hub de aplicativos, quadro de avisos (seção 5.3) | ✅ Implementado |
+| Sidebar com troca de módulo (seção 5.4) | ✅ Implementado — falta "cargo" no card do usuário (não existe no modelo de dados, igual ao spec original) |
+| Force update (seção 5.1.2) | ✅ Implementado (`ForceUpdateGuard.tsx`) |
+| Resiliência offline — banner + persistência (seção 5.1.1) | ✅ Implementado (`useOnlineStatus`, `OfflineBanner`) — **falta o reenvio automático** da troca de filial quando o evento `online` dispara; hoje uma falha de rede em `switch-filial` só aparece como erro, sem retry. Pendente. |
 | Avisos (CRUD admin, tela `/config/avisos`) | ✅ Implementado |
-| Configurador: CRUD de Filiais e Usuários (seção 5) | ✅ Implementado |
-| Middleware de permissão granular por tela (`requirePermissao` — seção 5) | ✅ Implementado |
-| Perfis de Acesso reutilizáveis / RBAC (seção 6) | ✅ Implementado — `buscarPermissoesEfetivas()` em `apps/api/src/services/permissoes.ts` é a fonte única usada tanto por `requirePermissao` quanto por `buscarModulosPermitidos`, evitando a divergência que a spec alerta |
-| Log de Acessos — login, troca de filial, telas acessadas (seção 7) | ✅ Implementado |
-| Campo `whatsapp` no cadastro de usuário (seção 7.1) | ✅ Implementado (só o campo, sem integração de envio) |
-| Tela de Parâmetros do Sistema (seção 8) | ✅ Implementado (e-mail funcional via `nodemailer`; WhatsApp/Telegram só armazenam config) |
-| Esqueci a Senha, reset por e-mail (seção 9) | ✅ Implementado |
-| Hub pula a seleção quando só há 1 módulo permitido (seção 4.3) | ⏳ Não implementado — mesma decisão do projeto original: hoje só existe o módulo CONFIG, então não há seleção real acontecendo ainda. Reavaliar quando houver 2+ módulos |
-| Integração opcional com Azure AD / multi-tenant | 📝 Em design (seção 10), não implementado |
+| Configurador: CRUD de Filiais e Usuários (seção 6) | ✅ Implementado |
+| Middleware de permissão granular por tela (`requirePermissao` — seção 6) | ✅ Implementado |
+| Perfis de Acesso reutilizáveis / RBAC (seção 7) | ✅ Implementado — `buscarPermissoesEfetivas()` em `apps/api/src/services/permissoes.ts` é a fonte única usada tanto por `requirePermissao` quanto por `buscarModulosPermitidos`, evitando a divergência que a spec alerta |
+| Log de Acessos — login, troca de filial, telas acessadas (seção 8) | ✅ Implementado |
+| Campo `whatsapp` no cadastro de usuário (seção 8.1) | ✅ Implementado (só o campo, sem integração de envio) |
+| Tela de Parâmetros do Sistema (seção 9) | ✅ Implementado (e-mail funcional via `nodemailer`; WhatsApp/Telegram só armazenam config) |
+| Esqueci a Senha, reset por e-mail (seção 10) | ✅ Implementado |
+| Hub pula a seleção quando só há 1 módulo permitido (seção 5.3) | ⏳ Não implementado — mesma decisão do projeto original: hoje só existe o módulo CONFIG, então não há seleção real acontecendo ainda. Reavaliar quando houver 2+ módulos |
+| Integração opcional com Azure AD / multi-tenant | 📝 Em design (seção 11), não implementado |
 
 **Setup local:** copiar `apps/api/.env.example` → `.env` e `apps/portal/.env.example` → `.env`,
 preencher as credenciais do cluster MySQL da DigitalOcean, rodar `npm install` na raiz,
@@ -36,14 +36,14 @@ preencher as credenciais do cluster MySQL da DigitalOcean, rodar `npm install` n
 
 ---
 
-## 1. Contexto do Ambiente e Arquitetura
+## 2. Contexto do Ambiente e Arquitetura
 
 O ecossistema é um Monorepo gerenciado via **npm workspaces** com TypeScript (TS) estrito em todas as camadas:
 *   **apps/portal:** Front-end Single Page Application (SPA) em **React + Vite + TypeScript + Tailwind CSS**.
 *   **apps/api:** Back-end REST em **Node.js + Express + TypeScript**, conectado ao **MySQL 8** via driver `mysql2` (modo `promise`).
 *   **packages/shared:** Biblioteca local de tipos estruturais (`interfaces`, `enums`, `types`) exportada para consumo síncrono de ambos os pacotes.
 
-### 1.1. Hospedagem — DigitalOcean
+### 2.1. Hospedagem — DigitalOcean
 
 *   **Banco de dados:** DigitalOcean **Managed Database for MySQL** (cluster gerenciado, MySQL 8.x). Não é um MySQL rodando numa droplet própria — backups, failover e patches ficam a cargo da DO.
 *   **Conexão:** exige TLS. A DO fornece um certificado CA público para o cluster (baixável no painel, `ca-certificate.crt`); a API deve conectar com `ssl: { ca, rejectUnauthorized: true }` — nunca desabilitar a verificação do certificado.
@@ -54,7 +54,7 @@ O ecossistema é um Monorepo gerenciado via **npm workspaces** com TypeScript (T
 
 ---
 
-## 2. Tipagem Compartilhada (`packages/shared/src/types/infra.ts`)
+## 3. Tipagem Compartilhada (`packages/shared/src/types/infra.ts`)
 
 Estes tipos devem ser criados primeiramente na pasta compartilhada para garantir a consistência do compilador entre o React e o Node.js.
 
@@ -111,12 +111,12 @@ export interface UsuarioSessao {
 > módulo futuro X) **não** devem entrar como campo solto em `UsuarioSessao` —
 > isso mistura o tipo genérico de infra com regra de um módulo específico. Cada
 > módulo de negócio deve modelar suas próprias permissões finas via
-> `Permissoes_Usuario`/`Perfis_Telas` (seção 6) ou, se granularidade por tela não
+> `Permissoes_Usuario`/`Perfis_Telas` (seção 7) ou, se granularidade por tela não
 > bastar, via uma tabela própria do módulo — a definir no spec daquele módulo.
 
 ---
 
-## 3. Banco de Dados Core (MySQL 8 / DigitalOcean Managed Database)
+## 4. Banco de Dados Core (MySQL 8 / DigitalOcean Managed Database)
 
 Modelagem com suporte nativo a multi-filiais, vínculos de muitos-para-muitos (`N:N`) e quadro de avisos dinâmicos.
 
@@ -135,7 +135,7 @@ Modelagem com suporte nativo a multi-filiais, vínculos de muitos-para-muitos (`
 *   `INT IDENTITY(1,1)` → `INT AUTO_INCREMENT`.
 *   `BIT` → `BOOLEAN` (alias de `TINYINT(1)` no MySQL).
 *   `DATETIME DEFAULT GETDATE()` → `DATETIME DEFAULT CURRENT_TIMESTAMP`. Ver
-    seção 9.1 sobre fuso horário — importante em hospedagem cloud.
+    seção 10.1 sobre fuso horário — importante em hospedagem cloud.
 *   `VARCHAR(MAX)` / `NVARCHAR(MAX)` → `TEXT` (ou `LONGTEXT` para
     `foto_perfil_base64`, que guarda imagem em base64 e pode passar de 64KB).
 *   Removido o campo `codigo_filial_totvs` (integração específica de um cliente
@@ -229,7 +229,7 @@ CREATE TABLE avisos_plataforma (
 
 *(Diretriz arquitetural: Todas as tabelas de negócio criadas em módulos futuros deverão incluir obrigatoriamente uma coluna `filial_id INT NOT NULL` como chave estrangeira, garantindo o isolamento completo de dados).*
 
-### 3.1. Migrations
+### 4.1. Migrations
 
 Scripts numerados sequenciais em `apps/api/db/NNN_descricao.sql` (ex:
 `001_schema.sql`), aplicados via um runner simples em Node (não `sqlcmd` —
@@ -241,43 +241,43 @@ possível, ex: `CREATE TABLE IF NOT EXISTS`).
 
 ---
 
-## 4. Front-End: Interfaces e Fluxo Multi-Filial (`apps/portal`)
+## 5. Front-End: Interfaces e Fluxo Multi-Filial (`apps/portal`)
 
-### 4.1. Diretrizes de Responsividade, Ergonomia e Resiliência (Desktop vs Tablet)
+### 5.1. Diretrizes de Responsividade, Ergonomia e Resiliência (Desktop vs Tablet)
 O front-end deve usar os breakpoints nativos do Tailwind CSS (`md:` e `lg:`). Todos os botões e áreas de clique devem possuir altura mínima de `44px` para uso confortável em telas Touch (Tablets).
 
-#### 4.1.1. Estado Sincronizado Offline (Resiliência de Rede)
+#### 5.1.1. Estado Sincronizado Offline (Resiliência de Rede)
 
 *   **Comportamento:** Implementar um hook ou escutador global do status de conectividade do dispositivo via `navigator.onLine` (`useOnlineStatus()`).
 *   **Interface:** Se a rede oscilar, a aplicação deve exibir uma barra discreta ou banner fixo de alerta no topo (`"Conexão instável. Suas ações serão sincronizadas ao retornar a rede."`), montado globalmente (visível em qualquer tela, inclusive fora do login).
 *   **Persistência:** A sessão completa (token + `usuario`, incluindo `filiaisPermitidas` e `preferencias`) vai para `localStorage` desde o login — cobre a necessidade de manter a lista de filiais e preferências disponíveis offline.
-*   **Troca de filial offline — decisão de design:** a troca de filial na Sidebar (seção 4.4) só aplica a mudança **depois** que `POST /api/auth/switch-filial` confirma. Se a chamada falhar por rede (não por erro da API), o pedido fica pendente e é reenviado automaticamente quando o evento `online` dispara — a UI não muda antes da confirmação. Uma troca "otimista" que depois falhasse (ex: acesso à filial revogado nesse meio-tempo) mostraria dados errados na tela por um período; considerado risco maior que o ganho de percepção de velocidade.
+*   **Troca de filial offline — decisão de design:** a troca de filial na Sidebar (seção 5.4) só aplica a mudança **depois** que `POST /api/auth/switch-filial` confirma. Se a chamada falhar por rede (não por erro da API), o pedido fica pendente e é reenviado automaticamente quando o evento `online` dispara — a UI não muda antes da confirmação. Uma troca "otimista" que depois falhasse (ex: acesso à filial revogado nesse meio-tempo) mostraria dados errados na tela por um período; considerado risco maior que o ganho de percepção de velocidade.
 
-#### 4.1.2. Controle de Versão Forçado (Force Update)
+#### 5.1.2. Controle de Versão Forçado (Force Update)
 
 *   **Comportamento:** O React deve interceptar a propriedade `versaoSistema` enviada pela API no payload de login.
 *   **Ação:** O front-end compara essa string com sua própria variável de ambiente de build local (`import.meta.env.VITE_APP_VERSION`). Se houver divergência, o sistema exibe uma notificação amigável e chama `window.location.reload()` para recarregar limpo.
 
-### 4.2. Fluxo de Login Inteligente e Escolha de Filial
+### 5.2. Fluxo de Login Inteligente e Escolha de Filial
 
 1.  **Etapa 1 (Autenticação):** Validação de e-mail e senha.
 2.  **Etapa 2 (Seleção da Filial):** Exibe as filiais permitidas vinculadas à conta do usuário. Se houver apenas uma filial mapeada, avança automaticamente.
 
-### 4.3. Tela Inicial: Painel de Boas-Vindas, Hub de Aplicativos e Quadro de Avisos (`/modules`)
+### 5.3. Tela Inicial: Painel de Boas-Vindas, Hub de Aplicativos e Quadro de Avisos (`/modules`)
 
 Após definir a filial ativa, o usuário é direcionado para a tela inicial do Portal.
 *   **Componente de Mensagem Motivacional:** Card superior em destaque com texto de engajamento dinâmico baseado no horário e nome (Bom dia / Boa tarde / Boa noite + primeiro nome).
     *   *Texto Exemplo:* `"Olá, [Nome do Usuário]! Bem-vindo ao hub operacional. Seu trabalho constrói a nossa eficiência e a nossa segurança. Escolha um dos aplicativos abaixo para iniciar suas atividades com foco e excelência!"`
 *   **Hub de Aplicativos (Launcher):** Uma grade (`grid`) responsiva renderizando cartões táteis para cada aplicativo presente em `modulosPermitidos`.
 *   **Quadro de Avisos:** Painel dinâmico que consome `GET /api/avisos/ativos` — avisos globais (`filial_id IS NULL`) ou da filial ativa, ainda não expirados. Exige só `authTenant` (qualquer usuário logado vê); não é gated por `requirePermissao` como as telas do Configurador, por não ser uma tela administrativa.
-*   **Comportamento de Clique:** Ao clicar em um card, o módulo ativo passa a ser derivado da rota atual (ver seção 4.4) e a Sidebar passa a listar os menus daquele sistema. Se o usuário tiver permissão para apenas um módulo, o sistema pode pular a tela de seleção e ativar o módulo automaticamente — avaliar quando existir mais de um módulo de negócio além do CONFIG.
+*   **Comportamento de Clique:** Ao clicar em um card, o módulo ativo passa a ser derivado da rota atual (ver seção 5.4) e a Sidebar passa a listar os menus daquele sistema. Se o usuário tiver permissão para apenas um módulo, o sistema pode pular a tela de seleção e ativar o módulo automaticamente — avaliar quando existir mais de um módulo de negócio além do CONFIG.
 
 CRUD de avisos (criar/editar/expirar) fica em `/config/avisos`, tela nova do
 módulo CONFIG. `DELETE` ali é exclusão física (diferente de Filiais/Usuários/
-Perfis, seção 5): avisos são efêmeros, já têm expiração própria, e nada mais
+Perfis, seção 6): avisos são efêmeros, já têm expiração própria, e nada mais
 no schema referencia `avisos_plataforma.id`.
 
-### 4.4. Design Otimizado da Barra Lateral (Sidebar Component)
+### 5.4. Design Otimizado da Barra Lateral (Sidebar Component)
 
 A Sidebar se adapta ao aplicativo ativo no ecossistema:
 *   **Estado Vazio (Sem módulo ativo):** Se o usuário estiver na tela de Boas-Vindas (`/modules`), a Sidebar exibe apenas o Card do Usuário (com o seletor de Filial) e uma mensagem sutil: *"Selecione um aplicativo para iniciar"*. Em tablets, ela fica totalmente oculta nesta fase.
@@ -292,7 +292,7 @@ A Sidebar se adapta ao aplicativo ativo no ecossistema:
 
 ---
 
-## 5. Configurador (módulo `CONFIG`) — Administração de Filiais e Usuários
+## 6. Configurador (módulo `CONFIG`) — Administração de Filiais e Usuários
 
 O Configurador é um módulo (`modulos_sistema.chave_modulo = 'CONFIG'`) como qualquer
 outro que aparecerá no Hub — não é um caso especial na arquitetura. Tem, no mínimo,
@@ -303,7 +303,7 @@ duas telas (`telas_modulo`), cada uma com sua própria linha em `permissoes_usua
 | Filiais | `/config/filiais` |
 | Usuários | `/config/usuarios` |
 
-### 5.1. Middleware de permissão granular (`requirePermissao`)
+### 6.1. Middleware de permissão granular (`requirePermissao`)
 
 `apps/api/src/middlewares/requirePermissao.ts` — factory `requirePermissao(rotaTela, acao)`
 onde `acao` é `"podeVisualizar" | "podeCriar" | "podeEditar" | "podeDeletar"`. Roda depois
@@ -311,7 +311,7 @@ de `authTenant` (usa `req.usuario.id`), consulta `permissoes_usuario` join `tela
 pela `rotaTela`, e responde `403` se a permissão não existir ou a flag da ação for falsa.
 Toda rota de CRUD do Configurador usa esse middleware.
 
-### 5.2. API — Filiais (`apps/api/src/routes/filiais.ts`)
+### 6.2. API — Filiais (`apps/api/src/routes/filiais.ts`)
 
 | Método | Rota | Permissão exigida |
 |---|---|---|
@@ -321,7 +321,7 @@ Toda rota de CRUD do Configurador usa esse middleware.
 | `DELETE` | `/api/filiais/:id` | `podeDeletar` |
 
 **Decisão de design — `DELETE` não é físico.** Filiais são referenciadas por FK em
-`usuarios`, `usuarios_filiais` e `avisos_plataforma` (e, pela diretriz da seção 3, por
+`usuarios`, `usuarios_filiais` e `avisos_plataforma` (e, pela diretriz da seção 4, por
 toda tabela de negócio futura). Apagar de verdade quebraria histórico e integridade
 referencial. `DELETE /api/filiais/:id` executa `UPDATE filiais SET ativa = FALSE` — a
 filial some das opções de seleção mas nada é perdido. `PUT` com `ativa: true` reativa.
@@ -329,7 +329,7 @@ filial some das opções de seleção mas nada é perdido. `PUT` com `ativa: tru
 CNPJ é validado apenas por formato (14 dígitos após remover máscara) — **não** valida
 dígito verificador. Considerar adicionar se cadastros incorretos virarem problema real.
 
-### 5.3. API — Usuários (`apps/api/src/routes/usuarios.ts`)
+### 6.3. API — Usuários (`apps/api/src/routes/usuarios.ts`)
 
 | Método | Rota | Permissão exigida |
 |---|---|---|
@@ -348,20 +348,20 @@ caso de falha no meio da operação. Senha exige mínimo de 8 caracteres; no `PU
 o campo `senha` é opcional — se omitido, a senha atual é mantida.
 
 Atribuição de permissões por tela pela UI é feita via **Perfis de Acesso**
-(seção 6) — `permissoes_usuario` (direto por usuário) existe só como exceção pontual.
+(seção 7) — `permissoes_usuario` (direto por usuário) existe só como exceção pontual.
 
-### 5.4. Front-end (`apps/portal/src/pages/config/`)
+### 6.4. Front-end (`apps/portal/src/pages/config/`)
 
 `FiliaisPage.tsx`, `UsuariosPage.tsx`, `PerfisPage.tsx`, `PerfilPermissoesPage.tsx`,
 `LogsAcessoPage.tsx`, `ParametrosPage.tsx` — cada uma é só o conteúdo da tela;
 a navegação entre elas (e a partir de `/modules`) é toda feita pela Sidebar
-global (seção 4.4), não por uma nav própria do Configurador.
+global (seção 5.4), não por uma nav própria do Configurador.
 
 ---
 
-## 6. Perfis de Acesso (RBAC reutilizável)
+## 7. Perfis de Acesso (RBAC reutilizável)
 
-Além da atribuição direta usuário↔tela (`permissoes_usuario`, seção 3), existe um
+Além da atribuição direta usuário↔tela (`permissoes_usuario`, seção 4), existe um
 segundo nível reutilizável: **Perfis** (ex: "Administrador", "Operador"), cada um
 com sua própria matriz de permissões por tela, atribuíveis a N usuários.
 
@@ -422,7 +422,7 @@ vinculado ao usuário de teste.
 
 ---
 
-## 7. Log de Acessos
+## 8. Log de Acessos
 
 Registra login, troca de filial e cada acesso bem-sucedido a uma tela (para
 responder "quais aplicativos e menus o usuário acessou").
@@ -463,7 +463,7 @@ servidor e nunca derrubam a requisição principal.
 os 200 registros mais recentes, com filtro opcional `?usuarioId=`. Front-end:
 `LogsAcessoPage.tsx`, com um `<select>` de usuário para filtrar.
 
-### 7.1. Campo `whatsapp` no cadastro de usuário
+### 8.1. Campo `whatsapp` no cadastro de usuário
 
 `usuarios.whatsapp VARCHAR(20) NULL`. Preparação para integração futura de
 envio de mensagens/alertas/arquivos via WhatsApp e Telegram (fora do escopo
@@ -473,7 +473,7 @@ escolhido (E.164 provavelmente, para WhatsApp Business API).
 
 ---
 
-## 8. Parâmetros do Sistema
+## 9. Parâmetros do Sistema
 
 Tela de configuração para dados que não pertencem ao código (credenciais SMTP,
 e futuramente tokens de API de WhatsApp/Telegram), organizados por categoria
@@ -506,7 +506,7 @@ não "apagar").
 
 `obterConfigEmail()` deve ser o ponto de leitura interno (descriptografa e
 monta o objeto pronto para um client SMTP) — usado pelo fluxo de "Esqueci a
-Senha" (seção 9).
+Senha" (seção 10).
 
 Front-end: `ParametrosPage.tsx`, abas por categoria. Campo sensível mostra
 "já configurado" em vez do valor, com placeholder "deixe em branco para
@@ -514,7 +514,7 @@ manter".
 
 ---
 
-## 9. Esqueci a Senha
+## 10. Esqueci a Senha
 
 ```sql
 CREATE TABLE tokens_reset_senha (
@@ -548,7 +548,7 @@ Front-end: `EsqueciSenhaPage.tsx` (só pede e-mail) e `RedefinirSenhaPage.tsx`
 (lê `?token=` da URL, pede nova senha + confirmação). Link "Esqueci minha
 senha" na tela de login.
 
-### 9.1. Fuso horário — cuidado obrigatório com MySQL em hospedagem cloud
+### 10.1. Fuso horário — cuidado obrigatório com MySQL em hospedagem cloud
 
 O spec original (SQL Server on-premise) só funcionava corretamente porque API
 e banco rodavam no mesmo servidor físico/fuso horário. Aqui isso **não pode
@@ -558,26 +558,52 @@ tipicamente rodam com fuso do sistema em **UTC**. Para evitar o mesmo tipo de
 bug de comparação de datas que esse padrão de projeto já causou antes num
 provedor diferente:
 
-*   **Forçar UTC na conexão.** No `mysql2`, configurar `timezone: 'Z'` no
-    `createPool(...)` (`apps/api/src/config/database.ts`). Isso faz o driver
-    tratar toda leitura/escrita de `DATETIME` como UTC, convertendo
-    corretamente para/de `Date` do JavaScript (que é sempre UTC internamente).
+**O banco guarda DATETIME no relógio de Brasília (`-03:00`).** A escolha
+inicial foi UTC; mudou em 02/09/2026, quando ficou claro que toda consulta
+direta ao banco — a forma como o time de fato investiga problema — mostrava
+hora 3 horas adiantada, e que ninguém converte de cabeça ao ler um log de
+madrugada. O Brasil aboliu o horário de verão em 2019, então o offset é fixo
+e a conversão não precisa de tabela de fuso.
+
+*   **Os dois caminhos de escrita têm que concordar.** Um `DATETIME` chega
+    ao banco por dois caminhos independentes, e configurar só um deles deixa
+    a mesma coluna com fusos diferentes conforme quem gravou:
+    1.  `Date` passado como parâmetro → serializado pelo **driver**, opção
+        `timezone: '-03:00'` do `createPool(...)`
+        (`apps/api/src/config/database.ts`).
+    2.  `CURRENT_TIMESTAMP` escrito em SQL, e todo `DEFAULT
+        CURRENT_TIMESTAMP` / `ON UPDATE CURRENT_TIMESTAMP` do DDL →
+        resolvido pelo **servidor**, que usa a variável de sessão
+        `time_zone`. O cluster da DigitalOcean roda em UTC
+        (`@@system_time_zone`), então o pool emite `SET time_zone =
+        '-03:00'` em toda conexão nova. O runner de migrations abre conexão
+        própria e faz o mesmo.
+*   **String montada na mão** (só `dbUtil.paraDatetimeBrasilia`, usada por
+    `dataHoraSysemp`) subtrai o offset antes de formatar. Todo o resto passa
+    por `Date` e cai no caminho do driver.
 *   **Usar `DATETIME` (não `TIMESTAMP`)** para as colunas deste schema.
-    `TIMESTAMP` no MySQL faz conversão implícita de fuso baseada na variável
-    de sessão `time_zone`, o que adiciona uma segunda camada de conversão
-    além da do driver — mais uma fonte potencial do mesmo tipo de bug.
-    `DATETIME` grava o valor literal, sem conversão do servidor; com o driver
-    forçado a tratar tudo como UTC (`timezone: 'Z'`) e `DEFAULT
-    CURRENT_TIMESTAMP` gravando a hora UTC do cluster, o valor lido pelo
-    Node sempre corresponde exatamente ao que está no banco.
-*   **Testar a expiração de token** (seção 9) explicitamente comparando um
+    `TIMESTAMP` converte de novo, por conta própria, entre o fuso da sessão
+    e UTC ao gravar e ao ler — uma terceira camada sobre as duas acima.
+    `DATETIME` grava o literal.
+*   **Datas que chegam prontas de sistema externo não entram nessa
+    conversão** — já vêm no horário local (KPL, notas fiscais da SysEmp,
+    Mercado Livre, agente de inventário). A migration `024_fuso_brasilia.sql`
+    lista, no cabeçalho, exatamente quais colunas ficaram de fora e por quê.
+*   **Testar a expiração de token** (seção 10) explicitamente comparando um
     `expira_em` recém-criado contra `new Date()` antes de considerar essa
     parte pronta — é o ponto onde esse tipo de bug de fuso horário mais
     facilmente aparece.
 
+**Armadilha relacionada, achada junto:** `new Date()` rejeita offset com
+hora só. A SysEmp manda `"2026-09-01 15:29:21.581023-03"`, e `-03` sem os
+minutos é *Invalid Date* — silenciosamente, virando `NULL` na coluna. Foi o
+que deixou `datahora_criacao_sysemp` e `datahora_processamento_sysemp`
+vazias em 1,0 milhão de linhas de `sysemp_fila`. `dataHoraSysemp` agora
+completa o offset para `-03:00` antes de parsear.
+
 ---
 
-## 10. Multi-Tenant e Autenticação Plugável (Design — não implementado)
+## 11. Multi-Tenant e Autenticação Plugável (Design — não implementado)
 
 > 📝 **Em design.** Esta seção documenta decisões e o formato pretendido,
 > para orientar quando isso for implementado — não é código ainda.
@@ -587,7 +613,7 @@ dos quais vão querer login via Microsoft Entra ID (Azure AD) em vez de
 usuário/senha local — mas isso deve ser **opcional por cliente**, não algo
 embutido de forma obrigatória.
 
-### 10.1. Modelo de reaproveitamento: deploy por cliente, não SaaS multi-tenant compartilhado
+### 11.1. Modelo de reaproveitamento: deploy por cliente, não SaaS multi-tenant compartilhado
 
 Duas arquiteturas possíveis, e é importante não confundir:
 
@@ -606,7 +632,7 @@ Duas arquiteturas possíveis, e é importante não confundir:
 **Recomendação:** seguir com (1) — deploy por cliente — a menos que surja um
 motivo concreto de negócio para (2). Esta seção assume (1).
 
-### 10.2. Login via Azure AD (Microsoft Entra ID), não LDAP direto
+### 11.2. Login via Azure AD (Microsoft Entra ID), não LDAP direto
 
 Recomendado usar **OIDC contra o Entra ID**, não bind LDAP contra um AD
 on-premise. Motivo: a maioria das empresas hoje usa M365/Entra ID (mesmo com
@@ -617,7 +643,7 @@ inviabiliza reaproveitar isso facilmente entre clientes diferentes). LDAP
 direto fica como opção futura só se algum cliente tiver AD 100% on-premise
 sem Entra ID.
 
-### 10.3. Mudanças de schema previstas
+### 11.3. Mudanças de schema previstas
 
 ```sql
 ALTER TABLE usuarios MODIFY COLUMN senha_hash VARCHAR(255) NULL; -- usuário só-SSO não tem senha local
@@ -631,7 +657,7 @@ explicitamente usuários com `origem_autenticacao != 'LOCAL'` (mensagem
 "esta conta usa login corporativo") em vez de simplesmente falhar a
 comparação de bcrypt contra um hash nulo.
 
-### 10.4. Fluxo de login OIDC (esboço)
+### 11.4. Fluxo de login OIDC (esboço)
 
 1. `GET /api/auth/azure-ad/login` — redireciona para o endpoint de
    autorização do Entra ID (tenant do cliente).
@@ -648,7 +674,7 @@ comparação de bcrypt contra um hash nulo.
 5. Emite o mesmo JWT interno de sempre (`usuarioId`, `filialAtivaId`) — dali
    pra frente, nada mais no sistema precisa saber que o login foi via SSO.
 
-### 10.5. Como fica "opcional por cliente"
+### 11.5. Como fica "opcional por cliente"
 
 Variáveis de ambiente por deploy: `AZURE_AD_TENANT_ID`,
 `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_REDIRECT_URI`. Se

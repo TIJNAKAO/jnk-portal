@@ -14,13 +14,18 @@ async function main() {
     password: env.db.password,
     database: env.db.database,
     multipleStatements: true,
-    timezone: 'Z',
+    // Mesmo fuso do pool da aplicação (config/database.ts): o
+    // `aplicado_em DEFAULT CURRENT_TIMESTAMP` de schema_migrations é
+    // resolvido pelo servidor, que roda em UTC.
+    timezone: '-03:00',
     ssl: env.db.caCertContent
       ? { ca: env.db.caCertContent, rejectUnauthorized: true }
       : env.db.caCertPath
         ? { ca: readFileSync(env.db.caCertPath, 'utf8'), rejectUnauthorized: true }
         : undefined,
   });
+
+  await connection.query("SET time_zone = '-03:00'");
 
   await connection.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (

@@ -29,15 +29,41 @@ export function simNao(origem: Record<string, unknown> | null | undefined, chave
 }
 
 /**
+ * Brasil aboliu o horário de verão em 2019, então o offset é fixo — não
+ * precisa de tabela de fuso nem de `Intl` pra converter.
+ */
+const OFFSET_BRASILIA_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Instante → texto `"YYYY-MM-DD HH:MM:SS"` no relógio de Brasília, que é
+ * como o banco guarda DATETIME (ver
+ * Specs/spec_infra_portal_base_monorepo.md, seção 10.1).
+ *
+ * Só é preciso onde o código monta a string na mão; valores passados como
+ * `Date` são serializados pelo driver, que já está configurado no mesmo
+ * fuso em `config/database.ts`.
+ */
+export function paraDatetimeBrasilia(instante: Date): string {
+  return new Date(instante.getTime() - OFFSET_BRASILIA_MS).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
  * SysEmp manda `"2026-08-30 22:41:55.99543"` (e às vezes com timezone,
  * `"...-03"`) — DATETIME do MySQL não aceita fração nem offset. Converte pro
  * formato aceito, ou NULL se não for data válida.
  */
 export function dataHoraSysemp(valorBruto: unknown): string | null {
   if (valorBruto === null || valorBruto === undefined || valorBruto === '') return null;
-  const data = new Date(String(valorBruto).replace(' ', 'T'));
+
+  // A SysEmp fecha o offset só com a hora (`"...-03"`), mas o parser de
+  // `Date` do JS exige `±HH:mm` — sem completar, TODA data com fuso vira
+  // Invalid Date. Foi o que zerou `datahora_criacao_sysemp` e
+  // `datahora_processamento_sysemp` em 1,0 milhão de linhas de sysemp_fila.
+  const texto = String(valorBruto).trim().replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+
+  const data = new Date(texto);
   if (Number.isNaN(data.getTime())) return null;
-  return data.toISOString().slice(0, 19).replace('T', ' ');
+  return paraDatetimeBrasilia(data);
 }
 
 /**

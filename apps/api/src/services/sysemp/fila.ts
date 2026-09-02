@@ -4,6 +4,7 @@ import type { RowDataPacket } from 'mysql2';
 import * as integracaoLog from '../integracaoLog.js';
 import type { ResultadoSincronizacao } from '../integracaoLog.js';
 import { sysempPost } from './client.js';
+import { dataHoraSysemp } from './dbUtil.js';
 
 export interface LinhaFilaPendente extends RowDataPacket {
   id_fila: number;
@@ -60,13 +61,9 @@ interface ItemFilaSysemp {
   datahora_processamento?: string | null;
 }
 
-/** SysEmp manda `"2026-08-06 17:17:18.39149-03"` — DATETIME do MySQL não aceita fração+timezone. */
-function normalizarDataSysemp(valor: string | null | undefined): string | null {
-  if (!valor) return null;
-  const data = new Date(valor.replace(' ', 'T'));
-  if (Number.isNaN(data.getTime())) return null;
-  return data.toISOString().slice(0, 19).replace('T', ' ');
-}
+// A normalização de data da SysEmp vive em `dbUtil.dataHoraSysemp` — era
+// duplicada aqui, e as duas cópias precisavam mudar juntas quando o banco
+// passou a guardar horário de Brasília.
 
 async function importarPaginaFila(config: FilaConfigRow): Promise<number> {
   const resposta = await sysempPost<{ qtde: number; retorno: ItemFilaSysemp[] }>(config.endpoint_fila, {
@@ -98,8 +95,8 @@ async function importarPaginaFila(config: FilaConfigRow): Promise<number> {
         item.desc_acao ?? null,
         Number(item.id_registro),
         item.status,
-        normalizarDataSysemp(item.datahora_criacao),
-        normalizarDataSysemp(item.datahora_processamento),
+        dataHoraSysemp(item.datahora_criacao),
+        dataHoraSysemp(item.datahora_processamento),
       ],
     );
   }
@@ -107,7 +104,7 @@ async function importarPaginaFila(config: FilaConfigRow): Promise<number> {
   return itens.length;
 }
 
-/** Porta de `SyncFilaSysemp.php` + `SysempIntegracao.php`. Ver spec, seção 2.2/2.3. */
+/** Porta de `SyncFilaSysemp.php` + `SysempIntegracao.php`. Ver spec, seção 3.2/3.3. */
 export async function sincronizarFila(chaveConfig: string, idLog: number): Promise<ResultadoSincronizacao> {
   const [linhasConfig] = await pool.query<FilaConfigRow[]>('SELECT * FROM sysemp_fila_config WHERE chave = ? AND ativo = TRUE', [
     chaveConfig,
