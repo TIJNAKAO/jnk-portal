@@ -3,7 +3,7 @@ import type { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
-import { CATALOGO_INDESEJADOS, gerarScriptInstalarProgramas } from '../services/tiScripts.js';
+import { CATALOGO_INDESEJADOS, empacotarComoBat, gerarScriptInstalarProgramas } from '../services/tiScripts.js';
 
 export const tiInstalarProgramasRouter = Router();
 
@@ -56,7 +56,10 @@ tiInstalarProgramasRouter.post('/script', requirePermissao(ROTA, 'podeVisualizar
     habilitarAdmin: Boolean(habilitarAdmin),
   });
 
-  res.setHeader('Content-Type', 'text/plain; charset=UTF-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="instalar_programas.ps1"');
-  res.send(script);
+  // .bat em vez de .ps1: um .ps1 abre no Bloco de Notas no duplo clique, e
+  // mesmo por "Executar com PowerShell" esbarra em ExecutionPolicy e falta
+  // de elevacao. Ver empacotarComoBat.
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', 'attachment; filename="instalar_programas.bat"');
+  res.send(empacotarComoBat('instalar_programas', script));
 });

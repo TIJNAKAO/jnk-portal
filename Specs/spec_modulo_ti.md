@@ -91,7 +91,7 @@ Telas (`telas_modulo`), cada uma com sua própria linha em `permissoes_usuario`/
 | Departamentos | `/ti/departamentos` | Cadastro livre |
 | Atribuir Responsáveis | `/ti/responsaveis` | |
 | Catálogo de Programas | `/ti/catalogo-programas` | |
-| Instalar Programas | `/ti/instalar-programas` | Gera script `.ps1` |
+| Instalar Programas | `/ti/instalar-programas` | Gera `.bat` executável |
 | Atualizar Programas | `/ti/atualizar-programas` | Gera `.bat` executável |
 | Softwares Aprovados | `/ti/softwares-aprovados` | Inclui drill-down "máquinas com este software" |
 | Auditoria de Coleta | `/ti/auditoria-coleta` | |
@@ -467,7 +467,7 @@ pacote (descobre-se rodando `winget search "nome"` numa máquina Windows).
 
 ### 5.6. Instalar Programas (`/ti/instalar-programas`)
 
-Tela que **gera um arquivo `.ps1`** (download direto, não executa nada
+Tela que **gera um `.bat` executável** (download direto, não executa nada
 remotamente) a partir de três seleções independentes:
 1. Programas do catálogo marcados → vira `winget install --id <id> --silent
    --accept-source-agreements --accept-package-agreements` por programa,
@@ -478,7 +478,7 @@ remotamente) a partir de três seleções independentes:
    pros que também têm instalador clássico, como o Spotify).
 3. Checkbox "Habilitar Administrador local" → bloco que pergunta a senha
    **na hora que o script roda, na própria máquina** (nunca fica salva no
-   site nem no `.ps1` gerado).
+   site nem no arquivo gerado).
 
 Se algum programa do catálogo tem `configurar_acesso_remoto = TRUE`, o
 script ganha um bloco extra que configura o AnyDesk pra iniciar com o
@@ -487,8 +487,10 @@ na hora da execução).
 
 **Decisão de design herdada:** rodar é sempre uma ação manual de quem
 estiver na máquina — o site nunca executa comando remoto nenhum, só gera o
-arquivo. Baixar/rodar o `.ps1` fica pro técnico, tipicamente numa máquina
-recém-formatada.
+arquivo. Baixar/rodar fica pro técnico, tipicamente numa máquina
+recém-formatada — e é justamente esse cenário que motivou o `.bat`: numa
+máquina recém-formatada, o duplo clique num `.ps1` abre o Bloco de Notas.
+Ver seção 5.7 para o mecanismo de empacotamento.
 
 ### 5.7. Gerar Scripts (`/ti/gerar-scripts`)
 
@@ -496,8 +498,9 @@ Hub de automações pra máquinas Windows — cada script é um card na tela,
 todos seguindo o mesmo padrão: botão gera o arquivo, nada roda a partir do
 clique, rodar é sempre manual na máquina de destino.
 
-**Os dois cards deste hub saem como `.bat` executável, não `.ps1`** (desde
-02/09/2026). O motivo é que um `.ps1` não é executável no Windows: duplo
+**Os três scripts do módulo saem como `.bat` executável, não `.ps1`** — os
+dois cards deste hub e o de Instalar Programas (seção 5.6), desde
+02/09/2026. O motivo é que um `.ps1` não é executável no Windows: duplo
 clique abre o Bloco de Notas, e mesmo pelo menu "Executar com PowerShell"
 ele ainda esbarra em ExecutionPolicy e na falta de elevação. O `.bat`
 resolve os três de uma vez — pede elevação sozinho (`net session` +
@@ -559,11 +562,11 @@ algo quebrado.
 
 **Cuidado de codificação:** todo PowerShell gerado (os três) leva um BOM
 UTF-8 no início do conteúdo — nos dois cards deste hub, dentro do base64
-embutido no `.bat`; em Instalar Programas, no `.ps1` baixado direto. Sem isso, o Windows PowerShell 5.1 (ainda comum em
+embutido no `.bat` que o usuário baixa. Sem isso, o Windows PowerShell 5.1 (ainda comum em
 máquina de usuário final) lê o arquivo com um codepage de 1 byte por
 padrão e corrompe qualquer caractere acentuado — inclusive nome de
 programa com acento cadastrado no Catálogo. Descoberto testando o parser
-de PowerShell diretamente contra o `.ps1` baixado de verdade (não só
+de PowerShell diretamente contra o script baixado de verdade (não só
 lendo o código-fonte TS).
 
 ### 5.8. Softwares Aprovados (`/ti/softwares-aprovados`)
@@ -689,7 +692,7 @@ Pontos que estavam em aberto, já validados com o usuário:
 | Departamentos | ✅ Implementado |
 | Atribuir Responsáveis | ✅ Implementado |
 | Catálogo de Programas | ✅ Implementado |
-| Instalar Programas (gera `.ps1`) | ✅ Implementado |
+| Instalar Programas (gera `.bat`) | ✅ Implementado |
 | Gerar Scripts — hub de scripts, renomeado de "Atualizar Programas" (seção 5.7) | ✅ Implementado — cards: Atualizar Programas e Drivers, Configurar Agente de Inventário |
 | Softwares Aprovados + máquinas por software | ✅ Implementado |
 | Auditoria de Coleta | ✅ Implementado |
@@ -701,7 +704,7 @@ que já vinham com status HTTP próprio (ex: JSON malformado no corpo,
 `400`, do `express.json()`). Corrigido pra preservar o status original
 quando for um erro 4xx — evita mascarar erro de requisição do cliente
 (inclusive do próprio agente) como se fosse falha interna do servidor.
-- Todo `.ps1` gerado agora leva BOM UTF-8 (`apps/api/src/services/tiScripts.ts#comBom`) —
+- Todo PowerShell gerado leva BOM UTF-8 (`apps/api/src/services/tiScripts.ts#comBom`) —
 sem isso o Windows PowerShell 5.1 corrompe caracteres acentuados ao ler o
 arquivo. Achado testando o parser de PowerShell diretamente contra o
-`.ps1` baixado pela API de verdade, não só lendo o código-fonte.
+script baixado pela API de verdade, não só lendo o código-fonte.

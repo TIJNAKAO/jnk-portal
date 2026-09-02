@@ -46,7 +46,7 @@ export function InstalarProgramasPage() {
       await apiDownload('/ti/instalar-programas/script', {
         method: 'POST',
         body: { programaIds, desinstalarIds, habilitarAdmin },
-        nomeArquivo: 'instalar_programas.ps1',
+        nomeArquivo: 'instalar_programas.bat',
       });
     } catch (error) {
       setErro((error as Error).message);
@@ -61,7 +61,8 @@ export function InstalarProgramasPage() {
         <h1 className="text-lg font-semibold text-slate-900">Instalar Programas</h1>
         <p className="text-sm text-slate-500">
           Escolha os programas pra instalar, indesejados pra remover e/ou habilite o Administrador local — tudo vira
-          um único script PowerShell (.ps1). Baixe na máquina e rode como Administrador.
+          um único <strong>.bat</strong> executável. Baixe na máquina e dê duplo clique: o próprio arquivo pede
+          elevação.
         </p>
       </div>
 
@@ -105,7 +106,7 @@ export function InstalarProgramasPage() {
         {erro && <p className="text-sm text-red-600">{erro}</p>}
 
         <button type="submit" disabled={gerando} className="min-h-[44px] rounded-lg bg-slate-900 px-4 text-sm text-white disabled:opacity-50">
-          {gerando ? 'Gerando...' : 'Gerar Script (.ps1)'}
+          {gerando ? 'Gerando...' : 'Gerar Executável (.bat)'}
         </button>
       </form>
     </div>

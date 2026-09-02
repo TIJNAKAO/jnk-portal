@@ -235,8 +235,8 @@ export function gerarScriptInstalarProgramas({ selecionados, idsIndesejados, hab
   return comBom(
     '# Gerado pelo Inventario de TI - Instalar Programas\r\n' +
       `# ${new Date().toLocaleString('pt-BR')}\r\n` +
-      '# Executar como Administrador (botao direito no arquivo > Executar com PowerShell,\r\n' +
-      '# ou abrir um PowerShell como Admin e rodar ".\\instalar_programas.ps1")\r\n\r\n' +
+      '# Entregue dentro de instalar_programas.bat, que ja pede elevacao e\r\n' +
+      '# chama este script - ver empacotarComoBat em services/tiScripts.ts.\r\n\r\n' +
       '$ErrorActionPreference = "Continue"\r\n\r\n' +
       blocoDesinstalar +
       blocoInstalacao +
@@ -249,8 +249,8 @@ export function gerarScriptInstalarProgramas({ selecionados, idsIndesejados, hab
 /** Porta de `admin/pc_atualizar_programas.php` — script fixo, não depende de seleção nenhuma. */
 export function gerarScriptAtualizarProgramas(): string {
   return comBom(`# Gerado pelo Inventario de TI - Atualizar Programas e Drivers
-# Executar como Administrador (botao direito no arquivo > Executar com PowerShell,
-# ou abrir um PowerShell como Admin e rodar ".\\atualizar_programas.ps1")
+# Entregue dentro de atualizar_programas.bat, que ja pede elevacao e chama
+# este script - ver empacotarComoBat em services/tiScripts.ts.
 
 $ErrorActionPreference = "Continue"
 
@@ -381,8 +381,8 @@ export function gerarScriptConfigurarAgente({ agenteUrl, apiUrl, apiKey }: Gerar
 
   return comBom(`# Gerado pelo Inventario de TI - Configurar Agente de Inventario
 # ${agora.toLocaleString('pt-BR')}
-# Executar como Administrador (botao direito no arquivo > Executar com PowerShell,
-# ou abrir um PowerShell como Admin e rodar ".\\configurar_agente.ps1")
+# Entregue dentro de configurar_agente.bat, que ja pede elevacao e chama
+# este script - ver empacotarComoBat em services/tiScripts.ts.
 #
 # Faz tres coisas nesta ordem: baixa o AgenteInventarioPC.exe, grava o
 # appsettings.json com as credenciais desta instalacao, e registra a
