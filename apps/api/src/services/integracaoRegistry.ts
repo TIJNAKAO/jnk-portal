@@ -3,13 +3,13 @@ import './sysemp/entidades/estoque.js'; // side-effect: registra o consumidor de
 import './sysemp/entidades/pedidos.js'; // side-effect: registra o consumidor de fila (tipo_tabela 7)
 import './sysemp/entidades/parceiros.js'; // side-effect: registra o consumidor de fila (tipo_tabela 4)
 import './sysemp/entidades/precos.js'; // side-effect: registra o consumidor de fila (tipo_tabela 6)
+import './sysemp/entidades/produtos.js'; // side-effect: registra o consumidor de fila (tipo_tabela 0)
 import { rodarEtlEmpresa } from './etl/empresa.js';
 import { rodarEtlFatcom } from './etl/fatcom.js';
 import { rodarEtlProduto } from './etl/produto.js';
 import type { ResultadoSincronizacao } from './integracaoLog.js';
 import { sincronizarMlPedidos } from './mercadoLivre/pedidos.js';
 import { sincronizarEmpresas } from './sysemp/entidades/empresas.js';
-import { sincronizarProdutos } from './sysemp/entidades/produtos.js';
 import { sincronizarRepresentantes } from './sysemp/entidades/representantes.js';
 import { sincronizarFila } from './sysemp/fila.js';
 
@@ -23,7 +23,7 @@ export interface EntidadeIntegracao {
 export const ENTIDADES_INTEGRACAO: EntidadeIntegracao[] = [
   { chave: 'notas_fiscais', nome: 'Notas Fiscais', sincronizar: (idLog) => sincronizarFila('notas_fiscais', idLog) },
   { chave: 'estoque', nome: 'Saldo de Estoque', sincronizar: (idLog) => sincronizarFila('estoque', idLog) },
-  { chave: 'produtos', nome: 'Produtos', sincronizar: sincronizarProdutos },
+  { chave: 'produtos', nome: 'Produtos', sincronizar: (idLog) => sincronizarFila('produtos', idLog) },
   { chave: 'parceiros', nome: 'Parceiros', sincronizar: (idLog) => sincronizarFila('parceiros', idLog) },
   { chave: 'precos', nome: 'Preços', sincronizar: (idLog) => sincronizarFila('precos', idLog) },
   { chave: 'pedidos', nome: 'Pedidos de Venda', sincronizar: (idLog) => sincronizarFila('pedidos', idLog) },

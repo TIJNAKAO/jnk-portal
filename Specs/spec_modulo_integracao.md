@@ -49,8 +49,9 @@ job de background de verdade.
   Produtos, Parceiros, Preços e Pedidos vieram via lote/offset (ou faixa
   de data/id, conforme o endpoint); Empresas e Representantes continuam
   como busca completa periódica. As três engines foram portadas
-  fielmente. **Depois da v1**, Pedidos, Parceiros e Preços migraram pra
-  fila — a divisão atual está na seção 3.3.
+  fielmente. **Depois da v1**, Pedidos, Parceiros, Preços e Produtos
+  migraram pra fila, e o motor de lote foi aposentado — a divisão atual
+  está na seção 3.3.
 - **O "modo HTTP em lote com auto-continuação client-side"** (a página
   ficava chamando a si mesma via cURL bloqueante pra nunca estourar o
   timeout de ~100s de uma request PHP) deixa de existir. Em Node, a
@@ -157,12 +158,13 @@ o mapeamento completo `tipo_tabela → configuração`.
 ### 3.3. Entidades via fila
 
 Notas Fiscais e Estoque nasceram na fila (era o escopo da v1 — seção
-7.1); Pedidos, Parceiros e Preços migraram depois do lote pra cá, sem
-mexer no motor. Só Produto (seção 3.4) e as buscas completas (seção 3.5)
-seguem fora da fila.
+7.1); Pedidos, Parceiros, Preços e Produtos migraram depois do lote pra
+cá, sem mexer no motor. Hoje só as buscas completas (seção 3.5) seguem
+fora da fila.
 
 | `tipo_tabela` | Entidade | `endpoint_detalhe` | `campo_id_detalhe` | Grava em |
 |---|---|---|---|---|
+| 0 | Produto | `/listarProdutos` | `id_produto` | `sysemp_produto` + 3 sub-tabelas por empresa |
 | 2 | NF Venda | `/listarNotasFiscais` | `id_nota_saida` | `sysemp_nota_fiscal` + `sysemp_nota_fiscal_item` |
 | 3 | NF Compra | `/listarNotasFiscais` | `id_nota_saida` | mesmas tabelas de NF Venda (`entrada_saida='E'`) |
 | 4 | Parceiro | `/listarParceiros` | `id_registro` (a migration 015 seedou `codigo`, não confirmado, com a linha inativa; **produção corrigiu para `id_registro` e ativou**, pela tela 5.4) | `sysemp_parceiro` |
@@ -187,6 +189,25 @@ contrário, são lidos pelo motor e valem pra todas.
 
 Regras específicas de cada consumidor:
 
+- **Produto**: `tipo_tabela` **0**, o único zero do sistema — o motor usa
+  `Map.get` e as telas filtram por string (`"0"` é truthy), então
+  funciona, mas checagem futura sobre esse número precisa ser
+  `!== undefined`, nunca teste de veracidade. Cabeçalho + três
+  sub-listas por empresa (`origens`, `categoria_fiscal`, `estoques`),
+  gravadas por delete+insert das filhas do produto. `acao='D'` marca
+  `ativo = FALSE` (a tabela não tem `deleted`), como Parceiro.
+  **A migração corrigiu três defeitos silenciosos do lote anterior**,
+  medidos no banco em 02/09/2026: as sub-listas se chamam `origens` e
+  `estoques` no plural e o código lia `origem`/`estoque`, deixando
+  `sysemp_produto_origem` e `sysemp_produto_estoque` com **zero linha**
+  (enquanto `categoria_fiscal`, singular e com o nome certo, tinha as
+  223.974 esperadas); `qtde_embalagem` na resposta é sempre `null` e o
+  valor real está em `produto_quantidade_embalagem`, o que deixava a
+  coluna NULL nos 24.886 produtos; e `ativo` era gravado fixo em `true`,
+  ignorando o payload. As sub-tabelas têm FK pra `sysemp_empresa` — uma
+  empresa nova na SysEmp que ainda não tenha sido sincronizada derruba o
+  evento (e a execução), de propósito: é preferível à alternativa de
+  descartar a linha em silêncio.
 - **Nota Fiscal**: cabeçalho e itens vêm juntos no mesmo JSON de detalhe.
   Itens: soft-delete de todos antes do upsert, "revivendo" só os que vêm
   na resposta atual (item que não voltar mais fica `deleted=true`).
@@ -218,23 +239,28 @@ sem mexer no motor. O consumidor se registra por **side-effect do
 import** em `services/integracaoRegistry.ts` — sem esse import ele não
 existe em runtime.
 
-### 3.4. Entidades via lote — Produtos
+### 3.4. Motor de lote — aposentado
 
-Sem fila — pagina do seu próprio jeito, herdado do projeto original
-(mesmo padrão de motor genérico da seção 3.2 mas sem a etapa de
-fila/confirmação — só busca e grava):
+**Não há mais nenhuma entidade aqui.** O motor de lote (paginação por
+offset/faixa, sem etapa de fila/confirmação, herdado do projeto
+original) sincronizava Produtos, Parceiros, Preços e Pedidos; os quatro
+migraram pra fila (seção 3.3) e o código foi removido junto com o
+último deles.
 
-| Entidade | Endpoint(s) | Paginação | Grava em |
-|---|---|---|---|
-| Produto | `/listarProdutos` | offset de registro (avança pela `qtde` retornada; para em `qtde: 0`) | `sysemp_produto` + sub-tabelas |
+A seção fica pra registrar por que a migração valeu a pena, além do
+tráfego evitado: **os dois defeitos mais caros que o projeto encontrou
+estavam justamente no lote, e eram silenciosos**. Preço varria os 24 mil
+produtos de hora em hora para reescrever uma tabela que ninguém lia; e
+Produto gravou zero linha em duas das três sub-tabelas durante toda a
+vida da integração, por ler `origem`/`estoque` onde a resposta manda
+`origens`/`estoques` (detalhes na seção 3.3). Nenhum dos dois deu erro
+em log algum. O modelo de fila não previne erro de nome de campo, mas
+processa registro a registro com confirmação, o que torna a divergência
+observável cedo — por evento, não por varredura inteira.
 
-Regras específicas, preservadas do original:
-
-- **Produto**: resposta vem com sub-listas de origem/categoria fiscal/
-  estoque por empresa — grava faz delete+insert dos filhos daquele lote
-  (não upsert incremental). Campos booleanos vêm como `"t"/"f"`
-  (convertidos pra `true/false`); numéricos vazios (`""`) viram `NULL`
-  explicitamente.
+A numeração das seções seguintes foi mantida de propósito: há
+referências a "seção 3.7" em `middlewares/authTenant.ts` e
+`routes/integracaoExecucoes.ts`.
 
 ### 3.5. Empresas e Representantes — busca completa periódica
 

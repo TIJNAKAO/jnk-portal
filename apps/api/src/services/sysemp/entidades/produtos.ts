@@ -1,133 +1,170 @@
-import { withTransaction, type PoolConnection } from '../../../config/database.js';
-import * as integracaoLog from '../../integracaoLog.js';
-import type { ResultadoSincronizacao } from '../../integracaoLog.js';
-import { sysempPost } from '../client.js';
-import { booleano, inteiro, inserirEmLote, valor } from '../dbUtil.js';
+import type { PoolConnection } from '../../../config/database.js';
+import { booleano, inserirEmLote, inteiro, valor } from '../dbUtil.js';
+import { registrarConsumidorFila } from '../fila.js';
 
-const TAMANHO_LOTE = 200;
-const MAX_ITERACOES = 500; // trava de segurança — até ~100 mil produtos
+/**
+ * Consumidor de fila pra Produto (tipo_tabela 0). Migrado do lote por
+ * offset (`/listarProdutos` paginado) pra fila, seguindo as demais
+ * entidades — ver `sysemp_fila_config`, chave 'produtos', e
+ * Specs/spec_modulo_integracao.md, seção 3.3.
+ *
+ * `tipo_tabela` é **zero**, o único do sistema. Não é problema pro motor
+ * (a busca é num Map, e os filtros de tela comparam string, onde `"0"` é
+ * truthy), mas qualquer checagem futura em cima do número precisa ser
+ * `!== undefined`, nunca um teste de veracidade.
+ *
+ * `/listarProdutos` aceita `{id_produto}` e devolve uma linha só, então o
+ * fetch genérico do motor serve — sem `buscarDetalhe` próprio, diferente
+ * de Preço e Pedido.
+ *
+ * **Três correções em relação à versão em lote**, todas confirmadas
+ * contra o banco de produção em 02/09/2026:
+ *
+ * 1. As sub-listas se chamam `origens` e `estoques` (PLURAL) na resposta;
+ *    o código antigo lia `origem`/`estoque` e por isso
+ *    `sysemp_produto_origem` e `sysemp_produto_estoque` tinham **zero
+ *    linha**, enquanto `categoria_fiscal` (singular, nome certo) tinha as
+ *    223.974 esperadas.
+ * 2. `qtde_embalagem` vem sempre `null`; o valor está em
+ *    `produto_quantidade_embalagem`. A coluna estava NULL nos 24.886
+ *    produtos.
+ * 3. `ativo` vinha fixo em `true`, ignorando o campo do payload.
+ */
 
-interface ProdutoPayload {
-  id_produto?: number;
-  origem?: Record<string, unknown>[];
-  categoria_fiscal?: Record<string, unknown>[];
-  estoque?: Record<string, unknown>[];
-  [chave: string]: unknown;
+export const CAMPOS_PRODUTO = [
+  'id_produto',
+  'codigo_auxiliar',
+  'nome_produto',
+  'unidade',
+  'tipo_produto',
+  'cod_produto_pai',
+  'codigo_barras',
+  'codigo_marca',
+  'descricao_marca',
+  'codigo_categoria',
+  'descricao_categoria',
+  'codigo_grupo',
+  'descricao_grupo',
+  'codigo_subgrupo',
+  'descricao_subgrupo',
+  'produto_kit',
+  'produto_temfilhos',
+  'ncm',
+  'peso_liquido',
+  'altura',
+  'largura',
+  'comprimento',
+  'qtde_embalagem',
+  'ativo',
+] as const;
+
+/** Payload → parâmetros do upsert, na ordem de `CAMPOS_PRODUTO`. */
+export function montarParametrosProduto(payload: Record<string, unknown>, idRegistro: number): unknown[] {
+  return [
+    idRegistro,
+    valor(payload, 'codigo_auxiliar'),
+    valor(payload, 'nome_produto') ?? '',
+    valor(payload, 'unidade'),
+    valor(payload, 'tipo_produto'),
+    inteiro(payload, 'cod_produto_pai'),
+    valor(payload, 'codigo_barras'),
+    valor(payload, 'codigo_marca'),
+    valor(payload, 'descricao_marca'),
+    valor(payload, 'codigo_categoria'),
+    valor(payload, 'descricao_categoria'),
+    valor(payload, 'codigo_grupo'),
+    valor(payload, 'descricao_grupo'),
+    valor(payload, 'codigo_subgrupo'),
+    valor(payload, 'descricao_subgrupo'),
+    booleano(payload, 'produto_kit'),
+    booleano(payload, 'produto_temfilhos'),
+    valor(payload, 'ncm'),
+    valor(payload, 'peso_liquido'),
+    valor(payload, 'altura'),
+    valor(payload, 'largura'),
+    valor(payload, 'comprimento'),
+    valor(payload, 'produto_quantidade_embalagem') ?? valor(payload, 'qtde_embalagem'),
+    booleano(payload, 'ativo'),
+  ];
 }
 
-async function gravarLoteProdutos(connection: PoolConnection, produtos: ProdutoPayload[]): Promise<void> {
-  for (const produto of produtos) {
-    const idProduto = inteiro(produto, 'id_produto');
-    if (idProduto === null) continue;
-
-    await connection.query(
-      `INSERT INTO sysemp_produto (
-         id_produto, codigo_auxiliar, nome_produto, unidade, tipo_produto, cod_produto_pai, codigo_barras,
-         codigo_marca, descricao_marca, codigo_categoria, descricao_categoria, codigo_grupo, descricao_grupo,
-         codigo_subgrupo, descricao_subgrupo, produto_kit, produto_temfilhos, ncm, peso_liquido, altura, largura,
-         comprimento, qtde_embalagem, ativo, synced_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-       ON DUPLICATE KEY UPDATE
-         codigo_auxiliar = VALUES(codigo_auxiliar), nome_produto = VALUES(nome_produto), unidade = VALUES(unidade),
-         tipo_produto = VALUES(tipo_produto), cod_produto_pai = VALUES(cod_produto_pai), codigo_barras = VALUES(codigo_barras),
-         codigo_marca = VALUES(codigo_marca), descricao_marca = VALUES(descricao_marca), codigo_categoria = VALUES(codigo_categoria),
-         descricao_categoria = VALUES(descricao_categoria), codigo_grupo = VALUES(codigo_grupo), descricao_grupo = VALUES(descricao_grupo),
-         codigo_subgrupo = VALUES(codigo_subgrupo), descricao_subgrupo = VALUES(descricao_subgrupo),
-         produto_kit = VALUES(produto_kit), produto_temfilhos = VALUES(produto_temfilhos), ncm = VALUES(ncm),
-         peso_liquido = VALUES(peso_liquido), altura = VALUES(altura), largura = VALUES(largura),
-         comprimento = VALUES(comprimento), qtde_embalagem = VALUES(qtde_embalagem), ativo = VALUES(ativo),
-         synced_at = CURRENT_TIMESTAMP`,
-      [
-        idProduto,
-        valor(produto, 'codigo_auxiliar'),
-        valor(produto, 'nome_produto') ?? '',
-        valor(produto, 'unidade'),
-        valor(produto, 'tipo_produto'),
-        inteiro(produto, 'cod_produto_pai'),
-        valor(produto, 'codigo_barras'),
-        valor(produto, 'codigo_marca'),
-        valor(produto, 'descricao_marca'),
-        valor(produto, 'codigo_categoria'),
-        valor(produto, 'descricao_categoria'),
-        valor(produto, 'codigo_grupo'),
-        valor(produto, 'descricao_grupo'),
-        valor(produto, 'codigo_subgrupo'),
-        valor(produto, 'descricao_subgrupo'),
-        booleano(produto, 'produto_kit'),
-        booleano(produto, 'produto_temfilhos'),
-        valor(produto, 'ncm'),
-        valor(produto, 'peso_liquido'),
-        valor(produto, 'altura'),
-        valor(produto, 'largura'),
-        valor(produto, 'comprimento'),
-        valor(produto, 'qtde_embalagem'),
-        true,
-      ],
-    );
-
-    // Sub-listas por empresa: delete + insert dos filhos deste produto (não upsert incremental).
-    await connection.query('DELETE FROM sysemp_produto_origem WHERE id_produto = ?', [idProduto]);
-    await connection.query('DELETE FROM sysemp_produto_categoria_fiscal WHERE id_produto = ?', [idProduto]);
-    await connection.query('DELETE FROM sysemp_produto_estoque WHERE id_produto = ?', [idProduto]);
-
-    await inserirEmLote(
-      connection,
-      'sysemp_produto_origem',
-      ['id_produto', 'id_empresa', 'origem_mercadoria', 'synced_at'],
-      (produto.origem ?? [])
-        .map((o) => [idProduto, inteiro(o, 'id_empresa'), inteiro(o, 'origem_mercadoria'), new Date()])
-        .filter((linha) => linha[1] !== null),
-    );
-    await inserirEmLote(
-      connection,
-      'sysemp_produto_categoria_fiscal',
-      ['id_produto', 'id_empresa', 'id_tes_saida', 'synced_at'],
-      (produto.categoria_fiscal ?? [])
-        .map((c) => [idProduto, inteiro(c, 'id_empresa'), inteiro(c, 'id_tes_saida'), new Date()])
-        .filter((linha) => linha[1] !== null),
-    );
-    await inserirEmLote(
-      connection,
-      'sysemp_produto_estoque',
-      ['id_produto', 'id_empresa', 'estoque_maximo', 'estoque_minimo', 'synced_at'],
-      (produto.estoque ?? [])
-        .map((e) => [idProduto, inteiro(e, 'id_empresa'), valor(e, 'estoque_maximo'), valor(e, 'estoque_minimo'), new Date()])
-        .filter((linha) => linha[1] !== null),
-    );
-  }
+interface LinhasFilhas {
+  origens: unknown[][];
+  categoriaFiscal: unknown[][];
+  estoques: unknown[][];
 }
 
-/** Lote por offset de registro — avança pela `qtde` retornada, para em `qtde: 0`. */
-export async function sincronizarProdutos(idLog: number): Promise<ResultadoSincronizacao> {
-  let offset = 0;
-  let total = 0;
+/**
+ * Sub-listas por empresa → tuplas. `id_empresa` ausente descarta a linha:
+ * a coluna é NOT NULL e tem FK pra `sysemp_empresa`, então um NULL
+ * derrubaria o evento inteiro.
+ */
+export function montarLinhasFilhas(payload: Record<string, unknown>, idRegistro: number): LinhasFilhas {
+  const lista = (chave: string): Record<string, unknown>[] => (Array.isArray(payload[chave]) ? (payload[chave] as Record<string, unknown>[]) : []);
+  const comEmpresa = (linhas: unknown[][]): unknown[][] => linhas.filter((l) => l[1] !== null);
 
-  for (let iteracao = 0; iteracao < MAX_ITERACOES; iteracao++) {
-    if (await integracaoLog.foiCancelado(idLog)) return { qtde: total, cancelado: true };
+  return {
+    origens: comEmpresa(lista('origens').map((o) => [idRegistro, inteiro(o, 'id_empresa'), inteiro(o, 'origem_mercadoria')])),
+    categoriaFiscal: comEmpresa(lista('categoria_fiscal').map((c) => [idRegistro, inteiro(c, 'id_empresa'), inteiro(c, 'id_tes_saida')])),
+    estoques: comEmpresa(
+      lista('estoques').map((e) => [idRegistro, inteiro(e, 'id_empresa'), valor(e, 'estoque_maximo'), valor(e, 'estoque_minimo')]),
+    ),
+  };
+}
 
-    const inicio = Date.now();
-    const resposta = await sysempPost<{ qtde: number; retorno: ProdutoPayload[] }>('/listarProdutos', {
-      offset: String(offset),
-      limit: String(TAMANHO_LOTE),
-    });
-    const produtos = resposta.retorno ?? [];
-
-    if (produtos.length === 0) {
-      await integracaoLog.detalhe(idLog, { pagina: offset, status: 'ok', qtdeRegistros: 0, duracaoMs: Date.now() - inicio, mensagem: 'Fim da paginação.' });
-      break;
-    }
-
-    try {
-      await withTransaction((connection) => gravarLoteProdutos(connection, produtos));
-      total += produtos.length;
-      await integracaoLog.detalhe(idLog, { pagina: offset, status: 'ok', qtdeRegistros: produtos.length, duracaoMs: Date.now() - inicio });
-    } catch (error) {
-      await integracaoLog.detalhe(idLog, { pagina: offset, status: 'erro', mensagem: (error as Error).message, duracaoMs: Date.now() - inicio });
-      throw error;
-    }
-
-    offset += produtos.length;
+async function gravarProduto(
+  connection: PoolConnection,
+  payload: Record<string, unknown> | null,
+  acao: 'I' | 'U' | 'D',
+  idRegistro: number,
+): Promise<void> {
+  if (acao === 'D' || !payload) {
+    // `sysemp_produto` não tem coluna `deleted` — reaproveita `ativo`,
+    // mesma escolha de `sysemp_parceiro`. As sub-tabelas ficam: elas
+    // seguem o produto e somem junto via ON DELETE CASCADE se um dia ele
+    // for removido de verdade.
+    await connection.query('UPDATE sysemp_produto SET ativo = FALSE WHERE id_produto = ?', [idRegistro]);
+    return;
   }
 
-  return { qtde: total };
+  await connection.query(
+    `INSERT INTO sysemp_produto (${CAMPOS_PRODUTO.join(', ')}, synced_at)
+     VALUES (${CAMPOS_PRODUTO.map(() => '?').join(', ')}, CURRENT_TIMESTAMP)
+     ON DUPLICATE KEY UPDATE
+       ${CAMPOS_PRODUTO.filter((c) => c !== 'id_produto')
+         .map((c) => `${c} = VALUES(${c})`)
+         .join(', ')},
+       synced_at = CURRENT_TIMESTAMP`,
+    montarParametrosProduto(payload, idRegistro),
+  );
+
+  // Sub-listas por empresa: delete + insert das filhas deste produto (não
+  // upsert incremental) — empresa que sair da resposta some da tabela.
+  const filhas = montarLinhasFilhas(payload, idRegistro);
+  const agora = new Date();
+
+  await connection.query('DELETE FROM sysemp_produto_origem WHERE id_produto = ?', [idRegistro]);
+  await connection.query('DELETE FROM sysemp_produto_categoria_fiscal WHERE id_produto = ?', [idRegistro]);
+  await connection.query('DELETE FROM sysemp_produto_estoque WHERE id_produto = ?', [idRegistro]);
+
+  await inserirEmLote(
+    connection,
+    'sysemp_produto_origem',
+    ['id_produto', 'id_empresa', 'origem_mercadoria', 'synced_at'],
+    filhas.origens.map((l) => [...l, agora]),
+  );
+  await inserirEmLote(
+    connection,
+    'sysemp_produto_categoria_fiscal',
+    ['id_produto', 'id_empresa', 'id_tes_saida', 'synced_at'],
+    filhas.categoriaFiscal.map((l) => [...l, agora]),
+  );
+  await inserirEmLote(
+    connection,
+    'sysemp_produto_estoque',
+    ['id_produto', 'id_empresa', 'estoque_maximo', 'estoque_minimo', 'synced_at'],
+    filhas.estoques.map((l) => [...l, agora]),
+  );
 }
+
+registrarConsumidorFila({ tipoTabela: 0, gravar: gravarProduto });
