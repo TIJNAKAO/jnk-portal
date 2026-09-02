@@ -44,7 +44,7 @@ export function dataHoraSysemp(valorBruto: unknown): string | null {
  * Número anulável com proteção contra dado sujo do ERP de origem: valores
  * fora de faixa razoável (ex: `>= 1e14`, lixo de cadastro) ou não numéricos
  * viram NULL em vez de derrubar o INSERT inteiro. Ver
- * Specs/spec_modulo_integracao.md, seção 2.4 (regra de Preço).
+ * Specs/spec_modulo_integracao.md, seção 3.3 (regra de Preço).
  */
 export function numeroSeguro(origem: Record<string, unknown> | null | undefined, chave: string, limite = 1e14): number | null {
   const v = valor(origem, chave);

@@ -1,108 +1,96 @@
-import type { RowDataPacket } from 'mysql2';
-import { pool, withTransaction } from '../../../config/database.js';
-import * as integracaoLog from '../../integracaoLog.js';
-import type { ResultadoSincronizacao } from '../../integracaoLog.js';
+import type { PoolConnection } from '../../../config/database.js';
 import { sysempPost } from '../client.js';
 import { inserirEmLote, inteiro, numeroSeguro, valor } from '../dbUtil.js';
-
-const TAMANHO_FAIXA = 1000;
+import { registrarConsumidorFila } from '../fila.js';
 
 /**
- * `/listarPrecos` não pagina por offset — recebe uma faixa de `id_produto`.
- * Percorre `sysemp_produto` já sincronizado, de 1000 em 1000. Sem chave
- * natural por linha → delete + insert por faixa, não upsert. Ver
- * Specs/spec_modulo_integracao.md, seção 2.4.
+ * Consumidor de fila pra Preço (tipo_tabela 6). Migrado da varredura por
+ * faixa de `id_produto` (`/listarPrecos`, 1000 em 1000 sobre
+ * `sysemp_produto`) pro modelo de fila, seguindo Notas Fiscais/Estoque/
+ * Pedidos/Parceiros — ver `sysemp_fila_config`, chave 'precos', e
+ * Specs/spec_modulo_integracao.md, seção 3.3.
+ *
+ * Duas particularidades:
+ *
+ * 1. Um evento de fila devolve VÁRIAS linhas: `/listarPrecoVenda` traz o
+ *    produto em cada combinação de empresa × tabela de preço × condição de
+ *    pagamento (11 linhas pro id_produto 13, em produção). O motor genérico
+ *    da fila só sabe repassar `retorno[0]`, então `buscarDetalhe`
+ *    sobrescreve o fetch e empacota a lista inteira em `{ linhas }`.
+ * 2. Não há chave natural por linha — `sysemp_preco` tem PK
+ *    auto_increment. Cada evento faz delete+insert do conjunto do produto
+ *    (mesmo padrão de `sysemp_pedido_item`), o que também torna o
+ *    reprocessamento do mesmo id_fila idempotente.
  */
-export async function sincronizarPrecos(idLog: number): Promise<ResultadoSincronizacao> {
-  const [idsProduto] = await pool.query<RowDataPacket[]>('SELECT id_produto FROM sysemp_produto ORDER BY id_produto');
-  const ids = idsProduto.map((r) => r.id_produto as number);
 
-  if (ids.length === 0) {
-    await integracaoLog.detalhe(idLog, {
-      status: 'ok',
-      qtdeRegistros: 0,
-      mensagem: 'Nenhum produto sincronizado ainda — rode a sincronização de Produtos antes.',
-    });
-    return { qtde: 0 };
-  }
+export const COLUNAS_PRECO = [
+  'id_produto',
+  'id_empresa',
+  'id_tb_preco',
+  'id_condpagto',
+  'nome_tabela',
+  'nome_condicao',
+  'preco_tabela',
+  'preco_promocao',
+  'data_inicio_promocao',
+  'data_termino_promocao',
+  'synced_at',
+] as const;
 
-  let total = 0;
-  let valoresInvalidos = 0;
-
-  for (let i = 0; i < ids.length; i += TAMANHO_FAIXA) {
-    if (await integracaoLog.foiCancelado(idLog)) return { qtde: total, cancelado: true };
-
-    const faixa = ids.slice(i, i + TAMANHO_FAIXA);
-    const inicioFaixa = faixa[0]!;
-    const fimFaixa = faixa[faixa.length - 1]!;
-    const inicio = Date.now();
-
-    try {
-      const resposta = await sysempPost<{ retorno: Record<string, unknown>[] }>('/listarPrecos', {
-        id_produto_inicio: String(inicioFaixa),
-        id_produto_fim: String(fimFaixa),
-      });
-      const precos = resposta.retorno ?? [];
-
-      await withTransaction(async (connection) => {
-        await connection.query('DELETE FROM sysemp_preco WHERE id_produto BETWEEN ? AND ?', [inicioFaixa, fimFaixa]);
-
-        const linhas: unknown[][] = [];
-        for (const p of precos) {
-          const idProduto = inteiro(p, 'codigo_produto') ?? inteiro(p, 'id_produto');
-          if (idProduto === null) continue;
-
-          const precoTabela = numeroSeguro(p, 'preco_tabela');
-          const precoPromocao = numeroSeguro(p, 'preco_promocao');
-          if (valor(p, 'preco_tabela') !== null && precoTabela === null) valoresInvalidos++;
-          if (valor(p, 'preco_promocao') !== null && precoPromocao === null) valoresInvalidos++;
-
-          linhas.push([
-            idProduto,
-            inteiro(p, 'id_tb_preco'),
-            valor(p, 'nome_tabela'),
-            valor(p, 'nome_condicao'),
-            precoTabela,
-            precoPromocao,
-            valor(p, 'data_inicio_promocao'),
-            valor(p, 'data_termino_promocao'),
-            new Date(),
-          ]);
-        }
-
-        await inserirEmLote(
-          connection,
-          'sysemp_preco',
-          ['id_produto', 'id_tb_preco', 'nome_tabela', 'nome_condicao', 'preco_tabela', 'preco_promocao', 'data_inicio_promocao', 'data_termino_promocao', 'synced_at'],
-          linhas,
-        );
-      });
-
-      total += precos.length;
-      await integracaoLog.detalhe(idLog, {
-        pagina: inicioFaixa,
-        status: 'ok',
-        qtdeRegistros: precos.length,
-        duracaoMs: Date.now() - inicio,
-        mensagem: `Faixa id_produto ${inicioFaixa}-${fimFaixa}.`,
-      });
-    } catch (error) {
-      await integracaoLog.detalhe(idLog, {
-        pagina: inicioFaixa,
-        status: 'erro',
-        mensagem: `Faixa id_produto ${inicioFaixa}-${fimFaixa}: ${(error as Error).message}`,
-        duracaoMs: Date.now() - inicio,
-      });
-      throw error;
-    }
-  }
-
-  if (valoresInvalidos > 0) {
-    await integracaoLog.detalhe(idLog, {
-      status: 'ok',
-      mensagem: `${valoresInvalidos} valor(es) de preço fora de faixa (lixo de cadastro no ERP de origem) gravados como NULL.`,
-    });
-  }
-
-  return { qtde: total };
+interface DetalhePreco extends Record<string, unknown> {
+  linhas: Record<string, unknown>[];
 }
+
+async function buscarDetalhePreco(idRegistro: number): Promise<DetalhePreco> {
+  const resposta = await sysempPost<{ retorno: Record<string, unknown>[] }>('/listarPrecoVenda', {
+    id_produto: String(idRegistro),
+  });
+  return { linhas: resposta.retorno ?? [] };
+}
+
+/**
+ * Payload da SysEmp → tuplas na ordem de `COLUNAS_PRECO`.
+ *
+ * `id_produto` vem sempre do evento de fila, nunca do `codigo_produto` da
+ * resposta: a busca já é filtrada por id, então divergência seria dado
+ * inconsistente da origem, e gravá-la sob outro id_produto deixaria uma
+ * linha órfã que o DELETE por id_produto do próximo evento não alcança.
+ *
+ * `numeroSeguro` protege contra lixo de cadastro do ERP de origem (valores
+ * absurdos que derrubariam o INSERT inteiro) — vira NULL.
+ */
+export function montarLinhasPreco(linhas: Record<string, unknown>[], idRegistro: number): unknown[][] {
+  const agora = new Date();
+
+  return linhas.map((p) => [
+    idRegistro,
+    inteiro(p, 'id_empresa'),
+    inteiro(p, 'id_tb_preco'),
+    inteiro(p, 'id_condpagto'),
+    valor(p, 'nome_tabela'),
+    valor(p, 'nome_condicao'),
+    numeroSeguro(p, 'preco_tabela'),
+    numeroSeguro(p, 'preco_promocao'),
+    valor(p, 'data_inicio_promocao'),
+    valor(p, 'data_termino_promocao'),
+    agora,
+  ]);
+}
+
+async function gravarPreco(
+  connection: PoolConnection,
+  payload: Record<string, unknown> | null,
+  acao: 'I' | 'U' | 'D',
+  idRegistro: number,
+): Promise<void> {
+  // Vale pros três tipos de evento: em 'D' encerra a gravação, em 'I'/'U'
+  // abre espaço pro conjunto novo (a resposta é sempre o estado completo
+  // dos preços do produto, não um delta).
+  await connection.query('DELETE FROM sysemp_preco WHERE id_produto = ?', [idRegistro]);
+  if (acao === 'D' || !payload) return;
+
+  const linhas = montarLinhasPreco((payload as DetalhePreco).linhas ?? [], idRegistro);
+  await inserirEmLote(connection, 'sysemp_preco', [...COLUNAS_PRECO], linhas);
+}
+
+registrarConsumidorFila({ tipoTabela: 6, gravar: gravarPreco, buscarDetalhe: buscarDetalhePreco });

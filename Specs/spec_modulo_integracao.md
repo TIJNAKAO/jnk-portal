@@ -1,6 +1,6 @@
 # Especificação Técnica: Módulo Integração
 
-## 0. Contexto e Origem
+## 1. Contexto e Origem
 
 Este spec adapta pra arquitetura do jnk-portal (monorepo TS + MySQL, ver
 `Specs/spec_infra_portal_base_monorepo.md`) a camada de **integração com
@@ -20,7 +20,7 @@ Diferente do módulo TI (que foi um porte quase 1:1), aqui a origem já é
 todas as gambiarras que isso força) vira Node com sincronização rodando como
 job de background de verdade.
 
-### 0.1. O que é reaproveitado sem mudança de lógica
+### 1.1. O que é reaproveitado sem mudança de lógica
 
 - **O modelo de fila da SysEmp** (`tb_sysemp_fila` → 3 passos: listar fila,
   buscar detalhe por `id_registro`, confirmar). É a peça de arquitetura mais
@@ -41,15 +41,16 @@ job de background de verdade.
   JNK/CNK2/NK2, não vem da SysEmp) e a lógica de `ETL_FATCOM`/`ETL_EMPRESA`/
   `ETL_PRODUTO` como camada de consumo pronta pra Excel/Power BI.
 
-### 0.2. O que muda de propósito
+### 1.2. O que muda de propósito
 
-- **A divisão fila x lote é mantida como está no projeto original** (não
-  migrar tudo pra fila nesta v1 — decidido na validação desta spec, ver
-  seção 6.1): Notas Fiscais e Estoque continuam via fila; Produtos,
-  Parceiros, Preços e Pedidos continuam via lote/offset (ou faixa de
-  data/id, conforme o endpoint); Empresas e Representantes continuam como
-  busca completa periódica. As três engines são portadas fielmente — ver
-  seção 2.
+- **A divisão fila x lote foi mantida como no projeto original na v1**
+  (não migrar tudo pra fila de uma vez — decidido na validação desta
+  spec, ver seção 7.1): Notas Fiscais e Estoque nasceram via fila;
+  Produtos, Parceiros, Preços e Pedidos vieram via lote/offset (ou faixa
+  de data/id, conforme o endpoint); Empresas e Representantes continuam
+  como busca completa periódica. As três engines foram portadas
+  fielmente. **Depois da v1**, Pedidos, Parceiros e Preços migraram pra
+  fila — a divisão atual está na seção 3.3.
 - **O "modo HTTP em lote com auto-continuação client-side"** (a página
   ficava chamando a si mesma via cURL bloqueante pra nunca estourar o
   timeout de ~100s de uma request PHP) deixa de existir. Em Node, a
@@ -61,14 +62,14 @@ job de background de verdade.
   por um endpoint SSE de acompanhamento ao vivo — Node faz streaming HTTP
   de verdade, sem a necessidade do hack.
 - **Agendamento automático fica fora desta v1** (decidido na validação —
-  ver seção 6.8): só gatilho manual, no Painel, por enquanto. A
+  ver seção 7.8): só gatilho manual, no Painel, por enquanto. A
   arquitetura já deixa isso plugável depois (job de sincronização é uma
   função isolada de qualquer disparo — cron ou clique dão no mesmo lugar),
   então adicionar `node-cron` mais tarde não exige redesenho.
 
 ---
 
-## 1. Módulo no Hub de Aplicativos
+## 2. Módulo no Hub de Aplicativos
 
 | Campo | Valor |
 |---|---|
@@ -89,14 +90,14 @@ Telas (`telas_modulo`):
 
 ---
 
-## 2. Arquitetura de Sincronização
+## 3. Arquitetura de Sincronização
 
-### 2.1. Cliente SysEmp (`apps/api/src/services/sysempClient.ts`)
+### 3.1. Cliente SysEmp (`apps/api/src/services/sysempClient.ts`)
 
 Porta direta de `src/SysempClient.php`:
 
 - Autenticação por header fixo `Token: <token>` (não é Bearer/OAuth — token
-  estático, configurado em Parâmetros do Sistema, seção 5).
+  estático, configurado em Parâmetros do Sistema, seção 6).
 - Todas as chamadas são `POST`, corpo JSON.
 - Timeout configurável, default **80s** (herdado — o valor foi calibrado
   contra `/listarParceiros` em teste real contra um limite de hospedagem de
@@ -109,11 +110,11 @@ Porta direta de `src/SysempClient.php`:
   `{"status": false, ...}` (200 OK mas erro de negócio do lado da SysEmp)
   vira erro tratado pelo chamador.
 
-### 2.2. Motor de Fila (genérico) — `apps/api/src/services/sysempFila.ts`
+### 3.2. Motor de Fila (genérico) — `apps/api/src/services/sysempFila.ts`
 
 Porta de `src/SyncFilaSysemp.php` + `src/SysempIntegracao.php`. O motor em
 si é genérico por `tipo_tabela` (mesmo desenho do original), mas nesta v1
-só tem consumidor registrado pra Notas Fiscais e Estoque — ver seção 2.3.
+só tem consumidor registrado pra Notas Fiscais e Estoque — ver seção 3.3.
 
 ```typescript
 interface ConfigFilaEntidade {
@@ -124,7 +125,7 @@ interface ConfigFilaEntidade {
   limitePagina: number;
   // função específica da entidade: recebe o registro de detalhe já
   // buscado e grava nas tabelas de destino (upsert/soft-delete conforme
-  // a entidade — ver seção 2.3)
+  // a entidade — ver seção 3.3)
   gravar: (pdo: PoolConnection, detalhe: unknown, acao: 'I' | 'U' | 'D') => Promise<void>;
 }
 ```
@@ -148,48 +149,69 @@ do projeto de origem):
 3. **Confirmar**: `POST /updateFilaApi` com `{"id_fila": "<id>"}`, **fora**
    da transação do passo 2 — se falhar, só fica `confirmado_sysemp=0` pra
    reenviar a confirmação depois, sem re-buscar o detalhe.
-4. **Offset sempre 0** — nunca avança (ver seção 0.1).
+4. **Offset sempre 0** — nunca avança (ver seção 1.1).
 
-`gravar()` é a única parte específica de cada entidade — ver seção 2.3 para
+`gravar()` é a única parte específica de cada entidade — ver seção 3.3 para
 o mapeamento completo `tipo_tabela → configuração`.
 
-### 2.3. Entidades via fila — Notas Fiscais e Estoque (v1)
+### 3.3. Entidades via fila
 
-**Só estas duas entidades usam o motor de fila nesta v1** (decidido na
-validação da spec — seção 6.1). As demais usam o motor de lote (seção
-2.4) ou busca completa (seção 2.5), exatamente como no projeto original.
+Notas Fiscais e Estoque nasceram na fila (era o escopo da v1 — seção
+7.1); Pedidos, Parceiros e Preços migraram depois do lote pra cá, sem
+mexer no motor. Só Produto (seção 3.4) e as buscas completas (seção 3.5)
+seguem fora da fila.
 
 | `tipo_tabela` | Entidade | `endpoint_detalhe` | `campo_id_detalhe` | Grava em |
 |---|---|---|---|---|
 | 2 | NF Venda | `/listarNotasFiscais` | `id_nota_saida` | `sysemp_nota_fiscal` + `sysemp_nota_fiscal_item` |
 | 3 | NF Compra | `/listarNotasFiscais` | `id_nota_saida` | mesmas tabelas de NF Venda (`entrada_saida='E'`) |
+| 4 | Parceiro | `/listarParceiros` | `codigo` (**não confirmado** — linha nasce `ativo=FALSE`) | `sysemp_parceiro` |
+| 6 | Preço | `/listarPrecoVenda` | `id_produto` | `sysemp_preco` |
+| 7 | Pedido de Venda | `/listarPedidos` + `/listarPedidosItens` | `id_nota_saida` (via `buscarDetalhe`) | `sysemp_pedido` + `sysemp_pedido_item` |
 | 9 | Saldo Estoque | `/listarSaldoEstoqueFisico` | `protocolo_estoque` | `sysemp_estoque_fisico` |
 
-Regras específicas, preservadas do original:
+Regras específicas de cada consumidor:
 
 - **Nota Fiscal**: cabeçalho e itens vêm juntos no mesmo JSON de detalhe.
   Itens: soft-delete de todos antes do upsert, "revivendo" só os que vêm
   na resposta atual (item que não voltar mais fica `deleted=true`).
 - **Estoque**: chave natural `(id_produto, id_empresa)` → upsert direto
   (`ON DUPLICATE KEY UPDATE`), não delete+insert.
+- **Parceiro**: sem sub-tabelas (cliente/fornecedor/transportadora são
+  flags booleanas na mesma linha). `sysemp_parceiro` não tem coluna
+  `deleted` — evento `acao='D'` reaproveita a flag `ativo`.
+- **Preço**: **um evento devolve N linhas** — `/listarPrecoVenda` traz o
+  produto em cada combinação de empresa × tabela de preço × condição de
+  pagamento (11 linhas pro `id_produto` 13, medido em produção). O motor
+  genérico só repassaria `retorno[0]`, então o consumidor sobrescreve
+  `buscarDetalhe` e empacota a lista inteira. Sem chave natural por linha
+  → **delete + insert** do conjunto do produto a cada evento (o mesmo
+  DELETE atende `acao='D'`, que só não reinsere), o que torna
+  reprocessar o mesmo `id_fila` idempotente. Valores `>= 1e14` ou não
+  numéricos (lixo de cadastro no ERP de origem) viram `NULL` em vez de
+  derrubar o INSERT inteiro.
+- **Pedido de Venda**: cabeçalho e itens vêm de dois endpoints separados,
+  e `/listarPedidos` **não aceita busca por id sozinho** — exige
+  `data_inicial`/`data_final` (HTTP 400 sem eles, confirmado em
+  produção). Daí o `buscarDetalhe` próprio: janela de ±2 dias em volta de
+  `datahora_criacao_sysemp` e filtro pelo `id_nota_saida` na resposta.
+  Sem FK entre `sysemp_pedido` e `sysemp_pedido_item` de propósito.
 
-`sysemp_fila_config` (seção 3.1) só tem linhas pra `tipo_tabela` 2/3 e 9
-nesta v1 — migrar mais uma entidade pra fila no futuro é só registrar uma
-linha nova + a função `gravar()` correspondente, sem mexer no motor.
+Migrar mais uma entidade pra fila é registrar uma linha em
+`sysemp_fila_config` (seção 4.1) + a função `gravar()` correspondente,
+sem mexer no motor. O consumidor se registra por **side-effect do
+import** em `services/integracaoRegistry.ts` — sem esse import ele não
+existe em runtime.
 
-### 2.4. Entidades via lote — Produtos, Parceiros, Preços, Pedidos
+### 3.4. Entidades via lote — Produtos
 
-Sem fila — cada uma pagina do seu próprio jeito, herdado do projeto
-original (`apps/api/src/services/sysempLote.ts`, um consumidor por
-entidade, mesmo padrão de motor genérico da seção 2.2 mas sem a etapa de
+Sem fila — pagina do seu próprio jeito, herdado do projeto original
+(mesmo padrão de motor genérico da seção 3.2 mas sem a etapa de
 fila/confirmação — só busca e grava):
 
 | Entidade | Endpoint(s) | Paginação | Grava em |
 |---|---|---|---|
 | Produto | `/listarProdutos` | offset de registro (avança pela `qtde` retornada; para em `qtde: 0`) | `sysemp_produto` + sub-tabelas |
-| Parceiro | `/listarParceiros` | offset de registro | `sysemp_parceiro` |
-| Preço | `/listarPrecos` | faixa de `id_produto` (não offset — percorre `sysemp_produto` já sincronizado, de 1000 em 1000, usando menor/maior `id_produto` do bloco como faixa) | `sysemp_preco` |
-| Pedido de Venda | `/listarPedidos` + `/listarPedidosItens` | janela de data (`data_inicial`/`data_final`, padrão 45 dias retroativos, configurável — Parâmetros, categoria `SYSEMP`) | `sysemp_pedido` + `sysemp_pedido_item` |
 
 Regras específicas, preservadas do original:
 
@@ -198,44 +220,28 @@ Regras específicas, preservadas do original:
   (não upsert incremental). Campos booleanos vêm como `"t"/"f"`
   (convertidos pra `true/false`); numéricos vazios (`""`) viram `NULL`
   explicitamente.
-- **Parceiro**: tabela única (cliente/fornecedor/transportadora são flags
-  booleanas na mesma linha). Grava em blocos de até 1000 linhas (a SysEmp
-  já devolveu lotes de até 10 mil registros numa chamada só). **Proteção
-  contra bug conhecido do endpoint**: às vezes ignora o `offset` e devolve
-  sempre a primeira página — detectar comparando o primeiro `id_parceiro`
-  do lote atual contra o anterior; se repetir, abortar em vez de girar
-  infinitamente.
-- **Preço**: sem chave natural própria (mesma condição pode repetir com
-  valores diferentes) → **delete + insert** por faixa de produto, não
-  upsert. Valores `>= 1e14` ou não numéricos (lixo de cadastro no ERP de
-  origem) viram `NULL` em vez de derrubar o lote inteiro — contabilizados
-  e reportados na mensagem de log.
-- **Pedido de Venda**: cabeçalho e itens vêm de dois endpoints separados,
-  ambos por janela de data — sem FK entre `sysemp_pedido` e
-  `sysemp_pedido_item` de propósito (a sync roda em janelas, um item pode
-  ser gravado antes do cabeçalho "vizinho" numa borda de janela).
 
-### 2.5. Empresas e Representantes — busca completa periódica
+### 3.5. Empresas e Representantes — busca completa periódica
 
 `/listarEmpresas` e `/listarRepresentantes` devolvem o cadastro inteiro
 numa chamada, sem paginação nenhuma. Busca tudo, upsert em
 `sysemp_empresa`/`sysemp_representante`. `grupo_empresa` (classificação
 JNK/CNK2/NK2) não vem da SysEmp — calculado por `id_empresa`, mesmo
-mapeamento fixo do projeto original (confirmado na validação — seção 6.2).
+mapeamento fixo do projeto original (confirmado na validação — seção 7.2).
 
-### 2.6. Agendamento — manual nesta v1
+### 3.6. Agendamento — manual nesta v1
 
 **Sem `node-cron`/agendamento automático nesta v1** (decidido na
-validação — seção 6.8): cada entidade só sincroniza quando alguém clica
+validação — seção 7.8): cada entidade só sincroniza quando alguém clica
 "Sincronizar agora" no Painel. A função de sincronização de cada entidade
 já fica isolada de quem a disparou (não sabe se foi clique ou cron), então
 plugar um agendador automático depois é aditivo — não exige redesenho, só
 registrar os jobs.
 
-### 2.7. Log e observabilidade
+### 3.7. Log e observabilidade
 
 Uma tabela só (`integracao_log` + `integracao_log_detalhe`, ver seção
-3.1), consultada por dois caminhos:
+4.1), consultada por dois caminhos:
 
 - **Histórico** (`/integracao/execucoes`): grid com filtro por entidade,
   igual `admin/sync_status.php`, sem necessidade de polling agressivo —
@@ -253,7 +259,7 @@ e finaliza como `cancelado` no próximo ponto de checagem.
 
 ---
 
-## 3. Modelo de Dados
+## 4. Modelo de Dados
 
 Convenção do spec base: `snake_case`, `utf8mb4_0900_ai_ci`, `BOOLEAN`,
 `DATETIME DEFAULT CURRENT_TIMESTAMP`, sem prefixo `tb_`. Prefixo por
@@ -266,10 +272,10 @@ cross-cutting (log), `etl_` para a camada de consumo.
 > espelhando as procedures `spETL_*` que já existiam no SQL Server legado
 > do cliente — relatórios/Excel/Power BI já prontos continuam funcionando
 > apontando pra cá. Esta spec usa `snake_case` (seção abaixo), decisão já
-> validada (seção 6.3) — se algum relatório externo publicado depender dos
+> validada (seção 7.3) — se algum relatório externo publicado depender dos
 > nomes em maiúsculo, isso precisa ser revisto antes do deploy.
 
-### 3.1. Infraestrutura de Sincronização
+### 4.1. Infraestrutura de Sincronização
 
 ```sql
 CREATE TABLE integracao_log (
@@ -343,7 +349,7 @@ CREATE TABLE sysemp_fila (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
-### 3.2. Entidades SysEmp
+### 4.2. Entidades SysEmp
 
 ```sql
 CREATE TABLE sysemp_empresa (
@@ -361,8 +367,8 @@ CREATE TABLE sysemp_empresa (
     telefone        VARCHAR(30) NULL,
     email           VARCHAR(150) NULL,
     ativa           BOOLEAN DEFAULT TRUE,
-    grupo_empresa   VARCHAR(5) NULL, -- JNK/CNK2/NK2, calculado por id_empresa (não vem da SysEmp) — ver seção 6.2
-    filial_id       INT NULL, -- link opcional pra filiais do jnk-portal, atribuído manualmente por um admin — ver seção 6.4
+    grupo_empresa   VARCHAR(5) NULL, -- JNK/CNK2/NK2, calculado por id_empresa (não vem da SysEmp) — ver seção 7.2
+    filial_id       INT NULL, -- link opcional pra filiais do jnk-portal, atribuído manualmente por um admin — ver seção 7.4
     synced_at       DATETIME NOT NULL,
     criado_em       DATETIME DEFAULT CURRENT_TIMESTAMP,
     atualizado_em   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -492,10 +498,14 @@ CREATE TABLE sysemp_parceiro (
 -- Preço: sem chave natural por linha (mesma condição pode repetir com
 -- valores diferentes) — delete+insert por produto, não upsert. Sem FK pra
 -- sysemp_produto de propósito (pode chegar antes do cadastro do produto).
+-- id_empresa/id_condpagto vieram com a migração pra fila (022): são eles
+-- que distinguem as N linhas que um evento devolve pro mesmo produto.
 CREATE TABLE sysemp_preco (
     id                      INT AUTO_INCREMENT PRIMARY KEY,
-    id_produto              INT NOT NULL, -- vem como "codigo_produto"
+    id_produto              INT NOT NULL, -- do evento de fila, não do "codigo_produto" da resposta
+    id_empresa              INT NULL,
     id_tb_preco             INT NULL,
+    id_condpagto            INT NULL,
     nome_tabela             VARCHAR(150) NULL,
     nome_condicao           VARCHAR(150) NULL,
     preco_tabela            DECIMAL(18,4) NULL,
@@ -712,12 +722,12 @@ CREATE TABLE sysemp_estoque_fisico (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
-### 3.3. Mercado Livre
+### 4.3. Mercado Livre
 
 ```sql
 -- Conta vendedora autorizada via OAuth. Uma linha por conta (suporta mais
 -- de uma conta no mesmo app). App ID/Secret/Redirect URI ficam em
--- Parâmetros do Sistema (seção 5) — aqui só os tokens.
+-- Parâmetros do Sistema (seção 6) — aqui só os tokens.
 CREATE TABLE ml_conta (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     user_id_ml      BIGINT NOT NULL, -- id do vendedor no ML
@@ -778,7 +788,7 @@ CREATE TABLE ml_pedido_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
-### 3.4. Camada de Consumo (ETL)
+### 4.4. Camada de Consumo (ETL)
 
 Não fala com nenhuma API — só transforma tabelas já sincronizadas em
 tabelas "fáceis de consumir" (Excel/Power BI/relatório futuro), sempre
@@ -888,14 +898,14 @@ CREATE TABLE etl_fatcom (
 ```
 
 `etl_fatcom` alimenta diretamente um futuro módulo de relatório de margem
-(fora de escopo desta spec — pendente, ver seção 6.7), igual
+(fora de escopo desta spec — pendente, ver seção 7.7), igual
 `dash/margem.php` no projeto original.
 
 ---
 
-## 4. Telas do Módulo
+## 5. Telas do Módulo
 
-### 4.1. Painel de Integrações (`/integracao/painel`)
+### 5.1. Painel de Integrações (`/integracao/painel`)
 
 Um card por entidade (Empresas, Produtos, Parceiros, Preços, Estoque,
 Pedidos, Notas Fiscais, Representantes, ML Pedidos, + os 3 ETLs). Cada
@@ -903,7 +913,7 @@ card mostra: status da última execução (badge), quando rodou, quantidade
 de registros, e botão "Sincronizar agora" (dispara o job em background e
 leva pro histórico dessa execução, já acompanhando ao vivo via SSE).
 
-### 4.2. Histórico de Execuções (`/integracao/execucoes`)
+### 5.2. Histórico de Execuções (`/integracao/execucoes`)
 
 Lista de `integracao_log`, filtro por entidade, clicar numa execução abre
 o detalhe (`integracao_log_detalhe`) — página/lote, quantidade, status,
@@ -911,23 +921,23 @@ duração, `request_body` pra depuração. Execução com `status='iniciado'`
 mostra o acompanhamento ao vivo (SSE) em vez da grade estática; botão
 "Cancelar" disponível enquanto isso.
 
-### 4.3. Fila SysEmp (`/integracao/fila`)
+### 5.3. Fila SysEmp (`/integracao/fila`)
 
 Grid de auditoria de `sysemp_fila` — filtros por `tipo_tabela`, `acao`,
 `consumido`, `confirmado_sysemp`, com erro, busca por `id_registro`.
 Permite forçar reprocessamento (zerar `consumido`) ou excluir uma linha
 manualmente (ela volta a aparecer na próxima importação da fila).
 
-### 4.4. Parâmetros de Fila SysEmp (`/integracao/parametros-fila`)
+### 5.4. Parâmetros de Fila SysEmp (`/integracao/parametros-fila`)
 
 CRUD de `sysemp_fila_config` — só edição de linhas que já têm suporte no
 código (não cria integração nova do nada), igual
 `admin/sysemp_integracoes.php` do projeto original.
 
-### 4.5. Conexão Mercado Livre (`/integracao/mercado-livre`)
+### 5.5. Conexão Mercado Livre (`/integracao/mercado-livre`)
 
 - Botão "Conectar" dispara o fluxo OAuth2+PKCE (App ID/Secret/Redirect URI
-  vêm de Parâmetros do Sistema, seção 5 — nunca em código).
+  vêm de Parâmetros do Sistema, seção 6 — nunca em código).
 - Callback trata `?code=&state=`, troca por tokens, upsert em `ml_conta`.
 - Lista de contas conectadas: "Testar conexão" (`GET /users/me`),
   "Desconectar" (`DELETE FROM ml_conta`).
@@ -935,10 +945,10 @@ código (não cria integração nova do nada), igual
 
 ---
 
-## 5. Parâmetros do Sistema — novas categorias
+## 6. Parâmetros do Sistema — novas categorias
 
 Reaproveita a tela e o mecanismo que a Infra já construiu (spec base,
-seção 8) — evita uma tela de configuração bespoke por integração, igual já
+seção 9) — evita uma tela de configuração bespoke por integração, igual já
 foi feito pro módulo TI.
 
 **Categoria `SYSEMP`:**
@@ -960,20 +970,20 @@ foi feito pro módulo TI.
 
 ---
 
-## 6. Decisões Validadas
+## 7. Decisões Validadas
 
 1. **Fila só para Notas Fiscais e Estoque nesta v1** — as demais entidades
    (Produtos, Parceiros, Preços, Pedidos, Empresas, Representantes)
    mantêm o mecanismo do projeto original (lote/offset ou busca completa,
-   seções 2.4/2.5), em vez de migrar tudo pra fila de uma vez. Migrar mais
-   uma entidade pra fila no futuro é aditivo (seção 2.3).
+   seções 3.4/3.5), em vez de migrar tudo pra fila de uma vez. Migrar mais
+   uma entidade pra fila no futuro é aditivo (seção 3.3).
 2. **`grupo_empresa` (classificação JNK/CNK2/NK2 por `id_empresa`)** —
    mantido o mesmo mapeamento fixo do projeto original.
-3. **Nomenclatura das tabelas `etl_*`** — `snake_case` (seção 3.4),
+3. **Nomenclatura das tabelas `etl_*`** — `snake_case` (seção 4.4),
    consistente com o resto do jnk-portal.
 4. **Link `sysemp_empresa.filial_id` → `filiais`** — confirmado opcional,
    atribuído manualmente por um admin, nunca sincronizado automaticamente
-   (seção 3.2).
+   (seção 4.2).
 5. **Pedido de Compra (`tipo_tabela=5`) e OS (`tipo_tabela=8`)** — fora de
    escopo, não implementar por ora.
 6. **Migração do KPL** (`migration/kpl/migrate_kpl.py` no projeto
@@ -983,6 +993,6 @@ foi feito pro módulo TI.
    `etl_fatcom`) — **pendente**. Esta spec entrega só a integração + ETL
    (os dados prontos); a tela de relatório em si fica pra decidir depois,
    possivelmente um módulo `Relatórios`/`Dashboard` futuro.
-8. **Agendamento automático** — fora desta v1 (seção 2.6). Só gatilho
+8. **Agendamento automático** — fora desta v1 (seção 3.6). Só gatilho
    manual por enquanto; `node-cron` ou equivalente entra numa fase
    posterior, quando fizer sentido.
