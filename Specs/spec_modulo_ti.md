@@ -529,25 +529,41 @@ Windows Update só por drivers pendentes (via COM `Microsoft.Update.Session`,
 nativo do Windows — não precisa de módulo do PowerShell Gallery). Não mexe
 em atualização de sistema/segurança do Windows, só driver.
 
-*   **O `winget` precisa da fonte preparada antes da busca**, e isso não é
-    o mesmo que aceitar contrato. Em máquina — ou em perfil de
-    administrador — onde o `winget` nunca tinha rodado, o script morria em
-    campo com `Falha na pesquisa da origem: winget` / `0x8A15000F` ("os
-    dados exigidos pela origem estão ausentes"), mesmo já passando
-    `--accept-source-agreements`: o que faltava era o **índice**, que só
-    desce com `winget source update`. O script faz esse update antes, e cai
-    num `winget source reset --force` (sem `--name`, senão o reset remove a
-    fonte e não recria) quando nem assim o índice vem.
+*   **As duas metades rodam em contextos diferentes, e isso é o desenho, não
+    um detalhe.** O `.bat` deste card sai com `elevar: false` — é o único
+    do módulo que **não** auto-eleva. O `winget` roda na sessão do usuário
+    logado; só o bloco de drivers eleva, relançando o próprio script com o
+    parâmetro `-LogDrivers` (que também é por onde a saída da janela
+    elevada volta para a original).
+*   **Por quê:** o índice do `winget` não é um arquivo, é um pacote **MSIX
+    registrado por usuário**, e registrar MSIX exige **sessão interativa**.
+    Enquanto o `.bat` elevava tudo na primeira linha, o operador digitava
+    no UAC uma conta administrativa (na máquina do relato, a conta interna
+    `Administrador`, RID 500) que tem token mas nunca fez logon ali. A
+    implantação falhava com `0x80073D19` ("usuário foi desconectado"), o
+    índice nunca era registrado, e o `winget` morria em `0x8A15000F` ("os
+    dados exigidos pela origem estão ausentes").
+*   **O que já foi tentado e não resolve** — está aqui para ninguém repetir:
+    `--accept-source-agreements` (o problema nunca foi aceite de termos),
+    `winget source update` (retorna 0 mesmo com a fonte inutilizável, então
+    também não serve de teste) e `winget source reset --force` (testado em
+    campo, o `upgrade` seguinte falhou idêntico). Os três operam acima da
+    camada que quebra: nenhuma flag do `winget` alcança a implantação de
+    pacotes do Windows. O log em
+    `%LOCALAPPDATA%\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir`
+    é onde o erro real aparece — a mensagem de tela não o mostra.
 *   **A busca é restrita a `--source winget`.** A `msstore` exige região
-    geográfica configurada e aceite de contrato próprio — era ela que
-    parava o script pedindo os termos — e não atualiza programa de
-    desktop, que é o alvo do card. Consequência aceita: app instalado pela
-    Microsoft Store não entra nesta atualização; a própria Store cuida dele.
-*   **`--disable-interactivity` e checagem de `$LASTEXITCODE`**: o script
-    roda sem ninguém na frente da máquina, então prompt travado é falha, e
-    erro do `winget` precisa aparecer em vez de o script anunciar
-    "Concluido" como se tivesse dado certo — foi o que mascarou o problema
-    no primeiro relato.
+    geográfica configurada e aceite de contrato próprio, e não atualiza
+    programa de desktop. Consequência aceita: app instalado pela Microsoft
+    Store não entra nesta atualização; a própria Store cuida dele.
+*   **Preço assumido:** se o usuário logado não for administrador, programa
+    de escopo de máquina vai pedir UAC durante o upgrade. O card é de
+    execução manual, com alguém na frente da máquina, então isso é
+    aceitável — o contrário (elevar tudo) é justamente o que quebrava.
+*   **Instalar Programas (seção 5.6) tem o mesmo defeito** e ainda não foi
+    corrigido: ele roda `winget install` sob a auto-elevação do `.bat`,
+    então falha do mesmo jeito numa máquina onde o operador eleva com conta
+    sem sessão. A correção é a mesma divisão de contextos.
 
 **Card 2 — Configurar Agente de Inventário.** Gera um script que instala o
 agente (`agente-inventario-pc/`) numa máquina nova, em três passos:

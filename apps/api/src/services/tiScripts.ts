@@ -40,7 +40,25 @@ const TAMANHO_PEDACO_BASE64 = 500;
  * Por isso também o `.bat` não pode ter BOM próprio nem caractere
  * acentuado: o `cmd.exe` tentaria executar os bytes do BOM como comando.
  */
-export function empacotarComoBat(nomeBase: string, scriptPowerShell: string): string {
+export interface EmpacotarComoBatOpcoes {
+  /**
+   * Auto-elevar via UAC na primeira linha do `.bat`. Padrão `true`.
+   *
+   * `false` existe por causa do `winget`: elevar entrega o script à conta
+   * digitada no UAC, que tem token mas **não tem sessão interativa**. O
+   * índice do winget é um MSIX registrado por usuário, e registrar MSIX
+   * exige sessão — sem ela a implantação falha com `0x80073D19` ("usuário
+   * foi desconectado") e o `winget` morre em `0x8A15000F`. Ver
+   * `gerarScriptAtualizarProgramas`.
+   */
+  elevar?: boolean;
+}
+
+export function empacotarComoBat(
+  nomeBase: string,
+  scriptPowerShell: string,
+  { elevar = true }: EmpacotarComoBatOpcoes = {},
+): string {
   const nomeSeguro = nomeBase
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -62,13 +80,17 @@ export function empacotarComoBat(nomeBase: string, scriptPowerShell: string): st
     `rem Gerado pelo Inventario de TI - ${nomeSeguro}`,
     'rem O PowerShell vai embutido em base64: ver services/tiScripts.ts',
     '',
-    'net session >nul 2>&1',
-    'if errorlevel 1 (',
-    '  echo Solicitando privilegios de administrador...',
-    `  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"`,
-    '  exit /b',
-    ')',
-    '',
+    ...(elevar
+      ? [
+          'net session >nul 2>&1',
+          'if errorlevel 1 (',
+          '  echo Solicitando privilegios de administrador...',
+          `  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"`,
+          '  exit /b',
+          ')',
+          '',
+        ]
+      : []),
     `set "B64=%TEMP%\\${nomeSeguro}.b64"`,
     `set "PS1=%TEMP%\\${nomeSeguro}.ps1"`,
     '',
@@ -246,35 +268,87 @@ export function gerarScriptInstalarProgramas({ selecionados, idsIndesejados, hab
   );
 }
 
-/** Porta de `admin/pc_atualizar_programas.php` — script fixo, não depende de seleção nenhuma. */
+/**
+ * Porta de `admin/pc_atualizar_programas.php` — script fixo, não depende de
+ * seleção nenhuma.
+ *
+ * **As duas metades rodam em contextos diferentes, e isso é o ponto do
+ * script.** O índice do `winget` é um pacote MSIX registrado *por usuário*,
+ * e registrar MSIX exige **sessão interativa**. Enquanto o `.bat` elevava
+ * tudo na primeira linha, o operador digitava no UAC uma conta
+ * administrativa que tem token mas nunca fez logon naquela máquina — a
+ * implantação falhava com `0x80073D19` ("usuário foi desconectado"), o
+ * índice nunca era registrado e o `winget` morria em `0x8A15000F`. Nenhuma
+ * flag do winget alcança isso: `--accept-source-agreements`,
+ * `source update` e `source reset --force` operam todos acima dessa camada,
+ * e foram testados em campo sem efeito.
+ *
+ * Por isso o `winget` roda na sessão do usuário logado (o `.bat` sai com
+ * `elevar: false`) e só o bloco de drivers eleva: a COM do Windows Update
+ * depende de privilégio, não de MSIX, e funcionava mesmo na conta sem
+ * sessão.
+ *
+ * O preço, assumido: se o usuário logado não for administrador, programa de
+ * escopo de máquina pede UAC durante o upgrade. O card é de execução
+ * manual, com alguém na frente da máquina.
+ */
 export function gerarScriptAtualizarProgramas(): string {
   return comBom(`# Gerado pelo Inventario de TI - Atualizar Programas e Drivers
-# Entregue dentro de atualizar_programas.bat, que ja pede elevacao e chama
-# este script - ver empacotarComoBat em services/tiScripts.ts.
+# Entregue dentro de atualizar_programas.bat, que -- de proposito -- NAO
+# eleva: ver gerarScriptAtualizarProgramas em services/tiScripts.ts.
+
+param([string]$LogDrivers)
 
 $ErrorActionPreference = "Continue"
 
-Write-Host "=== Atualizando programas (winget) ===" -ForegroundColor Cyan
-if (Get-Command winget -ErrorAction SilentlyContinue) {
-    # O indice da fonte precisa estar em disco antes da busca. Em maquina --
-    # ou em perfil de administrador -- onde o winget nunca rodou, ele vem
-    # vazio e o upgrade morre com 0x8A15000F, "os dados exigidos pela origem
-    # estao ausentes". O --accept-source-agreements nao cobre esse caso: o
-    # que falta nao e o aceite dos termos, e o indice.
-    Write-Host "Preparando a fonte do winget..."
-    winget source update --name winget --disable-interactivity | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Indice da fonte ausente ou corrompido - restaurando as fontes padrao..." -ForegroundColor Yellow
-        # Sem --name de proposito: com o nome, o reset so remove a fonte e
-        # nao recria. Sem ele, derruba todas e devolve as padrao.
-        winget source reset --force --disable-interactivity | Out-Null
-        winget source update --name winget --disable-interactivity | Out-Null
+if ($LogDrivers) {
+    # Segunda passada: este processo foi relancado com elevacao so para os
+    # drivers. Escreve tambem num log pra janela original mostrar o
+    # resultado, senao a saida sumiria junto com a janela elevada.
+    function Registrar($texto, $cor) {
+        if ($cor) { Write-Host $texto -ForegroundColor $cor } else { Write-Host $texto }
+        Add-Content -Path $LogDrivers -Value $texto -Encoding UTF8
     }
 
-    # --source winget deixa a msstore de fora de proposito: ela exige regiao
-    # geografica configurada e aceite de contrato proprio, trava o script numa
-    # maquina recem-instalada e nao atualiza programa de desktop, que e o alvo
-    # aqui.
+    try {
+        $session = New-Object -ComObject Microsoft.Update.Session
+        $searcher = $session.CreateUpdateSearcher()
+        $resultado = $searcher.Search("IsInstalled=0 and Type='Driver'")
+
+        if ($resultado.Updates.Count -eq 0) {
+            Registrar "Nenhum driver pendente." Green
+        } else {
+            Registrar "$($resultado.Updates.Count) driver(s) encontrado(s). Baixando e instalando..."
+            $paraInstalar = New-Object -ComObject Microsoft.Update.UpdateColl
+            foreach ($item in $resultado.Updates) {
+                $paraInstalar.Add($item) | Out-Null
+                Registrar "  - $($item.Title)"
+            }
+
+            $downloader = $session.CreateUpdateDownloader()
+            $downloader.Updates = $paraInstalar
+            $downloader.Download() | Out-Null
+
+            $instalador = $session.CreateUpdateInstaller()
+            $instalador.Updates = $paraInstalar
+            $resultadoInstalacao = $instalador.Install()
+
+            Registrar "Resultado: codigo $($resultadoInstalacao.ResultCode) (2 = sucesso)"
+        }
+    } catch {
+        Registrar "Falha ao verificar/instalar drivers: $_" Red
+    }
+
+    exit 0
+}
+
+Write-Host "=== Atualizando programas (winget) ===" -ForegroundColor Cyan
+if (Get-Command winget -ErrorAction SilentlyContinue) {
+    # Sem elevacao aqui de proposito: e nesta sessao que o indice do winget
+    # consegue se registrar. O source update deixa o indice em dia; a fonte
+    # msstore fica de fora com --source winget porque exige regiao
+    # geografica e contrato proprio, e nao atualiza programa de desktop.
+    winget source update --name winget --disable-interactivity | Out-Null
     winget upgrade --all --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements
     if ($LASTEXITCODE -ne 0) {
         Write-Host "winget terminou com codigo $LASTEXITCODE - confira acima quais pacotes falharam." -ForegroundColor Yellow
@@ -285,33 +359,23 @@ if (Get-Command winget -ErrorAction SilentlyContinue) {
 
 Write-Host ""
 Write-Host "=== Atualizando drivers (Windows Update) ===" -ForegroundColor Cyan
+# Drivers precisam de administrador, entao aqui sim vale elevar -- e a COM do
+# Windows Update nao depende de MSIX, logo funciona em conta sem sessao.
+$logDrivers = Join-Path $env:TEMP "atualizar_drivers.log"
+if (Test-Path $logDrivers) { Remove-Item $logDrivers -Force -ErrorAction SilentlyContinue }
 try {
-    $session = New-Object -ComObject Microsoft.Update.Session
-    $searcher = $session.CreateUpdateSearcher()
-    $resultado = $searcher.Search("IsInstalled=0 and Type='Driver'")
-
-    if ($resultado.Updates.Count -eq 0) {
-        Write-Host "Nenhum driver pendente." -ForegroundColor Green
+    Start-Process powershell -Verb RunAs -Wait -ArgumentList @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass',
+        '-File', "\`"$PSCommandPath\`"",
+        '-LogDrivers', "\`"$logDrivers\`""
+    )
+    if (Test-Path $logDrivers) {
+        Get-Content $logDrivers -Encoding UTF8 | ForEach-Object { Write-Host $_ }
     } else {
-        Write-Host "$($resultado.Updates.Count) driver(s) encontrado(s). Baixando e instalando..."
-        $paraInstalar = New-Object -ComObject Microsoft.Update.UpdateColl
-        foreach ($item in $resultado.Updates) {
-            $paraInstalar.Add($item) | Out-Null
-            Write-Host "  - $($item.Title)"
-        }
-
-        $downloader = $session.CreateUpdateDownloader()
-        $downloader.Updates = $paraInstalar
-        $downloader.Download() | Out-Null
-
-        $instalador = $session.CreateUpdateInstaller()
-        $instalador.Updates = $paraInstalar
-        $resultadoInstalacao = $instalador.Install()
-
-        Write-Host "Resultado: codigo $($resultadoInstalacao.ResultCode) (2 = sucesso)"
+        Write-Host "A etapa de drivers nao gerou saida - elevacao recusada?" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "Falha ao verificar/instalar drivers: $_" -ForegroundColor Red
+    Write-Host "Nao foi possivel elevar para atualizar drivers: $_" -ForegroundColor Yellow
 }
 
 Write-Host ""

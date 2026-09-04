@@ -95,43 +95,83 @@ describe('empacotarComoBat', () => {
 });
 
 /**
- * Regressao do relato de campo: em maquina (ou perfil de administrador) onde
- * o winget nunca tinha rodado, `atualizar_programas` morria com
+ * Regressao de campo, em duas etapas.
  *
- *     Falha na pesquisa da origem: winget
- *     0x8a15000f : Os dados exigidos pela origem estao ausentes
+ * 1. Numa maquina onde o winget nunca tinha rodado, o script morria com
+ *    `0x8A15000F` ("os dados exigidos pela origem estao ausentes"). A
+ *    primeira tentativa foi preparar a fonte com `winget source update` --
+ *    e nao resolveu.
  *
- * e ainda parava para exibir os contratos da msstore. O
- * `--accept-source-agreements` ja estava no comando e nao adiantou: o que
- * faltava nao era o aceite dos termos, era o **indice da fonte**, que so
- * desce depois de um `winget source update`. A parte de drivers, no mesmo
- * script, rodava normal -- por isso o sintoma parecia elevacao, mas nao era.
+ * 2. O log do winget deu a causa real: o indice da fonte e um pacote
+ *    **MSIX registrado por usuario**, e registrar MSIX exige **sessao
+ *    interativa**. O `.bat` elevava com `-Verb RunAs`, o operador digitava
+ *    a conta `Administrador` (RID 500), que tem token mas nunca fez logon
+ *    naquela maquina, e a implantacao falhava com `0x80073D19`, "usuario
+ *    foi desconectado". Nenhuma flag do winget alcanca isso.
+ *
+ * Dai a divisao: o winget roda na **sessao do usuario logado**, onde a
+ * fonte registra normalmente, e so o bloco de drivers eleva -- a COM do
+ * Windows Update depende de privilegio, nao de MSIX, e sempre funcionou
+ * mesmo na conta sem sessao.
  */
 describe('gerarScriptAtualizarProgramas', () => {
   const script = gerarScriptAtualizarProgramas();
+  const linhas = script.split('\n');
+  const indiceDe = (trecho: string) => linhas.findIndex((linha) => linha.includes(trecho));
 
-  test('baixa o indice da fonte antes de procurar atualizacao', () => {
-    const posicaoUpdate = script.indexOf('winget source update');
-    const posicaoUpgrade = script.indexOf('winget upgrade');
+  test('o winget roda antes de qualquer elevacao, na sessao do usuario', () => {
+    const posicaoWinget = indiceDe('winget upgrade');
+    const posicaoElevacao = indiceDe('-Verb RunAs');
 
-    expect(posicaoUpdate).toBeGreaterThan(-1);
-    expect(posicaoUpdate).toBeLessThan(posicaoUpgrade);
+    expect(posicaoWinget).toBeGreaterThan(-1);
+    expect(posicaoElevacao).toBeGreaterThan(-1);
+    expect(posicaoWinget).toBeLessThan(posicaoElevacao);
   });
 
-  test('refaz a fonte quando o indice nao desce nem assim', () => {
-    expect(script).toContain('winget source reset');
+  test('eleva so o bloco de drivers, e espera ele terminar', () => {
+    const elevacao = linhas[indiceDe('-Verb RunAs')] ?? '';
+    expect(elevacao).toContain('-Wait');
+  });
+
+  test('a COM do Windows Update fica dentro do ramo elevado, nao no fluxo principal', () => {
+    // O ramo elevado abre o script (e a segunda passada, relancada com
+    // -LogDrivers), entao a COM aparece antes do RunAs no texto de proposito.
+    const abreRamoElevado = indiceDe('if ($LogDrivers)');
+    const comecaFluxoNormal = indiceDe('=== Atualizando programas (winget) ===');
+    const posicaoCom = indiceDe('Microsoft.Update.Session');
+
+    expect(abreRamoElevado).toBeGreaterThan(-1);
+    expect(posicaoCom).toBeGreaterThan(abreRamoElevado);
+    expect(posicaoCom).toBeLessThan(comecaFluxoNormal);
   });
 
   test('procura so na fonte winget — a msstore exige regiao geografica e contrato proprio', () => {
-    const linhaUpgrade = script.split('\n').find((linha) => linha.includes('winget upgrade'));
+    const linhaUpgrade = linhas.find((linha) => linha.includes('winget upgrade'));
     expect(linhaUpgrade).toContain('--source winget');
-  });
-
-  test('nao deixa prompt interativo travar a execucao sem ninguem na frente', () => {
-    expect(script).toContain('--disable-interactivity');
   });
 
   test('avisa quando o winget termina com erro, em vez de dizer que concluiu', () => {
     expect(script).toContain('$LASTEXITCODE');
+  });
+});
+
+describe('empacotarComoBat sem elevacao', () => {
+  test('o .bat de winget nao eleva no topo — elevar entrega o winget a uma conta sem sessao', () => {
+    const bat = empacotarComoBat('teste', SCRIPT, { elevar: false });
+
+    expect(bat).not.toContain('RunAs');
+    expect(bat).not.toContain('net session');
+  });
+
+  test('sem a opcao, segue elevando — os outros scripts do modulo dependem disso', () => {
+    const bat = empacotarComoBat('teste', SCRIPT);
+
+    expect(bat).toContain('-Verb RunAs');
+  });
+
+  test('o script embutido volta intacto tambem sem elevacao', () => {
+    const bat = empacotarComoBat('teste', SCRIPT, { elevar: false });
+
+    expect(decodificar(bat)).toBe(SCRIPT);
   });
 });

@@ -12,11 +12,16 @@ tiGerarScriptsRouter.use(authTenant);
 
 tiGerarScriptsRouter.get('/atualizar-programas', requirePermissao(ROTA, 'podeVisualizar'), (_req, res) => {
   // .bat em vez de .ps1: um .ps1 abre no Bloco de Notas no duplo clique, e
-  // mesmo por "Executar com PowerShell" esbarra em ExecutionPolicy e falta
-  // de elevacao. O .bat resolve os tres. Ver empacotarComoBat.
+  // mesmo por "Executar com PowerShell" esbarra em ExecutionPolicy. Ver
+  // empacotarComoBat.
+  //
+  // `elevar: false` e essencial aqui, nao economia: elevando, o winget cai
+  // na conta digitada no UAC, que nao tem sessao interativa, e o indice
+  // dele -- um MSIX por usuario -- nao registra. O proprio script eleva
+  // depois, so pro bloco de drivers. Ver gerarScriptAtualizarProgramas.
   res.setHeader('Content-Type', 'application/octet-stream');
   res.setHeader('Content-Disposition', 'attachment; filename="atualizar_programas.bat"');
-  res.send(empacotarComoBat('atualizar_programas', gerarScriptAtualizarProgramas()));
+  res.send(empacotarComoBat('atualizar_programas', gerarScriptAtualizarProgramas(), { elevar: false }));
 });
 
 // Depende de TI → Parâmetros estar configurado (URL de download do agente,
