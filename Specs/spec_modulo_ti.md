@@ -609,6 +609,20 @@ agente (`agente-inventario-pc/`) numa máquina nova, em três passos:
    script é idempotente: desregistra a tarefa antes de recriar, se já
    existir.
 
+   **A tarefa não aparece no Agendador aberto sem elevação, e isso é
+   normal** — vale registrar porque já custou uma investigação. Ela roda
+   como `S-1-5-18` (SYSTEM), e o Agendador de Tarefas na sessão de um
+   usuário comum não lista tarefas com esse principal: no caso medido, a
+   janela sem privilégio mostrava 7 tarefas e a elevada mostrava mais de
+   20, incluindo várias do próprio Windows. Pelo mesmo motivo,
+   `Get-ScheduledTask -TaskName 'RRCM - Inventario de TI'` devolve
+   `ObjectNotFound` sem elevação e encontra a tarefa (`TaskPath \`,
+   `State Ready`) com elevação. Nada disso afeta a execução: o serviço do
+   Agendador dispara a tarefa no boot independentemente de quem consegue
+   vê-la. Para conferir de verdade se a instalação deu certo, o teste bom
+   não é a interface — é o equipamento aparecer em **TI → Equipamentos**
+   com coleta recente.
+
 Três valores novos em **Parâmetros → TI** alimentam este script:
 `AGENTE_DOWNLOAD_URL` (de onde baixar o `.exe` — em produção,
 `https://portal.jnakao.com.br/downloads/AgenteInventarioPC.exe`, servido
