@@ -536,13 +536,29 @@ em atualização de sistema/segurança do Windows, só driver.
     parâmetro `-LogDrivers` (que também é por onde a saída da janela
     elevada volta para a original).
 *   **Por quê:** o índice do `winget` não é um arquivo, é um pacote **MSIX
-    registrado por usuário**, e registrar MSIX exige **sessão interativa**.
-    Enquanto o `.bat` elevava tudo na primeira linha, o operador digitava
-    no UAC uma conta administrativa (na máquina do relato, a conta interna
-    `Administrador`, RID 500) que tem token mas nunca fez logon ali. A
-    implantação falhava com `0x80073D19` ("usuário foi desconectado"), o
-    índice nunca era registrado, e o `winget` morria em `0x8A15000F` ("os
-    dados exigidos pela origem estão ausentes").
+    registrado por usuário**, e a implantação de MSIX depende da sessão do
+    usuário. Enquanto o `.bat` elevava tudo na primeira linha, o operador
+    digitava no UAC uma conta administrativa **diferente** da que está na
+    sessão — na máquina do relato, a conta interna `Administrador` (RID
+    500), enquanto a sessão era do usuário comum. A implantação falhava com
+    `0x80073D19` ("usuário foi desconectado"), o índice nunca era
+    registrado, e o `winget` morria em `0x8A15000F` ("os dados exigidos pela
+    origem estão ausentes").
+*   **Medido em campo, na mesma máquina e na mesma sessão:**
+
+    | Contexto | Conta | `winget` |
+    |---|---|---|
+    | `.bat` sem elevação | `nb1101\nb1101` (a da sessão) | funciona |
+    | PowerShell normal | `nb1101\nb1101` | funciona |
+    | PowerShell elevado | `nb1101\administrador` | `0x8A15000F` |
+
+    Repare que entre a linha que funciona e a que falha mudam **duas**
+    variáveis: a elevação e a conta. Não foi possível separá-las ali,
+    porque o usuário da sessão não é administrador — elevar naquela máquina
+    sempre troca de conta. **Fica em aberto** se elevar mantendo a mesma
+    conta preservaria a fonte; o teste exige uma máquina cujo usuário logado
+    seja admin, e não foi feito. Não assumir nenhuma das duas respostas sem
+    medir.
 *   **O que já foi tentado e não resolve** — está aqui para ninguém repetir:
     `--accept-source-agreements` (o problema nunca foi aceite de termos),
     `winget source update` (retorna 0 mesmo com a fonte inutilizável, então
@@ -556,10 +572,19 @@ em atualização de sistema/segurança do Windows, só driver.
     geográfica configurada e aceite de contrato próprio, e não atualiza
     programa de desktop. Consequência aceita: app instalado pela Microsoft
     Store não entra nesta atualização; a própria Store cuida dele.
-*   **Preço assumido:** se o usuário logado não for administrador, programa
-    de escopo de máquina vai pedir UAC durante o upgrade. O card é de
-    execução manual, com alguém na frente da máquina, então isso é
-    aceitável — o contrário (elevar tudo) é justamente o que quebrava.
+*   **Limite conhecido, e é um beco sem saída do `winget`, não do script:**
+    programa de **escopo de máquina** não é atualizado quando o usuário da
+    sessão não é administrador. Ele não chega a pedir UAC — com `--silent`
+    e `--disable-interactivity` o instalador falha direto. O caso real foi
+    `Teams Machine-Wide Installer`, que morreu em `1603`
+    (`ERROR_INSTALL_FAILURE`) na etapa "Iniciando a desinstalação do
+    pacote", porque remover um MSI per-machine exige privilégio.
+
+    Não há saída pelo `winget` aqui: atualizar esse pacote exige elevação, e
+    elevação (ao menos trocando de conta) quebra a fonte. Quem precisar
+    disso trata fora do card. No caso concreto o ponto é discutível de
+    qualquer forma — o Teams Classic foi **descontinuado**, e o certo é
+    desinstalá-lo pelo bloco de indesejados da seção 5.6, não atualizá-lo.
 *   **Instalar Programas (seção 5.6) tem o mesmo defeito** e ainda não foi
     corrigido: ele roda `winget install` sob a auto-elevação do `.bat`,
     então falha do mesmo jeito numa máquina onde o operador eleva com conta
