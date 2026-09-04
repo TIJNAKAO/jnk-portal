@@ -256,7 +256,29 @@ $ErrorActionPreference = "Continue"
 
 Write-Host "=== Atualizando programas (winget) ===" -ForegroundColor Cyan
 if (Get-Command winget -ErrorAction SilentlyContinue) {
-    winget upgrade --all --silent --accept-source-agreements --accept-package-agreements
+    # O indice da fonte precisa estar em disco antes da busca. Em maquina --
+    # ou em perfil de administrador -- onde o winget nunca rodou, ele vem
+    # vazio e o upgrade morre com 0x8A15000F, "os dados exigidos pela origem
+    # estao ausentes". O --accept-source-agreements nao cobre esse caso: o
+    # que falta nao e o aceite dos termos, e o indice.
+    Write-Host "Preparando a fonte do winget..."
+    winget source update --name winget --disable-interactivity | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Indice da fonte ausente ou corrompido - restaurando as fontes padrao..." -ForegroundColor Yellow
+        # Sem --name de proposito: com o nome, o reset so remove a fonte e
+        # nao recria. Sem ele, derruba todas e devolve as padrao.
+        winget source reset --force --disable-interactivity | Out-Null
+        winget source update --name winget --disable-interactivity | Out-Null
+    }
+
+    # --source winget deixa a msstore de fora de proposito: ela exige regiao
+    # geografica configurada e aceite de contrato proprio, trava o script numa
+    # maquina recem-instalada e nao atualiza programa de desktop, que e o alvo
+    # aqui.
+    winget upgrade --all --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "winget terminou com codigo $LASTEXITCODE - confira acima quais pacotes falharam." -ForegroundColor Yellow
+    }
 } else {
     Write-Host "winget nao encontrado nesta maquina - pulando atualizacao de programas." -ForegroundColor Yellow
 }

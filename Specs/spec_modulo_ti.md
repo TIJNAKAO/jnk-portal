@@ -524,11 +524,30 @@ em silêncio. Cresce ao longo do tempo (novos cards) sem precisar de tela nova
 no Hub — é a mesma `rota_tela`/permissão pra todos os scripts deste hub.
 
 **Card 1 — Atualizar Programas e Drivers.** Gera um script fixo (não
-depende de nenhuma seleção) que roda `winget upgrade --all --silent` e
-consulta o Windows Update só por drivers pendentes (via COM
-`Microsoft.Update.Session`, nativo do Windows — não precisa de módulo do
-PowerShell Gallery). Não mexe em atualização de sistema/segurança do
-Windows, só driver.
+depende de nenhuma seleção) que roda `winget upgrade --all` e consulta o
+Windows Update só por drivers pendentes (via COM `Microsoft.Update.Session`,
+nativo do Windows — não precisa de módulo do PowerShell Gallery). Não mexe
+em atualização de sistema/segurança do Windows, só driver.
+
+*   **O `winget` precisa da fonte preparada antes da busca**, e isso não é
+    o mesmo que aceitar contrato. Em máquina — ou em perfil de
+    administrador — onde o `winget` nunca tinha rodado, o script morria em
+    campo com `Falha na pesquisa da origem: winget` / `0x8A15000F` ("os
+    dados exigidos pela origem estão ausentes"), mesmo já passando
+    `--accept-source-agreements`: o que faltava era o **índice**, que só
+    desce com `winget source update`. O script faz esse update antes, e cai
+    num `winget source reset --force` (sem `--name`, senão o reset remove a
+    fonte e não recria) quando nem assim o índice vem.
+*   **A busca é restrita a `--source winget`.** A `msstore` exige região
+    geográfica configurada e aceite de contrato próprio — era ela que
+    parava o script pedindo os termos — e não atualiza programa de
+    desktop, que é o alvo do card. Consequência aceita: app instalado pela
+    Microsoft Store não entra nesta atualização; a própria Store cuida dele.
+*   **`--disable-interactivity` e checagem de `$LASTEXITCODE`**: o script
+    roda sem ninguém na frente da máquina, então prompt travado é falha, e
+    erro do `winget` precisa aparecer em vez de o script anunciar
+    "Concluido" como se tivesse dado certo — foi o que mascarou o problema
+    no primeiro relato.
 
 **Card 2 — Configurar Agente de Inventário.** Gera um script que instala o
 agente (`agente-inventario-pc/`) numa máquina nova, em três passos:

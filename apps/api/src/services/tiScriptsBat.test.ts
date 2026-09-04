@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { LIMITE_LINHA_CMD, empacotarComoBat } from './tiScripts.js';
+import { LIMITE_LINHA_CMD, empacotarComoBat, gerarScriptAtualizarProgramas } from './tiScripts.js';
 
 /**
  * O `.bat` existe para que o usuário final consiga dar duplo clique: um
@@ -91,5 +91,47 @@ describe('empacotarComoBat', () => {
 
     expect(bat).toContain('\r\n');
     expect(bat.split('\n').every((l) => l === '' || l.endsWith('\r'))).toBe(true);
+  });
+});
+
+/**
+ * Regressao do relato de campo: em maquina (ou perfil de administrador) onde
+ * o winget nunca tinha rodado, `atualizar_programas` morria com
+ *
+ *     Falha na pesquisa da origem: winget
+ *     0x8a15000f : Os dados exigidos pela origem estao ausentes
+ *
+ * e ainda parava para exibir os contratos da msstore. O
+ * `--accept-source-agreements` ja estava no comando e nao adiantou: o que
+ * faltava nao era o aceite dos termos, era o **indice da fonte**, que so
+ * desce depois de um `winget source update`. A parte de drivers, no mesmo
+ * script, rodava normal -- por isso o sintoma parecia elevacao, mas nao era.
+ */
+describe('gerarScriptAtualizarProgramas', () => {
+  const script = gerarScriptAtualizarProgramas();
+
+  test('baixa o indice da fonte antes de procurar atualizacao', () => {
+    const posicaoUpdate = script.indexOf('winget source update');
+    const posicaoUpgrade = script.indexOf('winget upgrade');
+
+    expect(posicaoUpdate).toBeGreaterThan(-1);
+    expect(posicaoUpdate).toBeLessThan(posicaoUpgrade);
+  });
+
+  test('refaz a fonte quando o indice nao desce nem assim', () => {
+    expect(script).toContain('winget source reset');
+  });
+
+  test('procura so na fonte winget — a msstore exige regiao geografica e contrato proprio', () => {
+    const linhaUpgrade = script.split('\n').find((linha) => linha.includes('winget upgrade'));
+    expect(linhaUpgrade).toContain('--source winget');
+  });
+
+  test('nao deixa prompt interativo travar a execucao sem ninguem na frente', () => {
+    expect(script).toContain('--disable-interactivity');
+  });
+
+  test('avisa quando o winget termina com erro, em vez de dizer que concluiu', () => {
+    expect(script).toContain('$LASTEXITCODE');
   });
 });
