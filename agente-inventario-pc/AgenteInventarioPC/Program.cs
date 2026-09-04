@@ -43,11 +43,18 @@ try
         },
         Coleta = new ColetaInfo
         {
-            // UTC, nao hora local -- o resto do sistema (banco com timezone
-            // 'Z', frontend convertendo pra hora do navegador) assume que
-            // todo timestamp salvo ja esta em UTC. Mandar DateTime.Now aqui
-            // fazia a hora exibida ficar errada pelo offset do fuso da
-            // maquina que roda o agente.
+            // UTC, e a API converte na ingestao. NAO trocar por DateTime.Now
+            // sem alinhar com services/tiIngestao.ts: de la pra ca o banco
+            // deixou de guardar UTC e passou a guardar o relogio de Brasilia
+            // (spec de infra, secao 10.1), e a normalizacao passou a ser
+            // feita no servidor -- em coletadoEmBrasilia, que assume UTC
+            // justamente quando a data chega SEM offset, como esta aqui.
+            //
+            // A conversao ficou no servidor de proposito: assim toda maquina
+            // ja instalada no parque grava a hora certa sem precisar
+            // reinstalar o agente. Repare que esta e a unica data do payload
+            // em UTC -- data_instalacao, ultimo_boot e ultima_vez_visto saem
+            // no relogio local da maquina.
             ColetadoEm = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
             UsuarioWindows = Environment.UserName,
             VersaoAgente = VersaoAgente,

@@ -609,6 +609,15 @@ agente (`agente-inventario-pc/`) numa máquina nova, em três passos:
    script é idempotente: desregistra a tarefa antes de recriar, se já
    existir.
 
+   Depois de registrar, o script **habilita o histórico de tarefas** —
+   `wevtutil set-log Microsoft-Windows-TaskScheduler/Operational
+   /enabled:true`. Isso não é propriedade da tarefa: é o mesmo que o botão
+   "Habilitar Histórico de Todas as Tarefas" do Agendador faz, ligando um
+   canal de log do Windows que vem **desligado por padrão**. Sem ele a aba
+   Histórico fica vazia e não há como saber se a coleta rodou no boot. O
+   bloco tem `try/catch` próprio e só avisa se falhar: histórico é
+   diagnóstico, não requisito, e não deve abortar a instalação.
+
    **A tarefa não aparece no Agendador aberto sem elevação, e isso é
    normal** — vale registrar porque já custou uma investigação. Ela roda
    como `S-1-5-18` (SYSTEM), e o Agendador de Tarefas na sessão de um

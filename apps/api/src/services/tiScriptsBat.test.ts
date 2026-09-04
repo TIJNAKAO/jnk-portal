@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { LIMITE_LINHA_CMD, empacotarComoBat, gerarScriptAtualizarProgramas } from './tiScripts.js';
+import {
+  LIMITE_LINHA_CMD,
+  empacotarComoBat,
+  gerarScriptAtualizarProgramas,
+  gerarScriptConfigurarAgente,
+} from './tiScripts.js';
 
 /**
  * O `.bat` existe para que o usuário final consiga dar duplo clique: um
@@ -173,5 +178,45 @@ describe('empacotarComoBat sem elevacao', () => {
     const bat = empacotarComoBat('teste', SCRIPT, { elevar: false });
 
     expect(decodificar(bat)).toBe(SCRIPT);
+  });
+});
+
+/**
+ * O historico da tarefa nao e propriedade dela: o "Habilitar Historico de
+ * Todas as Tarefas" do Agendador liga o canal de log
+ * `Microsoft-Windows-TaskScheduler/Operational` do Windows inteiro, que vem
+ * desligado por padrao. Sem ele a aba Historico fica vazia e nao da pra
+ * saber se a coleta rodou no boot.
+ */
+describe('gerarScriptConfigurarAgente — historico da tarefa', () => {
+  const script = gerarScriptConfigurarAgente({
+    agenteUrl: 'https://exemplo.test/AgenteInventarioPC.exe',
+    apiUrl: 'https://exemplo.test/api/ti/inventario',
+    apiKey: 'token-de-teste',
+  });
+  const linhas = script.split('\n');
+  const indiceDe = (trecho: string) => linhas.findIndex((linha) => linha.includes(trecho));
+
+  test('habilita o canal de log do Agendador', () => {
+    expect(script).toContain('Microsoft-Windows-TaskScheduler/Operational');
+    expect(script).toContain('/enabled:true');
+  });
+
+  test('habilita depois de registrar a tarefa', () => {
+    expect(indiceDe('/enabled:true')).toBeGreaterThan(indiceDe('Register-ScheduledTask'));
+  });
+
+  test('nao repete o trabalho quando o canal ja esta ligado', () => {
+    expect(script).toContain('wevtutil get-log');
+  });
+
+  test('falhar ao habilitar nao derruba a instalacao — historico e diagnostico', () => {
+    // O bloco tem try/catch proprio: registrar a tarefa e o que importa, e
+    // o script nao pode abortar por causa de log.
+    const posicaoHistorico = indiceDe('/enabled:true');
+    const catchDoHistorico = linhas.findIndex(
+      (linha, i) => i > posicaoHistorico && linha.includes('} catch {'),
+    );
+    expect(catchDoHistorico).toBeGreaterThan(posicaoHistorico);
   });
 });

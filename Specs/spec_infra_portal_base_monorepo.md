@@ -589,6 +589,30 @@ e a conversão não precisa de tabela de fuso.
     conversão** — já vêm no horário local (KPL, notas fiscais da SysEmp,
     Mercado Livre, agente de inventário). A migration `024_fuso_brasilia.sql`
     lista, no cabeçalho, exatamente quais colunas ficaram de fora e por quê.
+
+    **Uma dessas exceções estava errada, e custou caro:** a `024` deixou
+    `ti_inventario_coleta.coletado_em` de fora alegando que ela vinha "do
+    payload do agente (hora local da maquina)". Não vinha. Das quatro datas
+    que o agente envia, essa é a **única** em UTC — `Program.cs` a monta com
+    `DateTime.UtcNow`, enquanto `data_instalacao`, `ultimo_boot` e
+    `ultima_vez_visto` saem no relógio local. Enquanto o banco também
+    guardava UTC as duas coisas combinavam; depois da `024` a coleta passou
+    a aparecer 3 horas adiantada na tela do módulo TI. Corrigido em
+    `028_fuso_coleta_agente.sql` (dados) e em `services/tiIngestao.ts`,
+    `coletadoEmBrasilia` (ingestão).
+
+    **A normalização ficou no servidor, não no agente, de propósito:** assim
+    toda máquina já instalada no parque passa a gravar a hora certa sem
+    reinstalar o agente. O contrato virou: `coletado_em` **sem** offset é
+    lido como UTC; **com** offset, o offset é que vale. Por isso não se troca
+    o `DateTime.UtcNow` do agente por `DateTime.Now` sem mexer nos dois lados.
+
+    Ao conferir esse tipo de correção, note que `028` **não** pôde usar o
+    critério `> NOW()` da `027`: ali a janela era de ~30 minutos e a linha
+    errada ficava no futuro; aqui o agente sempre mandou UTC, então a linha
+    de ontem está adiantada mas continua no passado. O critério que serve é
+    comparar com `recebido_em`, que é `DEFAULT CURRENT_TIMESTAMP` — carimbo
+    do próprio servidor, já em Brasília desde a `024`.
 *   **Testar a expiração de token** (seção 10) explicitamente comparando um
     `expira_em` recém-criado contra `new Date()` antes de considerar essa
     parte pronta — é o ponto onde esse tipo de bug de fuso horário mais

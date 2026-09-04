@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool, withTransaction, type PoolConnection } from '../config/database.js';
 import type { TiInventarioPayload } from '../types/tiPayload.js';
+// Fuso é regra única do projeto (spec de infra, seção 10.1) — reusa a
+// conversão que já existe em vez de repetir o offset aqui.
+import { paraDatetimeBrasilia } from './sysemp/dbUtil.js';
 
 function valor(origem: Record<string, unknown> | null | undefined, chave: string): unknown {
   const v = origem?.[chave];
@@ -14,11 +17,42 @@ function inteiro(origem: Record<string, unknown> | null | undefined, chave: stri
 }
 
 /**
+ * `coleta.coletado_em` → relógio de Brasília, que é como o banco guarda
+ * DATETIME (spec de infra, seção 10.1).
+ *
+ * Esta é a **única** data do payload que vem em UTC: o agente a monta com
+ * `DateTime.UtcNow` (`Program.cs`), enquanto `data_instalacao`,
+ * `ultimo_boot` e `ultima_vez_visto` saem no relógio local da máquina.
+ * Enquanto o banco também guardava UTC os dois combinavam; quando ele
+ * passou a guardar Brasília, a `024_fuso_brasilia.sql` deixou esta coluna
+ * de fora na premissa errada de que ela já vinha local, e a coleta passou a
+ * aparecer 3 horas adiantada.
+ *
+ * A normalização é aqui, e não no agente, **de propósito**: assim toda
+ * máquina já instalada no parque fica correta sem reinstalar o agente.
+ * Por isso, ausência de offset significa UTC — é o que os agentes
+ * instalados enviam. Um agente que mande offset explícito também funciona,
+ * e nesse caso o offset é que vale.
+ */
+export function coletadoEmBrasilia(valorBruto: string): string {
+  // `-03` sozinho é Invalid Date pro parser do JS, que exige ±HH:mm. Mesma
+  // armadilha que zerou datahora_criacao_sysemp (ver sysemp/dbUtil.ts).
+  const texto = String(valorBruto).trim().replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+  const temFuso = /(?:Z|[+-]\d{2}:\d{2})$/i.test(texto);
+
+  const instante = new Date(temFuso ? texto : `${texto}Z`);
+  if (Number.isNaN(instante.getTime())) {
+    throw new Error(`coleta.coletado_em nao e uma data/hora valida: ${valorBruto}`);
+  }
+  return paraDatetimeBrasilia(instante);
+}
+
+/**
  * Insere várias linhas de uma vez (`VALUES (...),(...),...` em blocos de
  * 200) em vez de um INSERT por linha — uma máquina com 200+ programas
  * instalados já estourou o tempo de execução fazendo um round-trip de rede
  * por linha até um banco gerenciado (mesma característica de latência no
- * MySQL da DigitalOcean). Ver Specs/spec_modulo_ti.md, seção 3.
+ * MySQL da DigitalOcean). Ver Specs/spec_modulo_ti.md, seção 4.
  */
 async function inserirEmLote(
   connection: PoolConnection,
@@ -47,7 +81,7 @@ export interface ResultadoIngestao {
 
 export async function processarInventario(payload: TiInventarioPayload, corpoBruto: string): Promise<ResultadoIngestao> {
   const nomeComputador = String(payload.computador.nome).trim();
-  const coletadoEm = String(payload.coleta.coletado_em).trim();
+  const coletadoEm = coletadoEmBrasilia(String(payload.coleta.coletado_em));
 
   return withTransaction(async (connection) => {
     // ---- 1. Equipamento: upsert por nome_computador ----

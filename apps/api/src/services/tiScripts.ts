@@ -519,6 +519,29 @@ ${xmlTarefa}
 '@
     Register-ScheduledTask -TaskName $nomeTarefa -Xml $xmlTarefa -Force | Out-Null
     Write-Host "Tarefa '$nomeTarefa' configurada - vai rodar a cada reinicializacao, como SYSTEM." -ForegroundColor Green
+
+    # Historico da tarefa. Nao e uma propriedade da tarefa: o botao
+    # "Habilitar Historico de Todas as Tarefas" do Agendador liga o canal de
+    # log do Windows inteiro, que vem desligado por padrao. Sem ele a aba
+    # Historico fica vazia e nao da pra saber se a coleta rodou no boot.
+    $canalLog = "Microsoft-Windows-TaskScheduler/Operational"
+    try {
+        $estado = wevtutil get-log $canalLog 2>$null | Select-String -Pattern "^enabled:"
+        if ($estado -match "true") {
+            Write-Host "Historico de tarefas ja estava habilitado." -ForegroundColor Green
+        } else {
+            wevtutil set-log $canalLog /enabled:true
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Historico de tarefas habilitado." -ForegroundColor Green
+            } else {
+                Write-Host "Nao foi possivel habilitar o historico de tarefas (codigo $LASTEXITCODE)." -ForegroundColor Yellow
+            }
+        }
+    } catch {
+        # Historico e diagnostico, nao requisito: se falhar, a tarefa segue
+        # valida e a instalacao nao deve ser abortada por causa disso.
+        Write-Host "Nao foi possivel habilitar o historico de tarefas: $_" -ForegroundColor Yellow
+    }
 } catch {
     Write-Host "Falha ao configurar a tarefa agendada: $_" -ForegroundColor Red
     exit 1
