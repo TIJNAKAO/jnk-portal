@@ -8,7 +8,7 @@ import {
 
 /**
  * Fórmulas de líquido e margem do módulo Faturamento
- * (Specs/spec_modulo_faturamento.md, seção 3.2).
+ * (Specs/spec_modulo_faturamento.md, seção 4.2).
  *
  * Estas contas são a razão de o Vitest existir neste repositório: margem
  * errada não gera erro em log nenhum — chega errada numa reunião.

@@ -7,12 +7,12 @@ subdomínio novo. Nenhum recurso é compartilhado; só o domínio-pai
 `jnakao.com.br` é o mesmo.
 
 Existe um template pronto do App Spec em [`.do/app.yaml`](../.do/app.yaml)
-(seção 5 usa ele) — sem nenhum segredo real, só placeholders
+(seção 6 usa ele) — sem nenhum segredo real, só placeholders
 `ALTERAR-AQUI`.
 
 ---
 
-## 0. Visão geral do que vamos criar
+## 1. Visão geral do que vamos criar
 
 | Recurso | O que é |
 |---|---|
@@ -23,12 +23,12 @@ Existe um template pronto do App Spec em [`.do/app.yaml`](../.do/app.yaml)
 
 **Front e back ficam sob o mesmo domínio**, em rotas diferentes
 (`portal.jnakao.com.br/` pro site, `portal.jnakao.com.br/api/*` pra API) —
-evita CORS de propósito e é assim que o App Spec (seção 5) já vem
+evita CORS de propósito e é assim que o App Spec (seção 6) já vem
 configurado.
 
 ---
 
-## 1. Pré-requisitos
+## 2. Pré-requisitos
 
 - Acesso à conta DO com permissão de criar recursos.
 - Acesso à zona DNS de `jnakao.com.br` (painel da DO, se o domínio já
@@ -40,22 +40,22 @@ configurado.
 
 ---
 
-## 2. Criar um Project novo (isolamento lógico)
+## 3. Criar um Project novo (isolamento lógico)
 
 1. Painel DO → **Projects** → **New Project**.
 2. Nome: `jnk-portal` (ou `JNK Portal`).
 3. Não mover nenhum recurso existente pra dentro — os recursos criados nas
-   seções 3 e 5 já nascem dentro dele se você criar com este Project
+   seções 4 e 5 já nascem dentro dele se você criar com este Project
    selecionado como destino.
 
 ---
 
-## 3. Banco de dados — MySQL Managed Database novo
+## 4. Banco de dados — MySQL Managed Database novo
 
 1. Painel DO → **Databases** → **Create Database Cluster**.
 2. Engine: **MySQL** (versão 8).
 3. Região: escolha a **mesma região** que vai usar no App Platform (seção
-   5) — reduz latência entre API e banco, e é pré-requisito pra usar o
+   6) — reduz latência entre API e banco, e é pré-requisito pra usar o
    endpoint **privado** (VPC) em vez do público.
 4. Plano: o menor (`Basic`, 1 nó) serve pra começar — dá pra redimensionar
    depois sem downtime.
@@ -65,20 +65,20 @@ configurado.
      `user` (`doadmin`), `password`.
    - **Download CA Certificate** → baixa `ca-certificate.crt`. Abra o
      arquivo num editor de texto — vai precisar colar o conteúdo inteiro
-     como uma env var (seção 5), não como arquivo.
+     como uma env var (seção 6), não como arquivo.
    - Dentro do cluster, criar o banco: aba **Databases** do cluster →
      **Add new database** → nome `jnk_portal_base`. (Alternativa via linha
      de comando, se tiver o cliente `mysql` instalado:
      `mysql -h <host> -P <port> -u doadmin -p --ssl-ca=ca-certificate.crt -e "CREATE DATABASE jnk_portal_base CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"`)
 7. **Trusted Sources**: por enquanto, deixe liberado geral ou adicione seu
-   IP pra conseguir rodar as migrations (seção 6) antes do App Platform
-   existir. Depois de criar o app (seção 5), volte aqui e adicione o app
+   IP pra conseguir rodar as migrations (seção 7) antes do App Platform
+   existir. Depois de criar o app (seção 6), volte aqui e adicione o app
    `jnk-portal` como trusted source — restringe o acesso ao banco só pro
    app, mais seguro que deixar público.
 
 ---
 
-## 4. Código no GitHub
+## 5. Código no GitHub
 
 ```
 git remote add origin https://github.com/SEU-USUARIO/jnk-portal.git
@@ -92,13 +92,13 @@ só `git push`.)
 
 ---
 
-## 5. App Platform — criar o app com 2 componentes
+## 6. App Platform — criar o app com 2 componentes
 
 **Caminho rápido — usando o template pronto:**
 
 1. Abra [`.do/app.yaml`](../.do/app.yaml) e preencha os `ALTERAR-AQUI`:
    - `repo` (nas duas seções, `services` e `static_sites`): `seu-usuario/jnk-portal`.
-   - `DB_HOST`, `DB_PASSWORD`: os dados anotados na seção 3.
+   - `DB_HOST`, `DB_PASSWORD`: os dados anotados na seção 4.
    - `DB_CA_CERT`: cole o conteúdo inteiro do `ca-certificate.crt` (das
      linhas `-----BEGIN CERTIFICATE-----` até `-----END CERTIFICATE-----`).
    - `JWT_SECRET`: gere um valor novo — **não reaproveite o de
@@ -114,7 +114,7 @@ só `git push`.)
    autorize o repo `jnk-portal` → na tela de configuração dos recursos,
    clique em **Edit Your App Spec** (canto superior) e cole o YAML já
    preenchido.
-3. Confirme o Project criado na seção 2 como destino.
+3. Confirme o Project criado na seção 3 como destino.
 4. **Review** → **Create Resources**. O primeiro deploy roda automaticamente
    (build do `api` + build do `portal`) — acompanhe em **Activity**.
 
@@ -139,7 +139,7 @@ essa resolução.
 
 ---
 
-## 6. Rodar as migrations contra o banco de produção
+## 7. Rodar as migrations contra o banco de produção
 
 Depois que o componente `api` estiver com deploy bem-sucedido (Connection
 Details do banco já configuradas), rode as migrations. Duas opções:
@@ -155,14 +155,14 @@ Details do banco já configuradas), rode as migrations. Duas opções:
 **Opção B — da sua máquina**, apontando pro banco novo (não pro local):
 
 1. Copie `apps/api/.env.example` pra `apps/api/.env.producao` (não
-   commitar) e preencha com os dados reais do cluster (seção 3) — use
+   commitar) e preencha com os dados reais do cluster (seção 4) — use
    `DB_CA_CERT_PATH` apontando pro `ca-certificate.crt` baixado.
 2. `cd apps/api && npx dotenv -e .env.producao -- tsx db/migrate.ts`
    (ou exporte as variáveis no shell e rode `npm run migrate --workspace=apps/api` a partir da raiz).
 
 ---
 
-## 7. Seed inicial (primeiro usuário admin)
+## 8. Seed inicial (primeiro usuário admin)
 
 `apps/api/db/seeds/dev.sql` cria um usuário com senha de teste
 (`Admin@123`) — **não rodar esse arquivo em produção**. Em vez disso, gere
@@ -197,7 +197,7 @@ WHERE u.email = 'email@jnakao.com.br' AND p.nome = 'Administrador';
 
 ---
 
-## 8. Domínio — `portal.jnakao.com.br`
+## 9. Domínio — `portal.jnakao.com.br`
 
 1. App Platform → app `jnk-portal` → **Settings** → **Domains** → **Add Domain**.
 2. Digite `portal.jnakao.com.br` → tipo **Primary**. A DO mostra um
@@ -216,12 +216,12 @@ WHERE u.email = 'email@jnakao.com.br' AND p.nome = 'Administrador';
 
 ---
 
-## 9. Testar
+## 10. Testar
 
 1. `https://portal.jnakao.com.br/api/health` → deve responder
    `{"status":"ok","database":"ok"}`.
 2. `https://portal.jnakao.com.br` → tela de login do Portal.
-3. Login com o usuário criado na seção 7.
+3. Login com o usuário criado na seção 8.
 4. **Recarregue (F5) já dentro do portal, numa rota interna como `/modules`.**
    Tem que continuar funcionando. Se voltar 404, falta `catchall_document:
    index.html` no componente estático do App Spec.
@@ -237,16 +237,16 @@ WHERE u.email = 'email@jnakao.com.br' AND p.nome = 'Administrador';
 
 ---
 
-## 10. O que muda em relação ao ambiente local
+## 11. O que muda em relação ao ambiente local
 
-- **`AGENTE_API_URL`** (Parâmetros → TI): trocar de `http://localhost:3001/api/ti/inventario` pra `https://portal.jnakao.com.br/api/ti/inventario` antes de gerar o script "Configurar Agente de Inventário" (spec do módulo TI, seção 4.7).
+- **`AGENTE_API_URL`** (Parâmetros → TI): trocar de `http://localhost:3001/api/ti/inventario` pra `https://portal.jnakao.com.br/api/ti/inventario` antes de gerar o script "Configurar Agente de Inventário" (spec do módulo TI, seção 5.7).
 - **`AGENTE_DOWNLOAD_URL`**: `https://portal.jnakao.com.br/downloads/AgenteInventarioPC.exe` — o `.exe` publicado (`dotnet publish -c Release`, autocontido, ~65MB) fica versionado em [`downloads/`](../downloads) na raiz do monorepo, servido publicamente (sem login) pelo próprio componente `api` (rota `/downloads`, `express.static`). Ao atualizar o agente, republicar (`dotnet publish -c Release` dentro de `agente-inventario-pc/AgenteInventarioPC`) e substituir o arquivo em `downloads/`.
 - **Redirect URI do Mercado Livre** (Parâmetros → Mercado Livre, campo `REDIRECT_URI`): precisa ser `https://portal.jnakao.com.br/api/integracao/mercado-livre/callback`, e essa mesma URL precisa estar cadastrada no DevCenter do Mercado Livre pro app usado.
 - **`FRONTEND_URL`** (env var do componente `api`): já vem `https://portal.jnakao.com.br` no template — usado no link do e-mail de "Esqueci minha senha".
 
 ---
 
-## 11. Isolamento confirmado
+## 12. Isolamento confirmado
 
 - Banco: cluster novo, sem relação com o cluster do `jnakao-digital-ocean`.
 - App: app novo no App Platform, sem relação com o app existente.
@@ -258,11 +258,11 @@ WHERE u.email = 'email@jnakao.com.br' AND p.nome = 'Administrador';
 
 ---
 
-## 12. Alternativa — Droplet em vez de App Platform
+## 13. Alternativa — Droplet em vez de App Platform
 
 Se preferir uma VM tradicional (mais controle, mais manutenção manual —
 nginx, PM2, certbot) em vez de App Platform, os passos 3, 4, 6-9 continuam
-os mesmos; a seção 5 muda para: criar um Droplet Ubuntu, instalar Node 20+
+os mesmos; a seção 6 muda para: criar um Droplet Ubuntu, instalar Node 20+
 e Nginx, clonar o repo, `npm install && npm run build` na raiz, rodar a API
 com PM2 (`pm2 start apps/api/dist/index.js --name jnk-portal-api`), servir
 o `apps/portal/dist` como estático via Nginx com proxy reverso de `/api`

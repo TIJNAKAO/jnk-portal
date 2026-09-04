@@ -11,7 +11,7 @@ import { condicaoEscopo, type EmpresaPermitida } from './escopoEmpresas.js';
 
 /**
  * Consultas do módulo Faturamento sobre `etl_fatcom` — a tabela-fato que
- * consolida os dois ERPs. Ver Specs/spec_modulo_faturamento.md, seção 3.
+ * consolida os dois ERPs. Ver Specs/spec_modulo_faturamento.md, seção 4.
  *
  * A tabela guarda insumos; líquido e margem saem de `faturamentoCalculos.ts`,
  * aplicados tanto a uma linha do relatório quanto a totais agregados. Como as

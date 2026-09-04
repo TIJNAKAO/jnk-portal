@@ -104,7 +104,7 @@ async function gravarPedido(connection: PoolConnection, userIdMl: number, pedido
 
 /**
  * Busca pedidos de todas as contas conectadas, últimos `DIAS_PADRAO` dias.
- * Ver Specs/spec_modulo_integracao.md, seção 3.3 — frete detalhado
+ * Ver Specs/spec_modulo_integracao.md, seção 4.3 — frete detalhado
  * (`/shipments/{id}`) fica pra fase futura.
  */
 export async function sincronizarMlPedidos(idLog: number): Promise<ResultadoSincronizacao> {

@@ -6,7 +6,7 @@ da API do jnk-portal (`apps/api`, Node/Express). Reaproveitado sem nenhuma
 mudança de código de `jnakao-digital-ocean/agente-inventario-pc` (onde o
 mesmo agente enviava pra um endpoint PHP equivalente,
 `api/inventario_pc.php`) — o contrato JSON do payload é idêntico, só o lado
-que recebe mudou de linguagem. Ver `Specs/spec_modulo_ti.md`, seção 3.
+que recebe mudou de linguagem. Ver `Specs/spec_modulo_ti.md`, seção 4.
 
 ## Compilar
 
@@ -55,7 +55,7 @@ card "Configurar Agente de Inventário", baixa/copia o `.exe`, grava o
 de `ModeloJob/RRCM - Inventario de TI.xml` (export de uma tarefa que já
 funcionava). Evita de propósito o problema de parsing descrito abaixo, já
 que não monta a tarefa a partir de uma linha de comando com aspas. Ver
-`Specs/spec_modulo_ti.md`, seção 4.7.
+`Specs/spec_modulo_ti.md`, seção 5.7.
 
 As instruções manuais abaixo continuam valendo como alternativa/fallback,
 ou pra quem quiser configurar direto na máquina sem passar pelo Portal.

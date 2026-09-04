@@ -1,4 +1,4 @@
--- Log de Acessos. Ver spec, seção 7. Sem ON DELETE CASCADE: é trilha de auditoria.
+-- Log de Acessos. Ver spec, seção 8. Sem ON DELETE CASCADE: é trilha de auditoria.
 
 CREATE TABLE IF NOT EXISTS logs_acesso (
     id INT AUTO_INCREMENT PRIMARY KEY,

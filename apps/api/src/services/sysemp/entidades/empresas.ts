@@ -6,7 +6,7 @@ import { inteiro, valor } from '../dbUtil.js';
 
 /**
  * `grupo_empresa` não vem da SysEmp — mapeamento fixo por `id_empresa`,
- * preservado do projeto de origem (spec, seção 6.2 — confirmado manter o
+ * preservado do projeto de origem (spec, seção 7.2 — confirmado manter o
  * mesmo). Ajustar aqui se os códigos de `id_empresa` deste cliente forem
  * diferentes.
  */

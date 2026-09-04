@@ -10,7 +10,7 @@ const ROTA = '/config/avisos';
 
 avisosRouter.use(authTenant);
 
-// Consumida pelo Quadro de Avisos do Hub (seção 4.3) — qualquer usuário
+// Consumida pelo Quadro de Avisos do Hub (seção 5.3) — qualquer usuário
 // logado vê, não é gated por requirePermissao (não é tela administrativa).
 avisosRouter.get('/ativos', async (req, res) => {
   const [avisos] = await pool.query<RowDataPacket[]>(

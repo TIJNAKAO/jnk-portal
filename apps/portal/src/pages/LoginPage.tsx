@@ -13,7 +13,7 @@ export function LoginPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
-  // Após autenticar, avança direto se só houver uma filial; senão, pede a escolha (spec, seção 4.2).
+  // Após autenticar, avança direto se só houver uma filial; senão, pede a escolha (spec, seção 5.2).
   useEffect(() => {
     if (!usuario || etapa === 'filial') return;
     if (usuario.filiaisPermitidas.length > 1) {

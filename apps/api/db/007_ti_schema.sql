@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS ti_catalogo_programa (
     UNIQUE KEY uq_winget_id (winget_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- filial_id é NULL-ável de propósito (desvio documentado na spec, seção 2.1):
+-- filial_id é NULL-ável de propósito (desvio documentado na spec, seção 3.1):
 -- o agente pode rodar numa máquina antes de um admin classificar a filial.
 CREATE TABLE IF NOT EXISTS ti_equipamento (
     id                      INT AUTO_INCREMENT PRIMARY KEY,

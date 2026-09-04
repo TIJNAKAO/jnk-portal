@@ -1,4 +1,4 @@
--- Seed do módulo CONFIG (Configurador) e suas telas. Ver spec, seção 5.
+-- Seed do módulo CONFIG (Configurador) e suas telas. Ver spec, seção 6.
 -- Idempotente via INSERT IGNORE (chave_modulo/rota_tela são UNIQUE ou
 -- checadas por combinação única abaixo).
 

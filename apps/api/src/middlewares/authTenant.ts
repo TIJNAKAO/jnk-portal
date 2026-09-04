@@ -10,7 +10,7 @@ import { verificarToken } from '../services/jwt.js';
 export function authTenant(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   // `EventSource` do navegador não permite header customizado — para o
-  // stream SSE de acompanhamento de execuções (seção 2.7 do spec de
+  // stream SSE de acompanhamento de execuções (seção 3.7 do spec de
   // Integração), aceita o token via query string como alternativa.
   const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : (req.query.token as string | undefined);
 

@@ -6,7 +6,7 @@ import type { RowDataPacket } from 'mysql2';
  * Autenticação do agente de inventário (máquina, não humano) — token fixo
  * no header `X-Api-Key`, validado contra `ti_api_token`. Independente do
  * JWT de sessão: não existe usuário nem tela de login envolvida aqui.
- * Ver Specs/spec_modulo_ti.md, seção 3.
+ * Ver Specs/spec_modulo_ti.md, seção 4.
  */
 export async function apiKeyAgente(req: Request, res: Response, next: NextFunction) {
   const token = req.headers['x-api-key'];

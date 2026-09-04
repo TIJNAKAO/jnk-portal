@@ -1,6 +1,6 @@
 /**
  * Fórmulas de líquido e margem do módulo Faturamento.
- * Ver Specs/spec_modulo_faturamento.md, seção 3.2.
+ * Ver Specs/spec_modulo_faturamento.md, seção 4.2.
  *
  * Vivem aqui, e só aqui, de propósito: `etl_fatcom` materializa **insumos**
  * (fatos que não mudam — impostos, custo congelado, comissão), enquanto

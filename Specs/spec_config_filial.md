@@ -1,6 +1,6 @@
 # Especificação Técnica: Unificação de Filiais (`config_filial`)
 
-## 0. Problema
+## 1. Problema
 
 O portal tem hoje **três** representações concorrentes da mesma ideia:
 
@@ -17,7 +17,7 @@ duplicidade que esta spec elimina.
 **Decisão: uma tabela só.** `etl_empresa` é renomeada para `config_filial` e
 passa a ser o cadastro único de filiais do portal.
 
-### 0.1. Impacto medido (31/08/2026)
+### 1.1. Impacto medido (31/08/2026)
 
 A migração é pequena, o que torna a unificação barata:
 
@@ -34,7 +34,7 @@ Uma avaliação anterior desaconselhou unificar filial e empresa, sob o argument
 de que quebraria o módulo TI. **O dado não sustenta o argumento**: nenhum
 equipamento está vinculado a filial. A preocupação era teórica.
 
-### 0.2. As 13 linhas são 5 filiais reais
+### 1.2. As 13 linhas são 5 filiais reais
 
 | CNPJ | KPL | SysEmp |
 |---|---|---|
@@ -54,7 +54,7 @@ ambas quando quiser o dado completo dos dois ERPs.
 
 ---
 
-## 1. Decisões validadas
+## 2. Decisões validadas
 
 1. **`etl_empresa` → `config_filial`**, cadastro único de filiais.
 2. **13 linhas**, uma por (origem, código).
@@ -72,7 +72,7 @@ ambas quando quiser o dado completo dos dois ERPs.
 
 ---
 
-## 2. Duas dimensões que não se confundem
+## 3. Duas dimensões que não se confundem
 
 A distinção governa todo o resto do desenho:
 
@@ -90,9 +90,9 @@ Um usuário com acesso a uma filial não enxerga as outras nem trocando.
 
 ---
 
-## 3. Modelo de dados
+## 4. Modelo de dados
 
-### 3.1. `config_filial`
+### 4.1. `config_filial`
 
 Renomeada de `etl_empresa`, preservando as 13 linhas e os `recno` atuais.
 
@@ -114,25 +114,25 @@ Renomeada de `etl_empresa`, preservando as 13 linhas e os `recno` atuais.
 `MANUAL` como terceira origem permite cadastrar uma unidade que não existe em
 ERP nenhum, sem que o código precise tratá-la como exceção.
 
-### 3.2. `usuarios_filiais`
+### 4.2. `usuarios_filiais`
 
 `filial_id` passa a referenciar `config_filial(recno)`. A tabela em si não muda
 de forma — muda para onde aponta.
 
-### 3.3. Tabelas que repontam
+### 4.3. Tabelas que repontam
 
 `usuarios.ultimo_acesso_filial_id`, `avisos_plataforma.filial_id`,
 `logs_acesso.filial_id`, `ti_equipamento.filial_id` e
 `sysemp_empresa.filial_id` passam a referenciar `config_filial(recno)`. Todas
 estão vazias exceto `logs_acesso`.
 
-### 3.4. Removidas
+### 4.4. Removidas
 
 `filiais` e `usuarios_empresas`.
 
 ---
 
-## 4. Migração
+## 5. Migração
 
 Ordem obrigatória — as chaves estrangeiras impedem qualquer outra:
 
@@ -155,7 +155,7 @@ Ordem obrigatória — as chaves estrangeiras impedem qualquer outra:
 5. Recriar as chaves estrangeiras apontando para `config_filial(recno)`.
 6. `DROP TABLE filiais`, `DROP TABLE usuarios_empresas`.
 
-### 4.1. Desligar o ETL de empresa
+### 5.1. Desligar o ETL de empresa
 
 `rodarEtlEmpresa` e o card "ETL Empresa" do Painel de Integrações são removidos.
 
@@ -168,7 +168,7 @@ Não afeta o Faturamento: `etl_fatcom` monta `dc_filial` a partir de
 
 ---
 
-## 5. Aplicação nos módulos
+## 6. Aplicação nos módulos
 
 O escopo continua vindo de `services/escopoEmpresas.ts`, com as mesmas regras
 já cobertas por teste — falha fechada, interseção nunca substituição, origem
@@ -188,9 +188,9 @@ Nunca amplia além do permitido — é filtro, não permissão.
 
 ---
 
-## 6. Telas
+## 7. Telas
 
-### 6.1. `/config/filiais`
+### 7.1. `/config/filiais`
 
 CRUD completo sobre `config_filial`: origem, código, razão social, fantasia,
 CNPJ, IE, grupo, empresa e ativa.
@@ -198,7 +198,7 @@ CNPJ, IE, grupo, empresa e ativa.
 Excluir uma filial vinculada a usuários é bloqueado com mensagem explícita —
 a alternativa (cascata) removeria acesso sem que ninguém percebesse.
 
-### 6.2. `/config/usuarios`
+### 7.2. `/config/usuarios`
 
 **Filiais e perfis passam a vir marcados com o que está configurado.** O texto
 "(deixe em branco para manter)" sai.
@@ -213,7 +213,7 @@ Filiais aparecem agrupadas por origem e grupo, com o CNPJ visível: sem ele,
 
 ---
 
-## 7. Testes
+## 8. Testes
 
 A camada de escopo já tem 15 testes; eles continuam valendo com a fonte nova.
 Acrescentar:
@@ -226,14 +226,14 @@ Acrescentar:
 
 ---
 
-## 8. Riscos
+## 9. Riscos
 
 1. **Migração irreversível de FKs.** Fazer backup do banco antes; a ordem da
-   seção 4 não admite improviso.
-2. **Empresa nova do ERP não aparece mais sozinha** (seção 4.1). Se passar
+   seção 5 não admite improviso.
+2. **Empresa nova do ERP não aparece mais sozinha** (seção 5.1). Se passar
    despercebido, o faturamento de uma filial nova fica invisível até alguém
    cadastrá-la — e o sintoma é dado faltando, não erro.
-3. **Duas visões da mesma empresa** (seção 0.2). Marcar só uma dá acesso
+3. **Duas visões da mesma empresa** (seção 1.2). Marcar só uma dá acesso
    parcial sem aviso. Mitigado pelo CNPJ visível na tela.
 4. **`grupo` e `empresa` sem hierarquia definida.** Convivem como agrupamentos
    paralelos; se o uso mostrar que um deles basta, vale consolidar depois.

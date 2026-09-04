@@ -17,7 +17,7 @@ integracaoParametrosFilaRouter.get('/', requirePermissao(ROTA, 'podeVisualizar')
 
 // Só edição de linhas que já têm suporte no código (consumidor registrado
 // pra aquele tipo_tabela) — não cria integração nova do nada. Ver
-// Specs/spec_modulo_integracao.md, seção 4.4.
+// Specs/spec_modulo_integracao.md, seção 5.4.
 integracaoParametrosFilaRouter.put('/:chave', requirePermissao(ROTA, 'podeEditar'), async (req, res) => {
   const { nome, endpointFila, endpointDetalhe, campoIdDetalhe, endpointConfirmacao, limitePagina, ativo, observacoes } = req.body as {
     nome?: string;

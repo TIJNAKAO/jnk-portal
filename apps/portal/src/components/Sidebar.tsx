@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthProvider';
 
-/** Módulo ativo é derivado da rota atual — nunca fica dessincronizado do que está na tela (spec, seção 4.4). */
+/** Módulo ativo é derivado da rota atual — nunca fica dessincronizado do que está na tela (spec, seção 5.4). */
 function useModuloAtivo() {
   const { usuario } = useAuth();
   const { pathname } = useLocation();

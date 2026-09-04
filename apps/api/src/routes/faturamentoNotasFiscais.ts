@@ -74,7 +74,7 @@ const MOEDA = '#,##0.00';
 
 /**
  * Ordem das colunas segue a lista pedida pelo cliente
- * (Specs/spec_modulo_faturamento.md, seção 4.1), com Marca e Canal
+ * (Specs/spec_modulo_faturamento.md, seção 5.1), com Marca e Canal
  * acrescentados por serem filtros do relatório — sem eles, quem recebe a
  * planilha não consegue reagrupar.
  */

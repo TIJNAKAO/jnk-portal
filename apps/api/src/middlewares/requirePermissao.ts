@@ -6,7 +6,7 @@ import { temPermissao } from '../services/permissoes.js';
 /**
  * Factory de middleware: gate de rota do Configurador (e de módulos de
  * negócio futuros) por tela + ação. Roda depois de `authTenant`.
- * Ver Specs/spec_infra_portal_base_monorepo.md, seção 5.1.
+ * Ver Specs/spec_infra_portal_base_monorepo.md, seção 6.1.
  */
 export function requirePermissao(rotaTela: string, acao: AcaoPermissao) {
   return async (req: Request, res: Response, next: NextFunction) => {

@@ -1,4 +1,4 @@
--- Parâmetros do Sistema (SMTP, WhatsApp, Telegram). Ver spec, seção 8.
+-- Parâmetros do Sistema (SMTP, WhatsApp, Telegram). Ver spec, seção 9.
 
 CREATE TABLE IF NOT EXISTS parametros_sistema (
     id INT AUTO_INCREMENT PRIMARY KEY,

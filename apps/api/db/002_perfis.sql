@@ -1,4 +1,4 @@
--- Perfis de Acesso (RBAC reutilizável). Ver spec, seção 6.
+-- Perfis de Acesso (RBAC reutilizável). Ver spec, seção 7.
 
 CREATE TABLE IF NOT EXISTS perfis (
     id INT AUTO_INCREMENT PRIMARY KEY,

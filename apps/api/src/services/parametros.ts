@@ -113,7 +113,7 @@ export interface ConfigEmail {
   from: string;
 }
 
-/** Ponto de leitura interno usado pelo fluxo de "Esqueci a Senha" (seção 9). */
+/** Ponto de leitura interno usado pelo fluxo de "Esqueci a Senha" (seção 10). */
 export async function obterConfigEmail(): Promise<ConfigEmail | null> {
   const [host, port, user, password, from] = await Promise.all([
     valorDescriptografado('EMAIL', 'SMTP_HOST'),

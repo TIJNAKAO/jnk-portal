@@ -1,5 +1,5 @@
 -- Schema core: filiais, usuários, módulos/telas, permissões, avisos.
--- Ver Specs/spec_infra_portal_base_monorepo.md, seção 3.
+-- Ver Specs/spec_infra_portal_base_monorepo.md, seção 4.
 
 CREATE TABLE IF NOT EXISTS filiais (
     id INT AUTO_INCREMENT PRIMARY KEY,

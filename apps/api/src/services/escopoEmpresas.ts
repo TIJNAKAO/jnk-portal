@@ -10,7 +10,7 @@ import { pool } from '../config/database.js';
  * CNPJ, sendo apenas contas de fulfillment de marketplace. Colapsar os dois
  * conceitos quebraria o módulo TI, onde "FULL SHOPEE" não é um lugar.
  *
- * Ver Specs/spec_modulo_faturamento.md, seção 9.
+ * Ver Specs/spec_modulo_faturamento.md, seção 10.
  */
 
 export interface EmpresaPermitida {

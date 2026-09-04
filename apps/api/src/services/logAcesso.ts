@@ -12,7 +12,7 @@ interface RegistrarAcessoParams {
 /**
  * Fire-and-forget: nunca deve ser `await`ada pelos chamadores. Erros de
  * gravação do log só vão pro console do servidor e nunca derrubam a
- * requisição principal. Ver spec, seção 7.
+ * requisição principal. Ver spec, seção 8.
  */
 export function registrarAcesso(params: RegistrarAcessoParams): void {
   gravar(params).catch((error) => {

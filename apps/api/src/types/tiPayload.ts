@@ -1,6 +1,6 @@
 /**
  * Espelha o JSON que o agente Windows (agente-inventario-pc/, .NET) já
- * envia hoje — contrato inalterado, ver Specs/spec_modulo_ti.md, seção 3.
+ * envia hoje — contrato inalterado, ver Specs/spec_modulo_ti.md, seção 4.
  */
 export interface TiInventarioPayload {
   computador: {

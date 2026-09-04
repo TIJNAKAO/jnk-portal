@@ -24,7 +24,7 @@ interface PermissaoEfetivaRow extends RowDataPacket {
  *
  * `requirePermissao` (gate de rota) e `buscarModulosPermitidos` (monta o Hub
  * no login) usam ESTA MESMA função — não duplicar esta query em outro lugar.
- * Ver Specs/spec_infra_portal_base_monorepo.md, seção 6, "Cuidado ao
+ * Ver Specs/spec_infra_portal_base_monorepo.md, seção 7, "Cuidado ao
  * implementar esta regra".
  */
 export async function buscarPermissoesEfetivas(usuarioId: number): Promise<PermissaoEfetivaRow[]> {

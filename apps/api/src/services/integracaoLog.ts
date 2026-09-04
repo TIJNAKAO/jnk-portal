@@ -8,7 +8,7 @@ import { pool } from '../config/database.js';
  * do projeto original (que existia só pra contornar streaming não
  * confiável em PHP-FPM). Aqui uma tabela só, consultada tanto pelo
  * histórico quanto por um emissor em memória usado pelo endpoint SSE de
- * acompanhamento ao vivo. Ver Specs/spec_modulo_integracao.md, seção 2.7.
+ * acompanhamento ao vivo. Ver Specs/spec_modulo_integracao.md, seção 3.7.
  */
 export const logEmitter = new EventEmitter();
 logEmitter.setMaxListeners(50);

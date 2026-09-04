@@ -18,7 +18,7 @@ WHERE NOT EXISTS (
     WHERE existente.modulo_id = m.id AND existente.rota_tela = t.rota_tela
 );
 
--- Config de fila só pra Notas Fiscais e Estoque nesta v1 (spec, seção 6.1).
+-- Config de fila só pra Notas Fiscais e Estoque nesta v1 (spec, seção 7.1).
 INSERT IGNORE INTO sysemp_fila_config (chave, nome, tipo_tabela, endpoint_detalhe, campo_id_detalhe, limite_pagina, observacoes)
 VALUES
     ('notas_fiscais', 'Notas Fiscais', 2, '/listarNotasFiscais', 'id_nota_saida', 50, 'tipo_tabela=2 (NF Venda). NF Compra (3) usa o mesmo endpoint — adicionar linha própria se for preciso tratar separado.'),

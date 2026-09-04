@@ -1,4 +1,4 @@
--- Seed do módulo TI e suas telas. Ver Specs/spec_modulo_ti.md, seção 1.
+-- Seed do módulo TI e suas telas. Ver Specs/spec_modulo_ti.md, seção 2.
 -- Idempotente via INSERT IGNORE / NOT EXISTS, igual 006_seed_config.sql.
 
 INSERT IGNORE INTO modulos_sistema (nome, chave_modulo, icone, descricao)

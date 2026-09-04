@@ -3,7 +3,7 @@ import { obterParametro } from '../parametros.js';
 
 /**
  * Cliente HTTP da SysEmp — porta de `src/SysempClient.php` do projeto de
- * origem. Ver Specs/spec_modulo_integracao.md, seção 2.1.
+ * origem. Ver Specs/spec_modulo_integracao.md, seção 3.1.
  *
  * Autenticação por header fixo `Token`, sempre POST, sem retry automático
  * (diferente do cliente do Mercado Livre — decisão deliberada: quem decide

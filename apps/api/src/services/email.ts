@@ -10,7 +10,7 @@ interface EnviarEmailParams {
 /**
  * Retorna `false` (sem lançar) se o SMTP não estiver configurado em
  * Parâmetros — o fluxo de "Esqueci a Senha" depende disso para nunca vazar
- * se um e-mail existe, mesmo com o envio indisponível (ver spec, seção 9).
+ * se um e-mail existe, mesmo com o envio indisponível (ver spec, seção 10).
  */
 export async function enviarEmail({ para, assunto, html }: EnviarEmailParams): Promise<boolean> {
   const config = await obterConfigEmail();

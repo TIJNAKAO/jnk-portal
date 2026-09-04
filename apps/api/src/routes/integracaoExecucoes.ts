@@ -48,7 +48,7 @@ integracaoExecucoesRouter.get('/:id', requirePermissao(ROTA, 'podeVisualizar'), 
 });
 
 // Acompanhamento ao vivo — empurra cada nova linha de detalhe conforme é
-// gravada, enquanto a execução estiver rodando. Ver spec, seção 2.7.
+// gravada, enquanto a execução estiver rodando. Ver spec, seção 3.7.
 integracaoExecucoesRouter.get('/:id/stream', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const idLog = Number(req.params.id);
 

@@ -1,4 +1,4 @@
--- Esqueci a Senha. Ver spec, seção 9.
+-- Esqueci a Senha. Ver spec, seção 10.
 
 CREATE TABLE IF NOT EXISTS tokens_reset_senha (
     id INT AUTO_INCREMENT PRIMARY KEY,
