@@ -601,6 +601,23 @@ que deixou `datahora_criacao_sysemp` e `datahora_processamento_sysemp`
 vazias em 1,0 milhão de linhas de `sysemp_fila`. `dataHoraSysemp` agora
 completa o offset para `-03:00` antes de parsear.
 
+**Incidente de 04/09/2026 — o `SET time_zone` derrubou o acesso ao banco.**
+O handler que emite esse comando nasceu escrito com promise:
+`pool.on('connection', (c) => c.query(sql).catch(...))`. O `pool` é do
+`mysql2/promise`, mas o evento `connection` **não** entrega a conexão com
+promise — o wrapper só repassa o evento cru do pool core
+(`lib/promise/pool.js` → `inheritEvents`). Ali `.query()` devolve um
+`Query`, cujo `.then()`/`.catch()` **lançam de propósito**. E a exceção caía
+dentro do `emit('connection')`, que roda na linha imediatamente anterior ao
+`cb(null, connection)` que entrega a conexão a quem a pediu
+(`lib/base/pool.js`): o callback nunca rodava e a query ficava pendurada
+**para sempre** — sem erro, sem crash e sem timeout, porque o pool não
+define `acquireTimeout`. Como só conexão **nova** passa por esse caminho, o
+pool morria uma conexão por vez até esgotar as 10; a API seguia respondendo
+200 nas rotas que não tocam o banco e travava em todas as outras, login
+inclusive. **O handler tem que usar a API de callback da conexão core** —
+`fixarFusoDaSessao` em `database.ts`, com regressão em `database.test.ts`.
+
 ---
 
 ## 11. Multi-Tenant e Autenticação Plugável (Design — não implementado)

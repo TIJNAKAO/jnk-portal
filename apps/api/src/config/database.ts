@@ -35,14 +35,38 @@ export const pool = mysql.createPool({
       : undefined,
 });
 
-// Toda conexão nova do pool nasce em UTC (fuso do servidor) — alinhar com
-// o driver antes que ela sirva qualquer query. Falha aqui é logada, não
-// engolida: seguir com a sessão em UTC gravaria 3 horas adiantado em
-// silêncio, que é exatamente o defeito que a seção 10.1 corrigiu.
-pool.on('connection', (connection) => {
-  connection.query(`SET time_zone = '${FUSO_BRASILIA}'`).catch((erro: unknown) => {
-    console.error('[db] falha ao fixar o fuso da sessão:', erro);
+/**
+ * Só o que este módulo usa da conexão **core** do mysql2 — ver
+ * `fixarFusoDaSessao` para o porquê de não ser a conexão com promise.
+ */
+export type ConexaoCoreMysql = {
+  query(sql: string, callback: (erro: unknown) => void): unknown;
+};
+
+/**
+ * Toda conexão nova do pool nasce em UTC (fuso do servidor) — alinhar com
+ * o driver antes que ela sirva qualquer query. Falha aqui é logada, não
+ * engolida: seguir com a sessão em UTC gravaria 3 horas adiantado em
+ * silêncio, que é exatamente o defeito que a seção 10.1 corrigiu.
+ */
+export function fixarFusoDaSessao(connection: ConexaoCoreMysql): void {
+  // Callback, não promise: o evento 'connection' do pool entrega a conexão
+  // **core** do mysql2 (o wrapper promise só repassa o evento, ver
+  // lib/promise/pool.js → `inheritEvents`). Nela, `.query()` devolve um
+  // `Query`, e `.then()/.catch()` nesse objeto lançam de propósito. A
+  // exceção cairia dentro do `emit('connection')`, que roda logo antes do
+  // `cb(null, connection)` que entrega a conexão a quem a pediu
+  // (lib/base/pool.js) — pulando o callback e pendurando a query pra
+  // sempre, já que o pool não tem `acquireTimeout`.
+  connection.query(`SET time_zone = '${FUSO_BRASILIA}'`, (erro: unknown) => {
+    if (erro) {
+      console.error('[db] falha ao fixar o fuso da sessão:', erro);
+    }
   });
+}
+
+pool.on('connection', (connection) => {
+  fixarFusoDaSessao(connection as unknown as ConexaoCoreMysql);
 });
 
 export type PoolConnection = mysql.PoolConnection;
