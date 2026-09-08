@@ -381,3 +381,14 @@ Vitest ao lado do código, escritos antes da implementação:
 - **Comparativo** (`estoqueFechamentoComparativo.test.ts`): soma de
   almoxarifados antes de comparar; sinal da divergência; item que existe só
   no inventário e item que existe só no fechamento.
+- **Parâmetros** (`estoqueFechamentoParametros.test.ts`): ausente, não
+  numérico, zero, negativo e acima de 100 abortam nomeando a chave.
+- **Extração de cada planilha** (`estoqueFechamentoMensal.test.ts`,
+  `estoqueFullImportado.test.ts`, `estoqueInventarioFisico.test.ts`): a
+  linha completa; o zero à esquerda preservado no código; a linha ignorada
+  apontando o número certo na planilha; e o que cada chave de upsert larga
+  precisa distinguir — dois tipos de saldo, dois almoxarifados.
+
+Nenhum destes testes toca o banco: as funções cobertas recebem a planilha
+já lida ou os valores já carregados, e a persistência fica fora. É o que
+permite rodá-los sem MySQL no ambiente.
