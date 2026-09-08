@@ -91,4 +91,4 @@ O `vite.config.ts` deriva a versão do hash do commit, embute no bundle e emite 
 
 ## Deploy
 
-DigitalOcean App Platform, `deploy_on_push` em `master`: static site (portal) + web service (api) + um job SCHEDULED por entidade sincronizada. `.do/app.yaml` é template com placeholders `ALTERAR-AQUI` — segredos reais só no painel da DO, nunca no arquivo. `catchall_document: index.html` no static site é obrigatório (SPA); sem ele, F5 em qualquer rota devolve 404.
+DigitalOcean App Platform, `deploy_on_push` em `master`: static site (portal) + web service (api) + um job `PRE_DEPLOY` que roda as migrations + um job `SCHEDULED` por entidade sincronizada. O `PRE_DEPLOY` roda com a versão **antiga** ainda servindo, então toda migration precisa ser aditiva e compatível com o código anterior — remover ou renomear coluna que ele lê derruba produção durante a janela do deploy (ver `deploy_digitalocean.md`, seção 7.1). `.do/app.yaml` é template com placeholders `ALTERAR-AQUI` — segredos reais só no painel da DO, nunca no arquivo. `catchall_document: index.html` no static site é obrigatório (SPA); sem ele, F5 em qualquer rota devolve 404.

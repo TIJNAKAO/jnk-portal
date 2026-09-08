@@ -68,6 +68,53 @@ services:
         value: ""
 
 jobs:
+  # Migrations do banco, antes de a versao nova receber trafego.
+  #
+  # PRE_DEPLOY roda com o codigo NOVO mas com a versao ANTIGA ainda
+  # servindo, e falha aqui ABORTA o deploy - o app nunca fica rodando
+  # contra um schema que ele nao espera. Antes deste job, aplicar
+  # migration era passo manual no Console, e esquecer dele subia codigo
+  # sem tabela: foi o que aconteceu com o Fechamento de Custo.
+  #
+  # Isso impoe uma regra as migrations: elas precisam ser ADITIVAS e
+  # compativeis com o codigo antigo, porque ele continua atendendo
+  # requisicao enquanto este job roda. Criar tabela ou coluna e seguro;
+  # remover ou renomear coluna que a versao antiga le derruba producao
+  # durante a janela do deploy. Ver Specs/deploy_digitalocean.md, secao 7.
+  #
+  # Reexecutar e inofensivo: o runner registra em schema_migrations e
+  # pula o que ja foi aplicado, entao todo deploy pode rodar este job.
+  #
+  # So as DB_* aqui: JWT_SECRET e PARAMETROS_ENCRYPTION_KEY sao lazy em
+  # src/config/env.ts e o runner nao os toca - segredo que o job nao
+  # precisa e segredo que ele nao deve receber.
+  - name: migrate
+    kind: PRE_DEPLOY
+    github:
+      repo: TIJNAKAO/jnk-portal
+      branch: master
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:shared
+    run_command: npm run migrate --workspace=apps/api
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: DB_HOST
+        value: ALTERAR-AQUI
+      - key: DB_PORT
+        value: "25060"
+      - key: DB_USER
+        value: doadmin
+      - key: DB_PASSWORD
+        type: SECRET
+        value: ALTERAR-AQUI
+      - key: DB_NAME
+        value: jnk_portal_base
+      - key: DB_CA_CERT
+        type: SECRET
+        value: ALTERAR-AQUI
+
   - name: cron-notas-fiscais
     kind: SCHEDULED
     github:

@@ -18,7 +18,7 @@ Existe um template pronto do App Spec em [`.do/app.yaml`](../.do/app.yaml)
 |---|---|
 | 1 Project novo no DO | Agrupamento lógico — isola visualmente os recursos do jnk-portal dos do projeto existente |
 | 1 MySQL Managed Database novo | Cluster próprio, banco `jnk_portal_base` — não é um banco a mais dentro do cluster que já existe |
-| 1 App Platform app novo | 2 componentes: `api` (Web Service, Node/Express) + `portal` (Static Site, o build do Vite) |
+| 1 App Platform app novo | 2 componentes: `api` (Web Service, Node/Express) + `portal` (Static Site, o build do Vite), mais os jobs: `migrate` (PRE_DEPLOY, seção 7.1) e um SCHEDULED por entidade sincronizada |
 | 1 subdomínio novo | `portal.jnakao.com.br`, apontando só pro app novo |
 
 **Front e back ficam sob o mesmo domínio**, em rotas diferentes
@@ -141,8 +141,38 @@ essa resolução.
 
 ## 7. Rodar as migrations contra o banco de produção
 
-Depois que o componente `api` estiver com deploy bem-sucedido (Connection
-Details do banco já configuradas), rode as migrations. Duas opções:
+### 7.1. No dia a dia: o job `migrate` (PRE_DEPLOY)
+
+**Todo deploy roda as migrations sozinho.** O job `migrate` do App Spec é
+`kind: PRE_DEPLOY`: sobe com o código novo, roda `npm run migrate` e só
+então a versão nova recebe tráfego. Falha nele **aborta o deploy** — o app
+nunca fica rodando contra um schema que ele não espera.
+
+Reexecutar é inofensivo: o runner registra em `schema_migrations` e pula o
+que já foi aplicado.
+
+**Isso impõe uma regra às migrations.** O PRE_DEPLOY roda enquanto a versão
+**antiga** ainda atende requisição, então toda migration precisa ser
+**aditiva e compatível com o código antigo**. Criar tabela, criar coluna
+anulável, criar índice: seguro. Remover ou renomear coluna que a versão
+antiga lê: derruba produção durante a janela do deploy. Mudança destrutiva
+se faz em dois deploys — primeiro o código para de usar a coluna, depois
+outra migration a remove.
+
+Por que o job existe: antes dele, aplicar migration era passo manual no
+Console, e esquecer dele subia código sem tabela. Foi exatamente o que
+aconteceu na entrega do Fechamento de Custo — o deploy passou, as seis
+telas não existiam no banco, e nada apareceu no portal.
+
+O job só recebe as `DB_*`. `JWT_SECRET` e `PARAMETROS_ENCRYPTION_KEY` são
+lazy em `src/config/env.ts` e o runner não os toca: segredo que o job não
+precisa é segredo que ele não deve receber.
+
+### 7.2. Manualmente, quando necessário
+
+Ainda é preciso rodar à mão em duas situações: no **primeiro deploy** (o
+app ainda não existe para ter job), e quando for preciso aplicar uma
+migration **sem** fazer deploy. Duas opções:
 
 **Opção A — Console do App Platform (mais simples, já usa as env vars de produção):**
 
