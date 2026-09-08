@@ -4,6 +4,7 @@ import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { importarFechamentoMensal } from '../services/estoqueFechamentoMensal.js';
 import { importarEstoqueFull } from '../services/estoqueFullImportado.js';
+import { importarInventarioFisico } from '../services/estoqueInventarioFisico.js';
 import { PlanilhaForaDoModeloError } from '../services/planilha.js';
 
 export const estoqueFechamentoImportarRouter = Router();
@@ -20,6 +21,7 @@ export const estoqueFechamentoImportarRouter = Router();
 
 const ROTA_FECHAMENTO = '/estoque/fechamento/importar';
 const ROTA_ESTOQUE_FULL = '/estoque/fechamento/estoque-full';
+const ROTA_INVENTARIO = '/estoque/fechamento/inventario';
 
 // 25MB: o modelo de inventário físico usado em produção
 // (EstoqueFinal_NK2_202608_V01.xlsx) tem 9,4MB, então o teto de 8MB das
@@ -56,5 +58,15 @@ estoqueFechamentoImportarRouter.post(
   async (req, res) => {
     const arquivo = exigirPlanilha(req.file);
     res.json(await importarEstoqueFull(arquivo.buffer, arquivo.originalname, req.usuario!.id));
+  },
+);
+
+estoqueFechamentoImportarRouter.post(
+  '/inventario-fisico',
+  requirePermissao(ROTA_INVENTARIO, 'podeCriar'),
+  upload.single('arquivo'),
+  async (req, res) => {
+    const arquivo = exigirPlanilha(req.file);
+    res.json(await importarInventarioFisico(arquivo.buffer, arquivo.originalname, req.usuario!.id));
   },
 );
