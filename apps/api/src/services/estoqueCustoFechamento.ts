@@ -313,3 +313,106 @@ export async function buscarPeriodosDisponiveis(): Promise<string[]> {
   );
   return linhas.map((l) => String(l.periodo));
 }
+
+export interface LinhaCusto extends RowDataPacket {
+  id_empresa: number | null;
+  nome_empresa: string | null;
+  origem: string;
+  id_produto: number | null;
+  codigo_auxiliar: string | null;
+  descricao_produto: string | null;
+  marca: string | null;
+  unidade: string | null;
+  ncm: string | null;
+  conta: string | null;
+  tipo_saldo: string | null;
+  qtde: number | null;
+  vu_custo_estoque: number | null;
+  vu_custo_venda: number | null;
+  vu_custo: number | null;
+  valor_custo_total: number | null;
+}
+
+const SELECT_CUSTO = `
+  SELECT id_empresa, nome_empresa, origem, id_produto, codigo_auxiliar, descricao_produto,
+         marca, unidade, ncm, conta, tipo_saldo, qtde, vu_custo_estoque, vu_custo_venda,
+         vu_custo, valor_custo_total
+    FROM estoque_custo_fechamento
+   WHERE periodo = ? AND grupo_empresa = ?
+   ORDER BY origem, nome_empresa, descricao_produto`;
+
+/**
+ * Uma página da grade, mais o total de registros e o **custo total geral
+ * somado direto no banco**.
+ *
+ * O total geral nunca sai da página: no portal PHP anterior o limite da
+ * grade chegou a cortar linha de um total exibido, e o número continuava
+ * parecendo plausível. Ver Specs/spec_modulo_estoque.md, seção 3.8.
+ */
+export async function buscarCalculoPaginado(
+  periodo: string,
+  grupo: GrupoEmpresa,
+  pagina: number,
+  tamanhoPagina: number,
+): Promise<{ linhas: LinhaCusto[]; total: number; totalGeral: number }> {
+  const [totais] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total, COALESCE(SUM(valor_custo_total), 0) AS total_geral
+       FROM estoque_custo_fechamento
+      WHERE periodo = ? AND grupo_empresa = ?`,
+    [periodo, grupo.grupo],
+  );
+
+  const [linhas] = await pool.query<LinhaCusto[]>(`${SELECT_CUSTO} LIMIT ? OFFSET ?`, [
+    periodo,
+    grupo.grupo,
+    tamanhoPagina,
+    (pagina - 1) * tamanhoPagina,
+  ]);
+
+  return {
+    linhas,
+    total: Number(totais[0]?.total ?? 0),
+    totalGeral: Number(totais[0]?.total_geral ?? 0),
+  };
+}
+
+/** Todas as linhas do par (período, grupo), para a exportação da grade. */
+export async function buscarCalculoCompleto(periodo: string, grupo: GrupoEmpresa): Promise<LinhaCusto[]> {
+  const [linhas] = await pool.query<LinhaCusto[]>(SELECT_CUSTO, [periodo, grupo.grupo]);
+  return linhas;
+}
+
+export interface LinhaInventarioContabil extends RowDataPacket {
+  codigo_auxiliar: string | null;
+  descricao_produto: string | null;
+  unidade: string | null;
+  ncm: string | null;
+  qtde: number | null;
+  vu_custo: number | null;
+  valor_custo_total: number | null;
+}
+
+/**
+ * A Lista de Inventário — formato fixo para a contabilidade. Sai sempre
+ * de uma consulta nova, sem limite, e nunca da página carregada.
+ */
+export async function buscarListaInventario(
+  periodo: string,
+  grupo: GrupoEmpresa,
+): Promise<LinhaInventarioContabil[]> {
+  const [linhas] = await pool.query<LinhaInventarioContabil[]>(
+    `SELECT codigo_auxiliar, descricao_produto, unidade, ncm, qtde, vu_custo, valor_custo_total
+       FROM estoque_custo_fechamento
+      WHERE periodo = ? AND grupo_empresa = ?
+      ORDER BY codigo_auxiliar`,
+    [periodo, grupo.grupo],
+  );
+  return linhas;
+}
+
+/** Último dia do mês do período — a DataFechamento da Lista de Inventário. */
+export function ultimoDiaDoMes(periodo: string): Date {
+  const [ano, mes] = periodo.split('-').map(Number);
+  // Dia 0 do mês seguinte é o último dia deste mês.
+  return new Date(Number(ano), Number(mes), 0);
+}

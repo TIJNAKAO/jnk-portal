@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { valorizarLinhaFull } from './estoqueCustoFechamento.js';
+import { ultimoDiaDoMes, valorizarLinhaFull } from './estoqueCustoFechamento.js';
 
 /**
  * A única parte do módulo com risco contábil de verdade. Um erro aqui
@@ -87,5 +87,31 @@ describe('valorizarLinhaFull', () => {
     const r = valorizarLinhaFull({ qtde: -2, custoEstoque: 3, precoVenda: null, percentualCustoVenda: PERCENTUAL });
 
     expect(r.valorCustoTotal).toBe(-6);
+  });
+});
+
+describe('ultimoDiaDoMes', () => {
+  test('mes de 31 dias', () => {
+    expect(ultimoDiaDoMes('2026-07-01').getDate()).toBe(31);
+  });
+
+  test('mes de 30 dias', () => {
+    expect(ultimoDiaDoMes('2026-04-01').getDate()).toBe(30);
+  });
+
+  test('fevereiro comum', () => {
+    expect(ultimoDiaDoMes('2026-02-01').getDate()).toBe(28);
+  });
+
+  test('fevereiro bissexto', () => {
+    expect(ultimoDiaDoMes('2024-02-01').getDate()).toBe(29);
+  });
+
+  test('dezembro nao vaza para o ano seguinte', () => {
+    const data = ultimoDiaDoMes('2026-12-01');
+
+    expect(data.getDate()).toBe(31);
+    expect(data.getMonth()).toBe(11);
+    expect(data.getFullYear()).toBe(2026);
   });
 });
