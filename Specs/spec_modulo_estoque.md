@@ -354,6 +354,19 @@ nada e relata contagens por tabela mais **quantas chaves não casam com
 vêm da SysEmp nos dois bancos e deveriam coincidir; o `--dry-run` existe para
 confirmar isso antes de gravar, em vez de descobrir depois.
 
+**A carga só pode rodar depois de a sincronização da SysEmp ter populado
+`sysemp_produto` e `sysemp_empresa` no destino.** Rodar antes não dá erro —
+é pior: grava tudo com `produto_encontrado = FALSE`, `empresa_encontrada =
+FALSE` e `id_empresa` nulo, e o fechamento fica sem vínculo com grupo
+nenhum, invisível no seletor da tela de cálculo. Foi o que o `--dry-run`
+acusou num banco de desenvolvimento sem sincronização: 100% de órfãos.
+Reexecutar a carga depois da sincronização corrige os marcadores, porque o
+upsert os recalcula.
+
+Senha vazia é configuração válida (root sem senha num MySQL local), então
+`LEGADO_DB_PASSWORD` exige a variável **definida**, não preenchida — as
+demais exigem valor.
+
 ### 3.13. Fora de escopo
 
 A **Visão de Margem** do portal antigo (`dash/margem.php`,
