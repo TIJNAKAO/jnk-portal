@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { authRouter } from './routes/auth.js';
 import { avisosRouter } from './routes/avisos.js';
 import { estoqueCurvaAbcRouter } from './routes/estoqueCurvaAbc.js';
+import { estoqueFechamentoCustoRouter } from './routes/estoqueFechamentoCusto.js';
 import { estoqueFechamentoImportarRouter } from './routes/estoqueFechamentoImportar.js';
 import { estoqueImportacaoLogsRouter } from './routes/estoqueImportacaoLogs.js';
 import { estoqueSaldosRouter } from './routes/estoqueSaldos.js';
@@ -80,6 +81,7 @@ app.use('/api/integracao/mercado-livre', mercadoLivreRouter);
 
 app.use('/api/estoque/curva-abc', estoqueCurvaAbcRouter);
 app.use('/api/estoque/saldos', estoqueSaldosRouter);
+app.use('/api/estoque/fechamento/custo', estoqueFechamentoCustoRouter);
 app.use('/api/estoque/fechamento/importar', estoqueFechamentoImportarRouter);
 app.use('/api/estoque/fechamento/logs', estoqueImportacaoLogsRouter);
 
