@@ -17,6 +17,7 @@ const CATEGORIAS: { chave: CategoriaParametro; label: string }[] = [
   { chave: 'TI', label: 'TI' },
   { chave: 'SYSEMP', label: 'SysEmp' },
   { chave: 'MERCADO_LIVRE', label: 'Mercado Livre' },
+  { chave: 'ESTOQUE', label: 'Estoque' },
 ];
 
 export function ParametrosPage() {

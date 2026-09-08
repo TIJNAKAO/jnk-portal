@@ -35,6 +35,10 @@ export const DEFINICAO_CAMPOS: Record<CategoriaParametro, DefinicaoCampo[]> = {
     { chave: 'SECRET', sensivel: true },
     { chave: 'REDIRECT_URI', sensivel: false },
   ],
+  ESTOQUE: [
+    { chave: 'FECHAMENTO_PERCENTUAL_CUSTO_VENDA', sensivel: false },
+    { chave: 'FECHAMENTO_ID_TABELA_PRECO', sensivel: false },
+  ],
 };
 
 interface ParametroRow extends RowDataPacket {
