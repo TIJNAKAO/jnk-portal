@@ -74,10 +74,10 @@ está na seção 3.11.
 
 | Tela | `rota_tela` | Ação exigida | Router |
 |---|---|---|---|
-| Importar Fechamento Mensal | `/estoque/fechamento/importar` | `podeIncluir` | `estoqueFechamentoImportar.ts` |
-| Importar Estoque FULL | `/estoque/fechamento/estoque-full` | `podeIncluir` | `estoqueFechamentoImportar.ts` |
-| Importar Inventário Físico | `/estoque/fechamento/inventario` | `podeIncluir` | `estoqueFechamentoImportar.ts` |
-| Cálculo de Custo de Fechamento | `/estoque/fechamento/custo` | `podeIncluir` para calcular, `podeVisualizar` para a grade e as exportações | `estoqueFechamentoCusto.ts` |
+| Importar Fechamento Mensal | `/estoque/fechamento/importar` | `podeCriar` | `estoqueFechamentoImportar.ts` |
+| Importar Estoque FULL | `/estoque/fechamento/estoque-full` | `podeCriar` | `estoqueFechamentoImportar.ts` |
+| Importar Inventário Físico | `/estoque/fechamento/inventario` | `podeCriar` | `estoqueFechamentoImportar.ts` |
+| Cálculo de Custo de Fechamento | `/estoque/fechamento/custo` | `podeCriar` para calcular, `podeVisualizar` para a grade e as exportações | `estoqueFechamentoCusto.ts` |
 | Comparar Inventário × Fechamento | `/estoque/fechamento/comparativo` | `podeVisualizar` | `estoqueFechamentoComparativo.ts` |
 | Logs de Importação | `/estoque/fechamento/logs` | `podeVisualizar` | `estoqueImportacaoLogs.ts` |
 
@@ -85,7 +85,7 @@ Um router serve mais de uma tela quando elas compartilham o serviço, mas
 **cada endpoint declara a `ROTA` da sua própria tela** — permissão de
 importar fechamento não libera importar inventário.
 
-Calcular custo pede `podeIncluir` porque grava tabela: recalcular um par
+Calcular custo pede `podeCriar` porque grava tabela: recalcular um par
 (período, grupo) apaga o cálculo anterior. Não é consulta.
 
 Como sempre, o seed em `telas_modulo` **não concede permissão a ninguém**,
