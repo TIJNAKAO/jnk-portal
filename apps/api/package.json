@@ -12,6 +12,7 @@
     "cron:sincronizar": "tsx src/scripts/cronSincronizar.ts",
     "backfill:nf": "tsx src/scripts/backfillNotasFiscais.ts",
     "etl:fatcom:recarregar": "tsx src/scripts/recarregarFatcom.ts",
+    "migracao:fechamento": "tsx src/scripts/migrarFechamentoLegado.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

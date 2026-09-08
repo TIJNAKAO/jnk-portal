@@ -76,6 +76,13 @@ export interface UsuarioSessao {
 
 export type AcaoPermissao = 'podeVisualizar' | 'podeCriar' | 'podeEditar' | 'podeDeletar';
 
-export type CategoriaParametro = 'EMAIL' | 'WHATSAPP' | 'TELEGRAM' | 'TI' | 'SYSEMP' | 'MERCADO_LIVRE';
+export type CategoriaParametro =
+  | 'EMAIL'
+  | 'WHATSAPP'
+  | 'TELEGRAM'
+  | 'TI'
+  | 'SYSEMP'
+  | 'MERCADO_LIVRE'
+  | 'ESTOQUE';
 
 export type TipoEventoLog = 'LOGIN' | 'SWITCH_FILIAL' | 'ACESSO_TELA';

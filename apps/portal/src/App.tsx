@@ -16,6 +16,12 @@ import { PerfisPage } from './pages/config/PerfisPage';
 import { UsuariosPage } from './pages/config/UsuariosPage';
 import { CurvaAbcPage } from './pages/estoque/CurvaAbcPage';
 import { SaldosPage } from './pages/estoque/SaldosPage';
+import { ComparativoPage } from './pages/estoque/fechamento/ComparativoPage';
+import { CustoFechamentoPage } from './pages/estoque/fechamento/CustoFechamentoPage';
+import { ImportarEstoqueFullPage } from './pages/estoque/fechamento/ImportarEstoqueFullPage';
+import { ImportarFechamentoPage } from './pages/estoque/fechamento/ImportarFechamentoPage';
+import { ImportarInventarioPage } from './pages/estoque/fechamento/ImportarInventarioPage';
+import { LogsImportacaoPage } from './pages/estoque/fechamento/LogsImportacaoPage';
 import { NotasFiscaisPage } from './pages/faturamento/NotasFiscaisPage';
 import { PrecosPage } from './pages/faturamento/PrecosPage';
 import { ExecucaoDetalhePage } from './pages/integracao/ExecucaoDetalhePage';
@@ -87,6 +93,12 @@ export function App() {
 
             <Route path="/estoque/curva-abc" element={<CurvaAbcPage />} />
             <Route path="/estoque/saldos" element={<SaldosPage />} />
+            <Route path="/estoque/fechamento/importar" element={<ImportarFechamentoPage />} />
+            <Route path="/estoque/fechamento/estoque-full" element={<ImportarEstoqueFullPage />} />
+            <Route path="/estoque/fechamento/inventario" element={<ImportarInventarioPage />} />
+            <Route path="/estoque/fechamento/custo" element={<CustoFechamentoPage />} />
+            <Route path="/estoque/fechamento/comparativo" element={<ComparativoPage />} />
+            <Route path="/estoque/fechamento/logs" element={<LogsImportacaoPage />} />
 
             <Route
               path="/faturamento/dashboard"
