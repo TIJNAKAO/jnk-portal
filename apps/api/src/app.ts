@@ -6,6 +6,7 @@ import express from 'express';
 import { env } from './config/env.js';
 import { authRouter } from './routes/auth.js';
 import { avisosRouter } from './routes/avisos.js';
+import { comprasPedidosRouter } from './routes/comprasPedidos.js';
 import { estoqueCurvaAbcRouter } from './routes/estoqueCurvaAbc.js';
 import { estoqueFechamentoComparativoRouter } from './routes/estoqueFechamentoComparativo.js';
 import { estoqueFechamentoCustoRouter } from './routes/estoqueFechamentoCusto.js';
@@ -79,6 +80,8 @@ app.use('/api/integracao/parametros-fila', integracaoParametrosFilaRouter);
 // authTenant só nas rotas autenticadas deste router — /callback é acessado
 // direto pelo navegador após o redirect do Mercado Livre, sem Bearer token.
 app.use('/api/integracao/mercado-livre', mercadoLivreRouter);
+
+app.use('/api/compras/pedidos', comprasPedidosRouter);
 
 app.use('/api/estoque/curva-abc', estoqueCurvaAbcRouter);
 app.use('/api/estoque/saldos', estoqueSaldosRouter);
