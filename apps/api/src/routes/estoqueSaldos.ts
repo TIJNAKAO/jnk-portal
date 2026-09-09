@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
+import { numeroXlsx } from '../services/numeroXlsx.js';
 import {
   buscarFiltrosSaldos,
   buscarSaldosCompletos,
@@ -97,6 +98,18 @@ estoqueSaldosRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'), a
     linhas.map((l) => ({
       ...l,
       empresa: l.empresa?.trim() || String(l.id_empresa),
+      // DECIMAL do mysql2 chega como string — sem isso o Excel grava
+      // texto, não número (ver numeroXlsx.ts).
+      saldo_disponivel: numeroXlsx(l.saldo_disponivel),
+      estoque_principal: numeroXlsx(l.estoque_principal),
+      estoque_reservado: numeroXlsx(l.estoque_reservado),
+      estoque_importacao: numeroXlsx(l.estoque_importacao),
+      estoque_avarias: numeroXlsx(l.estoque_avarias),
+      estoque_loja: numeroXlsx(l.estoque_loja),
+      estoque_assistencia: numeroXlsx(l.estoque_assistencia),
+      estoque_armazem_externo: numeroXlsx(l.estoque_armazem_externo),
+      custo_formacao: numeroXlsx(l.custo_formacao),
+      custo_medio: numeroXlsx(l.custo_medio),
       synced_at: l.synced_at ? new Date(l.synced_at) : null,
     })),
   );

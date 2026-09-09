@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
+import { numeroXlsx } from '../services/numeroXlsx.js';
 import {
   buscarFiltrosDisponiveis,
   buscarLinhasCompletas,
@@ -113,11 +114,27 @@ function linhaParaExcel(l: LinhaRelatorio) {
   return {
     ...l,
     dt_movto: l.dt_movto ? new Date(l.dt_movto).toLocaleDateString('pt-BR') : '',
+    // DECIMAL do mysql2 chega como string — sem isso o Excel grava texto,
+    // não número (ver numeroXlsx.ts).
+    qtde: numeroXlsx(l.qtde),
+    vu_merc: numeroXlsx(l.vu_merc),
+    vt_merc: numeroXlsx(l.vt_merc),
+    vt_icms: numeroXlsx(l.vt_icms),
+    vt_icms_st: numeroXlsx(l.vt_icms_st),
+    vt_ipi: numeroXlsx(l.vt_ipi),
+    vt_pis: numeroXlsx(l.vt_pis),
+    vt_cofins: numeroXlsx(l.vt_cofins),
+    vt_icms_difal: numeroXlsx(l.vt_icms_difal),
+    vt_fecp: numeroXlsx(l.vt_fecp),
+    vt_nota: numeroXlsx(l.vt_nota),
+    vt_add_frete: numeroXlsx(l.vt_add_frete),
+    vt_tx_fatur: numeroXlsx(l.vt_tx_fatur),
+    vt_liquido_calc: numeroXlsx(l.vt_liquido_calc),
     // Custo e margem ficam em branco quando não há custo conhecido. Zero seria
     // lido como "margem nula" em vez de "não sei".
-    vu_custo: l.vu_custo ?? null,
-    vt_margem: l.vt_margem ?? null,
-    perc_margem: l.perc_margem ?? null,
+    vu_custo: numeroXlsx(l.vu_custo),
+    vt_margem: numeroXlsx(l.vt_margem),
+    perc_margem: numeroXlsx(l.perc_margem),
     ref_pendente: l.ref_pendente ?? '',
   };
 }

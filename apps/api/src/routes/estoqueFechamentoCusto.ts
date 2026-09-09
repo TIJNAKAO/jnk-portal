@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
+import { numeroXlsx } from '../services/numeroXlsx.js';
 import {
   buscarCalculoCompleto,
   buscarCalculoPaginado,
@@ -111,7 +112,21 @@ estoqueFechamentoCustoRouter.get('/exportar', requirePermissao(ROTA, 'podeVisual
     { header: 'VALOR CUSTO TOTAL', key: 'valor_custo_total', ...valor },
   ];
   sheet.getRow(1).font = { bold: true };
-  sheet.addRows(linhas.map((l) => ({ ...l, data_fechamento: dataFechamento })));
+  sheet.addRows(
+    linhas.map((l) => ({
+      ...l,
+      data_fechamento: dataFechamento,
+      // DECIMAL do mysql2 chega como string — sem isso o Excel grava
+      // texto, não número (ver numeroXlsx.ts). Foi exatamente este bug
+      // que o usuário reportou: "96.8588" com ponto literal, sem
+      // formatação de locale nenhuma, e o aviso de "número como texto".
+      qtde: numeroXlsx(l.qtde),
+      vu_custo_estoque: numeroXlsx(l.vu_custo_estoque),
+      vu_custo_venda: numeroXlsx(l.vu_custo_venda),
+      vu_custo: numeroXlsx(l.vu_custo),
+      valor_custo_total: numeroXlsx(l.valor_custo_total),
+    })),
+  );
   sheet.getColumn('data_fechamento').numFmt = 'dd/mm/yyyy';
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -156,7 +171,17 @@ estoqueFechamentoCustoRouter.get(
       { header: 'ValorTotal', key: 'valor_custo_total', ...valor },
     ];
     sheet.getRow(1).font = { bold: true };
-    sheet.addRows(linhas.map((l) => ({ ...l, data_fechamento: dataFechamento })));
+    sheet.addRows(
+      linhas.map((l) => ({
+        ...l,
+        data_fechamento: dataFechamento,
+        // DECIMAL do mysql2 chega como string — sem isso o Excel grava
+        // texto, não número (ver numeroXlsx.ts).
+        qtde: numeroXlsx(l.qtde),
+        vu_custo: numeroXlsx(l.vu_custo),
+        valor_custo_total: numeroXlsx(l.valor_custo_total),
+      })),
+    );
     sheet.getColumn('data_fechamento').numFmt = 'dd/mm/yyyy';
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

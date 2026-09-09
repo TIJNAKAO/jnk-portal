@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
+import { numeroXlsx } from '../services/numeroXlsx.js';
 import {
   buscarCurvaAbcCompleta,
   buscarCurvaAbcPaginada,
@@ -61,6 +62,12 @@ estoqueCurvaAbcRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'),
     linhas.map((l) => ({
       ...l,
       kit: l.kit ? 'Sim' : 'Não',
+      // DECIMAL do mysql2 chega como string — sem isso o Excel grava
+      // texto, não número (ver numeroXlsx.ts).
+      vt_custo_geral: numeroXlsx(l.vt_custo_geral),
+      per_valor: numeroXlsx(l.per_valor),
+      qtde: numeroXlsx(l.qtde),
+      vt_custo: numeroXlsx(l.vt_custo),
     })),
   );
 

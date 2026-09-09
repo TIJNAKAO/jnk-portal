@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
+import { numeroXlsx } from '../services/numeroXlsx.js';
 import {
   buscarFiltrosPrecos,
   buscarPrecosCompletos,
@@ -92,6 +93,10 @@ faturamentoPrecosRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'
     linhas.map((l) => ({
       ...l,
       empresa: l.empresa?.trim() || String(l.id_empresa),
+      // DECIMAL do mysql2 chega como string — sem isso o Excel grava
+      // texto, não número (ver numeroXlsx.ts).
+      preco_tabela: numeroXlsx(l.preco_tabela),
+      preco_promocao: numeroXlsx(l.preco_promocao),
       synced_at: l.synced_at ? new Date(l.synced_at) : null,
     })),
   );
