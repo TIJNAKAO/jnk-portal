@@ -299,3 +299,90 @@ o `apps/portal/dist` como estático via Nginx com proxy reverso de `/api`
 pra `localhost:3001`, e usar `certbot --nginx` pro TLS. Recomendo App
 Platform pra começar — menos operação manual, e é o que o
 `jnakao-digital-ocean` já usa hoje (familiaridade).
+
+---
+
+## 14. Falhas de deploy já vistas em produção
+
+Modos de falha reais, com o sintoma que aparece antes do diagnóstico. Cada
+um custou tempo na primeira vez.
+
+### 14.1. `error cloning repo: authentication required` (08/09/2026)
+
+**Sintoma:** o deploy falha no build de **um** componente qualquer (foi o
+`cron-precos`), e a mensagem do topo culpa esse componente — o que sugere
+problema nele. O build log tem quatro linhas e morre na primeira etapa:
+
+```
+git repo clone
+› fetching app source code
+⇒ Selecting branch "master"
+! error cloning repo: authentication required
+```
+
+**O que NÃO é:** não é código, não é `npm install`, não é falta de recurso
+e não é o componente citado. O build nem chegou a baixar o repositório.
+
+Dois detalhes despistam:
+
+- **O tempo de build parece de esgotamento de recurso.** No incidente,
+  "81m 14s total • 1m 46s billable". Os 81 minutos são fila e retentativa,
+  não trabalho — o billable de menos de 2 minutos é que diz a verdade.
+- **O repositório ser público não ajuda.** O App Platform configurado com
+  fonte `github:` nunca faz clone anônimo: usa sempre a instalação do
+  GitHub App da DigitalOcean. Instalação sem acesso ao repo falha mesmo em
+  repo público.
+
+**Causa:** a autorização DigitalOcean ↔ GitHub perdeu acesso ao
+repositório — revogada, expirada, ou o repo saiu da lista de repositórios
+permitidos na instalação do GitHub App.
+
+**Correção:**
+
+1. GitHub → `github.com/settings/installations` (ou
+   `github.com/organizations/TIJNAKAO/settings/installations`, se for
+   organização) → **DigitalOcean** → em *Repository access*, incluir
+   `jnk-portal` (ou *All repositories*).
+2. Se persistir: DO → App → **Settings** → componente `api` → **Source** →
+   reconectar o GitHub.
+3. **Actions → Force Rebuild and Deploy.**
+
+**Enquanto durar:** a versão anterior continua servindo normalmente. Só a
+capacidade de fazer deploy fica bloqueada — nenhum deploy passa até a
+autorização voltar, então não adianta empurrar commit "para tentar de
+novo".
+
+### 14.2. Erro 500 e depois 504 durante um deploy que falha
+
+**Sintoma:** login devolve "Erro interno do servidor"; minutos depois,
+`/api/*` devolve 504 com página HTML enquanto o site estático responde 200.
+
+**Causa:** janela do deploy. É transitório e se resolve sozinho quando o
+deploy termina (ou falha e a versão anterior volta a servir sozinha).
+
+**Como não confundir com bug de código**, na ordem:
+
+1. `curl -s https://portal.jnakao.com.br/api/health` — voltando
+   `{"status":"ok","database":"ok"}`, a API está sã.
+2. Descobrir **qual versão** está no ar batendo numa rota que só existe na
+   versão nova, sem token: **401** significa que a rota existe (código
+   novo), **404** que não existe (código antigo). Bater também numa rota
+   inventada, para provar que o teste discrimina — sem esse controle, 404
+   não prova nada.
+3. Só então olhar Activity e Runtime Logs.
+
+### 14.3. Código no ar, tela invisível no portal
+
+**Sintoma:** o deploy passou, a rota da API responde 401, e a tela não
+aparece no menu — nem para administrador. Em Configurador → Perfis ela
+também não está na lista para ser marcada.
+
+**Causa:** as migrations não rodaram no banco de produção. `deploy_on_push`
+reconstrói os componentes, mas o runner de migration não faz parte do build
+— antes do job `migrate` (seção 7.1) isso era passo manual e fácil de
+esquecer. Sem a linha em `telas_modulo`, não há o que permissionar.
+
+**Distinção que economiza tempo:** tela que **aparece desmarcada** em
+Perfis é falta de permissão (passo manual, seção 7.1 do
+`spec_infra_portal_base_monorepo.md`). Tela que **não aparece na lista** é
+falta de migration. São problemas diferentes com o mesmo sintoma no menu.
