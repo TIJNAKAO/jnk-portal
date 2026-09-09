@@ -71,7 +71,7 @@ A numeração de seções começa em **1**, nunca em 0 — inclusive subtópicos
 
 Seedar `modulos_sistema` + `telas_modulo` **não concede permissão a ninguém**, e não há exceção para administrador: o módulo fica invisível para todos, inclusive para quem o instalou. Liberar é passo manual em **Configurador → Perfis → marcar as telas → Salvar**. Nenhuma migration do projeto concede permissão — é decisão de negócio.
 
-Ao adicionar uma tela: rota em `App.tsx` + router em `app.ts` + migration de seed da linha em `telas_modulo`. A linha em `telas_modulo` já aparece no menu, então só pode ser seedada depois que a rota existir (por isso `019_` e `020_` do Faturamento são separadas).
+Ao adicionar uma tela: rota em `App.tsx` + router em `app.ts` + migration de seed da linha em `telas_modulo`. Para pendurá-la num submenu da sidebar, preencher `telas_modulo.grupo_menu` (ver `spec_infra_portal_base_monorepo.md`, seção 5.4.1) — nulo deixa a tela solta no primeiro nível. A linha em `telas_modulo` já aparece no menu, então só pode ser seedada depois que a rota existir (por isso `019_` e `020_` do Faturamento são separadas).
 
 ### Migrations
 

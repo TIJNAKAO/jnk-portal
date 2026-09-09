@@ -290,6 +290,35 @@ A Sidebar se adapta ao aplicativo ativo no ecossistema:
 *   **Responsividade abaixo de `md` (768px):** quando há módulo ativo, a Sidebar vira uma gaveta (`fixed`, com overlay) aberta por um botão de menu (☰); fecha sozinha ao navegar para uma tela.
 *   Link **"Sair"** vive no card do usuário na Sidebar.
 
+#### 5.4.1. Submenus (`telas_modulo.grupo_menu`)
+
+Tela com `grupo_menu` preenchido aparece dentro de um submenu recolhível
+com esse nome; tela com `grupo_menu` nulo fica solta no primeiro nível, que
+é o caso da maioria. O agrupamento é feito por `agruparTelas()`
+(`src/lib/menuAgrupado.ts`), função pura coberta por teste.
+
+Três decisões que o código sozinho não explica:
+
+*   **O grupo vive no banco, não num mapa no frontend.** O menu do portal é
+    dirigido por dados desde sempre — quem adiciona uma tela seeda uma linha
+    em `telas_modulo` e ela aparece. Um mapa no código seria uma segunda
+    fonte de verdade sobre a mesma coisa, e as duas divergiriam.
+*   **O grupo ocupa a posição da sua primeira tela**, não o fim da lista. A
+    ordenação continua sendo a da consulta (`ORDER BY m.id, t.id`), então
+    agrupar telas não reordena o menu inteiro nem move de lugar o que o
+    usuário já sabia onde estava. Telas do mesmo grupo separadas por outras
+    na ordenação se juntam no primeiro grupo, sem criar um segundo.
+*   **O filtro de permissão vem antes do agrupamento.** Grupo cujas telas o
+    usuário não pode ver não existe para ele; grupo em que ele vê uma tela
+    só aparece com um item. Não há caso especial para isso.
+
+O estado guarda os grupos **fechados**, e não os abertos: assim um grupo
+novo nasce aberto sem precisar ser semeado no componente.
+
+Primeiro uso: as seis telas do Fechamento de Custo, agrupadas em
+"Fechamento Mensal" pela migration `032_telas_modulo_grupo.sql` — o mesmo
+submenu que o portal PHP anterior tinha.
+
 ---
 
 ## 6. Configurador (módulo `CONFIG`) — Administração de Filiais e Usuários

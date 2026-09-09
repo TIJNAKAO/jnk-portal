@@ -16,6 +16,13 @@ export interface PermissaoTela {
   telaId: number;
   nomeTela: string;
   rotaTela: string;
+  /**
+   * Submenu em que a tela aparece na barra lateral, ou `null` para ficar
+   * solta no primeiro nível — que é o caso da maioria. Vem de
+   * `telas_modulo.grupo_menu`: o menu é dirigido por dados, e o grupo
+   * segue a mesma fonte que a tela.
+   */
+  grupoMenu: string | null;
   podeVisualizar: boolean;
   podeCriar: boolean;
   podeEditar: boolean;
