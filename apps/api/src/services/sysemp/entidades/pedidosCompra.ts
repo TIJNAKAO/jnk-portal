@@ -1,5 +1,5 @@
 import type { PoolConnection } from '../../../config/database.js';
-import { inteiro, numeroSeguro, valor } from '../dbUtil.js';
+import { inteiro, numeroSeguro } from '../dbUtil.js';
 import { registrarConsumidorFila } from '../fila.js';
 
 /**
