@@ -1,6 +1,7 @@
 import './sysemp/entidades/notasFiscais.js'; // side-effect: registra o consumidor de fila (tipo_tabela 2)
 import './sysemp/entidades/estoque.js'; // side-effect: registra o consumidor de fila (tipo_tabela 9)
 import './sysemp/entidades/pedidos.js'; // side-effect: registra o consumidor de fila (tipo_tabela 7)
+import './sysemp/entidades/pedidosCompra.js'; // side-effect: registra o consumidor de fila (tipo_tabela 5)
 import './sysemp/entidades/parceiros.js'; // side-effect: registra o consumidor de fila (tipo_tabela 4)
 import './sysemp/entidades/precos.js'; // side-effect: registra o consumidor de fila (tipo_tabela 6)
 import './sysemp/entidades/produtos.js'; // side-effect: registra o consumidor de fila (tipo_tabela 0)
@@ -27,6 +28,7 @@ export const ENTIDADES_INTEGRACAO: EntidadeIntegracao[] = [
   { chave: 'parceiros', nome: 'Parceiros', sincronizar: (idLog) => sincronizarFila('parceiros', idLog) },
   { chave: 'precos', nome: 'Preços', sincronizar: (idLog) => sincronizarFila('precos', idLog) },
   { chave: 'pedidos', nome: 'Pedidos de Venda', sincronizar: (idLog) => sincronizarFila('pedidos', idLog) },
+  { chave: 'pedidos_compra', nome: 'Pedidos de Compra', sincronizar: (idLog) => sincronizarFila('pedidos_compra', idLog) },
   { chave: 'empresas', nome: 'Empresas', sincronizar: sincronizarEmpresas },
   { chave: 'representantes', nome: 'Representantes', sincronizar: sincronizarRepresentantes },
   { chave: 'ml_pedidos', nome: 'Pedidos Mercado Livre', sincronizar: sincronizarMlPedidos },
