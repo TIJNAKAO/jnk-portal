@@ -1,5 +1,5 @@
 import type { PoolConnection } from '../../../config/database.js';
-import { inteiro, numeroSeguro } from '../dbUtil.js';
+import { inteiro, numeroSeguro, valor } from '../dbUtil.js';
 import { registrarConsumidorFila } from '../fila.js';
 
 /**
@@ -66,20 +66,20 @@ export function extrairCabecalhoPedidoCompra(
   return {
     idEmpresa: inteiro(payload, 'id_empresa'),
     idParceiroFornecedor: inteiro(payload, 'id_fornecedor'),
-    dataPedido: (payload.data_pedido as string | null) ?? null,
-    dataPrevEntrega: (payload.data_prev_entrega as string | null) ?? null,
+    dataPedido: valor(payload, 'data_pedido') as string | null,
+    dataPrevEntrega: valor(payload, 'data_prev_entrega') as string | null,
     valorBruto: numeroSeguro(payload, 'valor_bruto'),
     valorDesconto: numeroSeguro(payload, 'valor_desconto'),
     valorFrete: numeroSeguro(payload, 'valor_frete'),
     valorIpi: numeroSeguro(payload, 'valor_ipi'),
     valorLiquidoPedido: numeroSeguro(payload, 'valor_liquido_pedido'),
     totalGeral: numeroSeguro(payload, 'total_geral'),
-    comprador: (payload.comprador as string | null) ?? null,
-    observacao: (payload.observacao as string | null) ?? null,
-    tipoPedido: (payload.tipo_pedido as string | null) ?? null,
-    codigoStatus: (payload.codigo_status as string | null) ?? null,
-    statusPedido: (payload.status_pedido as string | null) ?? null,
-    statusEntrega: (payload.status_entrega as string | null) ?? null,
+    comprador: valor(payload, 'comprador') as string | null,
+    observacao: valor(payload, 'observacao') as string | null,
+    tipoPedido: valor(payload, 'tipo_pedido') as string | null,
+    codigoStatus: valor(payload, 'codigo_status') as string | null,
+    statusPedido: valor(payload, 'status_pedido') as string | null,
+    statusEntrega: valor(payload, 'status_entrega') as string | null,
   };
 }
 
@@ -104,7 +104,7 @@ export function extrairItensPedidoCompra(payload: Record<string, unknown> | null
       valorUnitarioLiquido: numeroSeguro(item, 'valor_unitario_liquido'),
       aliquotaIpi: numeroSeguro(item, 'aliquota_ipi'),
       aliquotaIcms: numeroSeguro(item, 'aliquota_icms'),
-      dataPrevEntrega: (item.data_prev_entrega as string | null) ?? null,
+      dataPrevEntrega: valor(item, 'data_prev_entrega') as string | null,
     });
   }
 

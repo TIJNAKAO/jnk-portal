@@ -77,7 +77,7 @@ describe('extrairCabecalhoPedidoCompra', () => {
       valorLiquidoPedido: 2152839.2884,
       totalGeral: 2222435.3936,
       comprador: null,
-      observacao: '',
+      observacao: null,
       tipoPedido: '0',
       codigoStatus: '0',
       statusPedido: 'Pedido Liberado',
@@ -97,6 +97,16 @@ describe('extrairCabecalhoPedidoCompra', () => {
   test('data_prev_entrega nula continua nula', () => {
     const c = extrairCabecalhoPedidoCompra(PAYLOAD_REAL);
     expect(c?.dataPrevEntrega).toBeNull();
+  });
+
+  test('observacao em branco vira null, nao string vazia (coluna DATE de outros campos nao aceita "")', () => {
+    const c = extrairCabecalhoPedidoCompra({ ...PAYLOAD_REAL, observacao: '' });
+    expect(c?.observacao).toBeNull();
+  });
+
+  test('data_pedido em branco vira null, evitando erro 1292 na coluna DATE', () => {
+    const c = extrairCabecalhoPedidoCompra({ ...PAYLOAD_REAL, data_pedido: '' });
+    expect(c?.dataPedido).toBeNull();
   });
 });
 
