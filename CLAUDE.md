@@ -46,6 +46,7 @@ A numeração de seções começa em **1**, nunca em 0 — inclusive subtópicos
 | `spec_modulo_ti.md` | Inventário de equipamentos + agente C# |
 | `spec_modulo_integracao.md` | SysEmp (fila), Mercado Livre, ETLs |
 | `spec_modulo_faturamento.md` / `spec_modulo_estoque.md` | Relatórios sobre `etl_fatcom` / curva ABC |
+| `spec_modulo_compras.md` | Consulta de Pedidos de Compra (integração via fila, ver `spec_modulo_integracao.md` seção 3.3) |
 | `spec_config_filial.md` | Unificação `filiais` + `etl_empresa` → `config_filial` (planejado) |
 | `deploy_digitalocean.md` | DigitalOcean App Platform; template do App Spec em `.do/app.yaml` |
 

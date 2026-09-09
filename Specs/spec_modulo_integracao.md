@@ -168,6 +168,7 @@ fora da fila.
 | 2 | NF Venda | `/listarNotasFiscais` | `id_nota_saida` | `sysemp_nota_fiscal` + `sysemp_nota_fiscal_item` |
 | 3 | NF Compra | `/listarNotasFiscais` | `id_nota_saida` | mesmas tabelas de NF Venda (`entrada_saida='E'`) |
 | 4 | Parceiro | `/listarParceiros` | `id_registro` (a migration 015 seedou `codigo`, não confirmado, com a linha inativa; **produção corrigiu para `id_registro` e ativou**, pela tela 5.4) | `sysemp_parceiro` |
+| 5 | Pedido de Compra | `/listarPedidosCompra` | `id_compra` | `sysemp_pedido_compra` + `sysemp_pedido_compra_item` |
 | 6 | Preço | `/listarPrecoVenda` | `id_produto` | `sysemp_preco` |
 | 7 | Pedido de Venda | `/listarPedidos` + `/listarPedidosItens` | `id_nota_saida` (via `buscarDetalhe`) | `sysemp_pedido` + `sysemp_pedido_item` |
 | 9 | Saldo Estoque | `/listarSaldoEstoqueFisico` | `protocolo_estoque` | `sysemp_estoque_fisico` |
@@ -226,6 +227,22 @@ Regras específicas de cada consumidor:
   reprocessar o mesmo `id_fila` idempotente. Valores `>= 1e14` ou não
   numéricos (lixo de cadastro no ERP de origem) viram `NULL` em vez de
   derrubar o INSERT inteiro.
+- **Pedido de Compra**: não confundir com NF Compra (`tipo_tabela=3`,
+  documento fiscal de entrada) — Pedido de Compra é o pedido em si
+  (`id_pedcompra`), pode existir sem NF nenhuma ainda emitida contra ele.
+  Cabeçalho e itens vêm juntos no mesmo JSON de detalhe, como Nota Fiscal.
+  **`campo_id_detalhe` é `id_compra`, mas o campo homônimo na resposta é
+  `id_pedcompra`** — o nome do parâmetro de busca e o nome do campo na
+  resposta não são o mesmo texto, confirmado só lendo o payload real
+  (`/listarPedidosCompra` com `{"id_compra": "294"}` devolve
+  `"id_pedcompra": "294"`). `id_fornecedor` do payload vira
+  `id_parceiro_fornecedor` na tabela, pra bater com a convenção
+  `id_parceiro_cliente`/`id_parceiro_vendedor` de `sysemp_pedido`. Evento
+  `acao='D'` marca `deleted=true` no cabeçalho **e** em todos os itens
+  daquele `id_pedcompra`; num evento `I`/`U` normal, todos os itens levam
+  soft-delete antes do upsert, revivendo só os que vêm na resposta atual
+  (item que sumir fica `deleted=true`) — mesmo padrão de Nota Fiscal. Sem
+  FK entre cabeçalho e item, mesma razão dos demais.
 - **Pedido de Venda**: cabeçalho e itens vêm de dois endpoints separados,
   e `/listarPedidos` **não aceita busca por id sozinho** — exige
   `data_inicial`/`data_final` (HTTP 400 sem eles, confirmado em
@@ -761,6 +778,63 @@ CREATE TABLE sysemp_estoque_fisico (
     INDEX idx_protocolo_estoque (protocolo_estoque),
     INDEX idx_deleted (deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Pedido de Compra: cabeçalho + itens, juntos no mesmo JSON de detalhe
+-- (como Nota Fiscal). Não confundir com NF Compra (tipo_tabela=3, seção
+-- 3.3) — este é o pedido em si, pode não ter NF nenhuma emitida ainda.
+-- id_fornecedor do payload vira id_parceiro_fornecedor, pra bater com a
+-- convenção de sysemp_pedido. Sem FK entre as duas tabelas, mesma razão
+-- de Pedido de Venda e Nota Fiscal.
+CREATE TABLE sysemp_pedido_compra (
+    id_pedcompra              INT PRIMARY KEY, -- vem como "id_pedcompra"; a BUSCA usa "id_compra" (ver seção 3.3)
+    id_empresa                INT NULL,
+    id_parceiro_fornecedor    INT NULL, -- vem como "id_fornecedor"
+    data_pedido               DATE NULL,
+    data_prev_entrega         DATE NULL,
+    valor_bruto               DECIMAL(14,4) NULL,
+    valor_desconto            DECIMAL(14,4) NULL,
+    valor_frete               DECIMAL(14,4) NULL,
+    valor_ipi                 DECIMAL(14,4) NULL,
+    valor_liquido_pedido      DECIMAL(14,4) NULL,
+    total_geral               DECIMAL(14,4) NULL,
+    comprador                 VARCHAR(150) NULL,
+    observacao                VARCHAR(500) NULL,
+    tipo_pedido                VARCHAR(30) NULL,
+    codigo_status              VARCHAR(10) NULL,
+    status_pedido               VARCHAR(60) NULL,
+    status_entrega              VARCHAR(60) NULL,
+    deleted     BOOLEAN DEFAULT FALSE,
+    synced_at   DATETIME NOT NULL,
+    criado_em   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_data_pedido (data_pedido),
+    INDEX idx_id_empresa (id_empresa),
+    INDEX idx_id_parceiro_fornecedor (id_parceiro_fornecedor),
+    INDEX idx_status_pedido (status_pedido),
+    INDEX idx_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE sysemp_pedido_compra_item (
+    id_pedcompra              INT NOT NULL, -- liga a sysemp_pedido_compra.id_pedcompra (sem FK, ver acima)
+    item                      INT NOT NULL, -- vem como "item"; chave composta com id_pedcompra, como Nota Fiscal
+    id_produto                INT NULL,
+    qtde_pedido                DECIMAL(14,4) NULL,
+    qtde_pendente               DECIMAL(14,4) NULL,
+    qtde_recebido               DECIMAL(14,4) NULL,
+    desconto                  DECIMAL(14,4) NULL,
+    total_bruto                DECIMAL(14,4) NULL,
+    total_liquido               DECIMAL(14,4) NULL,
+    valor_unitario_bruto        DECIMAL(14,4) NULL,
+    valor_unitario_liquido      DECIMAL(14,4) NULL,
+    aliquota_ipi                DECIMAL(9,4) NULL,
+    aliquota_icms                DECIMAL(9,4) NULL,
+    data_prev_entrega          DATE NULL,
+    deleted     BOOLEAN DEFAULT FALSE,
+    synced_at   DATETIME NOT NULL,
+    PRIMARY KEY (id_pedcompra, item),
+    INDEX idx_id_produto (id_produto),
+    INDEX idx_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
 ### 4.3. Mercado Livre
@@ -1025,8 +1099,9 @@ foi feito pro módulo TI.
 4. **Link `sysemp_empresa.filial_id` → `filiais`** — confirmado opcional,
    atribuído manualmente por um admin, nunca sincronizado automaticamente
    (seção 4.2).
-5. **Pedido de Compra (`tipo_tabela=5`) e OS (`tipo_tabela=8`)** — fora de
-   escopo, não implementar por ora.
+5. **OS (`tipo_tabela=8`)** — continua fora de escopo, não implementar por
+   ora. **Pedido de Compra (`tipo_tabela=5`)**, que estava no mesmo item
+   como fora de escopo, foi implementado depois — ver seção 3.3.
 6. **Migração do KPL** (`migration/kpl/migrate_kpl.py` no projeto
    original) — **pendente**, não faz parte desta spec. Fica em aberto pra
    decisão futura (vira spec própria se algum dia for necessária).
