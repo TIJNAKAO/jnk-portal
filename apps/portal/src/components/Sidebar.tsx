@@ -1,7 +1,9 @@
-import { ChevronDown, Grid2x2, LogOut } from 'lucide-react';
+import type { PermissaoTela } from '@jnk-portal/shared';
+import { ChevronDown, ChevronRight, Grid2x2, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthProvider';
+import { agruparTelas } from '../lib/menuAgrupado';
 
 /** Módulo ativo é derivado da rota atual — nunca fica dessincronizado do que está na tela (spec, seção 5.4). */
 function useModuloAtivo() {
@@ -15,12 +17,34 @@ function useModuloAtivo() {
   );
 }
 
+/** O link de uma tela, igual solto no primeiro nível ou dentro de um grupo. */
+function ItemTela({ tela, onNavigate }: { tela: PermissaoTela; onNavigate?: () => void }) {
+  return (
+    <Link
+      to={tela.rotaTela}
+      onClick={onNavigate}
+      className="flex min-h-[44px] items-center rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+    >
+      {tela.nomeTela}
+    </Link>
+  );
+}
+
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { usuario, switchFilial, logout } = useAuth();
   const moduloAtivo = useModuloAtivo();
   const [filialDropdownAberto, setFilialDropdownAberto] = useState(false);
+  // Guarda os grupos FECHADOS, não os abertos: assim um grupo novo nasce
+  // aberto sem precisar ser semeado aqui.
+  const [gruposFechados, setGruposFechados] = useState<string[]>([]);
 
   if (!usuario) return null;
+
+  function alternarGrupo(grupo: string) {
+    setGruposFechados((atual) =>
+      atual.includes(grupo) ? atual.filter((g) => g !== grupo) : [...atual, grupo],
+    );
+  }
 
   const filialAtiva = usuario.filiaisPermitidas.find((f) => f.id === usuario.filialAtivaId);
 
@@ -40,19 +64,43 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <nav className="flex-1 overflow-y-auto p-3">
         {moduloAtivo ? (
           <ul className="space-y-1">
-            {moduloAtivo.telas
-              .filter((tela) => tela.podeVisualizar)
-              .map((tela) => (
-                <li key={tela.telaId}>
-                  <Link
-                    to={tela.rotaTela}
-                    onClick={onNavigate}
-                    className="flex min-h-[44px] items-center rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            {/* O filtro de permissão vem ANTES do agrupamento: grupo cujas
+                telas o usuário não pode ver simplesmente não existe. */}
+            {agruparTelas(moduloAtivo.telas.filter((tela) => tela.podeVisualizar)).map((item) => {
+              if (item.tipo === 'tela') {
+                return (
+                  <li key={item.tela.telaId}>
+                    <ItemTela tela={item.tela} onNavigate={onNavigate} />
+                  </li>
+                );
+              }
+
+              const fechado = gruposFechados.includes(item.grupo);
+
+              return (
+                <li key={item.grupo}>
+                  <button
+                    type="button"
+                    onClick={() => alternarGrupo(item.grupo)}
+                    aria-expanded={!fechado}
+                    className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
                   >
-                    {tela.nomeTela}
-                  </Link>
+                    <span>{item.grupo}</span>
+                    {fechado ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  </button>
+
+                  {!fechado && (
+                    <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">
+                      {item.telas.map((tela) => (
+                        <li key={tela.telaId}>
+                          <ItemTela tela={tela} onNavigate={onNavigate} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
-              ))}
+              );
+            })}
           </ul>
         ) : (
           <p className="px-3 py-2 text-sm text-slate-400">Selecione um aplicativo para iniciar</p>

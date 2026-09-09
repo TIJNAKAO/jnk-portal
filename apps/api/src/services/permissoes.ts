@@ -6,6 +6,7 @@ interface PermissaoEfetivaRow extends RowDataPacket {
   telaId: number;
   nomeTela: string;
   rotaTela: string;
+  grupoMenu: string | null;
   moduloId: number;
   nomeModulo: string;
   chaveModulo: string;
@@ -46,6 +47,7 @@ export async function buscarPermissoesEfetivas(usuarioId: number): Promise<Permi
         t.id AS telaId,
         t.nome_tela AS nomeTela,
         t.rota_tela AS rotaTela,
+        t.grupo_menu AS grupoMenu,
         m.id AS moduloId,
         m.nome AS nomeModulo,
         m.chave_modulo AS chaveModulo,
@@ -58,7 +60,7 @@ export async function buscarPermissoesEfetivas(usuarioId: number): Promise<Permi
     FROM combinado c
     JOIN telas_modulo t ON t.id = c.tela_id
     JOIN modulos_sistema m ON m.id = t.modulo_id
-    GROUP BY t.id, t.nome_tela, t.rota_tela, m.id, m.nome, m.chave_modulo, m.icone, m.descricao
+    GROUP BY t.id, t.nome_tela, t.rota_tela, t.grupo_menu, m.id, m.nome, m.chave_modulo, m.icone, m.descricao
     HAVING MAX(c.pode_visualizar) = 1
     ORDER BY m.id, t.id
     `,
@@ -101,6 +103,7 @@ export async function buscarModulosPermitidos(usuarioId: number): Promise<Modulo
       telaId: p.telaId,
       nomeTela: p.nomeTela,
       rotaTela: p.rotaTela,
+      grupoMenu: p.grupoMenu,
       podeVisualizar: Boolean(p.podeVisualizar),
       podeCriar: Boolean(p.podeCriar),
       podeEditar: Boolean(p.podeEditar),
