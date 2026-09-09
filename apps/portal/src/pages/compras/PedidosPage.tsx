@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ThOrdenavel } from '../../components/ThOrdenavel';
+import type { DirecaoOrdenacao } from '../../lib/tabela';
 import { useApi, useApiDownload } from '../../lib/useApi';
 
 interface LinhaPedido {
@@ -50,6 +52,8 @@ export function PedidosPage() {
   const [statusEntrega, setStatusEntrega] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
+  const [ordenarPor, setOrdenarPor] = useState('data_pedido');
+  const [direcao, setDirecao] = useState<DirecaoOrdenacao>('desc');
 
   const [linhas, setLinhas] = useState<LinhaPedido[]>([]);
   const [total, setTotal] = useState(0);
@@ -72,8 +76,10 @@ export function PedidosPage() {
     if (statusEntrega) params.set('statusEntrega', statusEntrega);
     if (dataInicio) params.set('dataInicio', dataInicio);
     if (dataFim) params.set('dataFim', dataFim);
+    params.set('ordenarPor', ordenarPor);
+    params.set('direcao', direcao);
     return params;
-  }, [empresa, fornecedor, statusPedido, statusEntrega, dataInicio, dataFim]);
+  }, [empresa, fornecedor, statusPedido, statusEntrega, dataInicio, dataFim, ordenarPor, direcao]);
 
   const carregar = useCallback(
     async (paginaAlvo: number) => {
@@ -112,7 +118,21 @@ export function PedidosPage() {
     }
   }
 
+  function ordenar(campo: string) {
+    if (campo === ordenarPor) {
+      setDirecao(direcao === 'asc' ? 'desc' : 'asc');
+    } else {
+      setOrdenarPor(campo);
+      setDirecao('asc');
+    }
+  }
+
   const totalPaginas = Math.max(1, Math.ceil(total / TAMANHO_PAGINA));
+  const th = (campo: string, rotulo: string, alinharDireita = false) => (
+    <ThOrdenavel campo={campo} campoOrdenado={ordenarPor} direcao={direcao} onOrdenar={ordenar} alinharDireita={alinharDireita}>
+      {rotulo}
+    </ThOrdenavel>
+  );
 
   return (
     <div className="space-y-4">
@@ -190,18 +210,18 @@ export function PedidosPage() {
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
               <th className="px-3 py-2 font-medium">Pedido</th>
-              <th className="px-3 py-2 font-medium">Empresa</th>
-              <th className="px-3 py-2 font-medium">Fornecedor</th>
-              <th className="px-3 py-2 font-medium">Data do pedido</th>
-              <th className="px-3 py-2 font-medium">Previsão de entrega</th>
+              {th('empresa', 'Empresa')}
+              {th('fornecedor', 'Fornecedor')}
+              {th('data_pedido', 'Data do pedido')}
+              {th('data_prev_entrega', 'Previsão de entrega')}
               <th className="px-3 py-2 font-medium">Comprador</th>
-              <th className="px-3 py-2 font-medium">Status do pedido</th>
-              <th className="px-3 py-2 font-medium">Status da entrega</th>
+              {th('status_pedido', 'Status do pedido')}
+              {th('status_entrega', 'Status da entrega')}
               <th className="px-3 py-2 text-right font-medium">Valor bruto</th>
               <th className="px-3 py-2 text-right font-medium">Desconto</th>
               <th className="px-3 py-2 text-right font-medium">IPI</th>
               <th className="px-3 py-2 text-right font-medium">Frete</th>
-              <th className="px-3 py-2 text-right font-medium">Total geral</th>
+              {th('total_geral', 'Total geral', true)}
             </tr>
           </thead>
           <tbody>
