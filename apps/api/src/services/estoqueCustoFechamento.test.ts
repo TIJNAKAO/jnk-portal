@@ -91,27 +91,42 @@ describe('valorizarLinhaFull', () => {
 });
 
 describe('ultimoDiaDoMes', () => {
+  // Getters UTC de propósito, e não os locais: o contrato da função é
+  // "sempre meia-noite UTC do último dia", independente do fuso do
+  // processo que roda o teste. Usar getDate()/getMonth() local mascarava
+  // o bug real — eles são consistentes com QUALQUER fuso de construção,
+  // porque leem de volta no mesmo fuso em que escreveram.
   test('mes de 31 dias', () => {
-    expect(ultimoDiaDoMes('2026-07-01').getDate()).toBe(31);
+    expect(ultimoDiaDoMes('2026-07-01').getUTCDate()).toBe(31);
   });
 
   test('mes de 30 dias', () => {
-    expect(ultimoDiaDoMes('2026-04-01').getDate()).toBe(30);
+    expect(ultimoDiaDoMes('2026-04-01').getUTCDate()).toBe(30);
   });
 
   test('fevereiro comum', () => {
-    expect(ultimoDiaDoMes('2026-02-01').getDate()).toBe(28);
+    expect(ultimoDiaDoMes('2026-02-01').getUTCDate()).toBe(28);
   });
 
   test('fevereiro bissexto', () => {
-    expect(ultimoDiaDoMes('2024-02-01').getDate()).toBe(29);
+    expect(ultimoDiaDoMes('2024-02-01').getUTCDate()).toBe(29);
   });
 
   test('dezembro nao vaza para o ano seguinte', () => {
     const data = ultimoDiaDoMes('2026-12-01');
 
-    expect(data.getDate()).toBe(31);
-    expect(data.getMonth()).toBe(11);
-    expect(data.getFullYear()).toBe(2026);
+    expect(data.getUTCDate()).toBe(31);
+    expect(data.getUTCMonth()).toBe(11);
+    expect(data.getUTCFullYear()).toBe(2026);
+  });
+
+  // A regressão de verdade: o valor tem que ser SEMPRE meia-noite UTC,
+  // não meia-noite no fuso de quem rodou o processo. Com o construtor
+  // local antigo (`new Date(ano, mes, 0)`), esta asserção só passava por
+  // acaso, dependendo do TZ da máquina — em produção (processo em UTC) o
+  // navegador em Brasília exibia o dia anterior.
+  test('e sempre meia-noite UTC, nao meia-noite no fuso do processo', () => {
+    expect(ultimoDiaDoMes('2026-08-01').toISOString()).toBe('2026-08-31T00:00:00.000Z');
+    expect(ultimoDiaDoMes('2026-02-01').toISOString()).toBe('2026-02-28T00:00:00.000Z');
   });
 });

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { formatarDataUtc } from '../../../lib/datas';
 import { useApi, useApiDownload } from '../../../lib/useApi';
 
 interface LinhaCusto {
@@ -244,7 +245,7 @@ export function CustoFechamentoPage() {
           {cartao('Custo total geral (somado no banco)', `R$ ${num(totalGeral, 2)}`)}
           {cartao(
             'Data do fechamento',
-            dataFechamento ? new Date(dataFechamento).toLocaleDateString('pt-BR') : '—',
+            formatarDataUtc(dataFechamento),
           )}
         </div>
       )}

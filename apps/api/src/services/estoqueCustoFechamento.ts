@@ -410,9 +410,32 @@ export async function buscarListaInventario(
   return linhas;
 }
 
-/** Último dia do mês do período — a DataFechamento da Lista de Inventário. */
+/**
+ * Último dia do mês do período — a DataFechamento da Lista de Inventário
+ * e o cartão "Data do fechamento" da tela.
+ *
+ * Construído com `Date.UTC`, e não com o construtor local (`new
+ * Date(ano, mes, 0)`): o antigo produzia um instante diferente dependendo
+ * do fuso do PROCESSO NODE, que não é garantidamente o mesmo em cada
+ * ambiente (dev local pode estar em America/Sao_Paulo, o container em
+ * produção normalmente roda em UTC).
+ *
+ * O sintoma real: em produção (processo em UTC), o instante virava meia-
+ * noite UTC do dia certo; ao ser exibido num navegador em Brasília
+ * (UTC-3), meia-noite UTC de um dia é 21h do dia ANTERIOR, e a tela
+ * mostrava "30/08" para um fechamento de "31/08". `Date.UTC` remove a
+ * dependência do fuso do servidor — o instante produzido é sempre o mesmo
+ * em qualquer ambiente. A exibição correta no navegador é
+ * responsabilidade de quem lê o valor (`formatarDataUtc` no portal, que
+ * usa os getters UTC em vez de `toLocaleDateString`, que usa o fuso do
+ * navegador).
+ *
+ * `dateToExcel` do exceljs usa `d.getTime()` (o instante absoluto), então
+ * a exportação para planilha não é afetada por essa mudança — continua
+ * mostrando o dia certo, agora de forma determinística em qualquer fuso.
+ */
 export function ultimoDiaDoMes(periodo: string): Date {
   const [ano, mes] = periodo.split('-').map(Number);
-  // Dia 0 do mês seguinte é o último dia deste mês.
-  return new Date(Number(ano), Number(mes), 0);
+  // Dia 0 do mês seguinte, em UTC, é o último dia deste mês.
+  return new Date(Date.UTC(Number(ano), Number(mes), 0));
 }
