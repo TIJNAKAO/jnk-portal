@@ -1,4 +1,4 @@
-import { Boxes, Grid2x2, Laptop, Receipt, Settings, Workflow, type LucideIcon } from 'lucide-react';
+import { Boxes, Grid2x2, Laptop, Receipt, Settings, ShoppingCart, Workflow, type LucideIcon } from 'lucide-react';
 
 /**
  * Mapa explícito de `modulos_sistema.icone` → componente Lucide. Evitamos
@@ -12,6 +12,7 @@ const ICONES: Record<string, LucideIcon> = {
   Workflow,
   Boxes,
   Receipt,
+  ShoppingCart,
 };
 
 export function iconePorNome(nome: string): LucideIcon {

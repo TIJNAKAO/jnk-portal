@@ -7,6 +7,7 @@ import { EsqueciSenhaPage } from './pages/EsqueciSenhaPage';
 import { LoginPage } from './pages/LoginPage';
 import { ModulesPage } from './pages/ModulesPage';
 import { RedefinirSenhaPage } from './pages/RedefinirSenhaPage';
+import { PedidosPage } from './pages/compras/PedidosPage';
 import { AvisosPage } from './pages/config/AvisosPage';
 import { FiliaisPage } from './pages/config/FiliaisPage';
 import { LogsAcessoPage } from './pages/config/LogsAcessoPage';
@@ -63,6 +64,9 @@ export function App() {
 
           <Route element={<AppShellLayout />}>
             <Route path="/modules" element={<ModulesPage />} />
+
+            <Route path="/compras/pedidos" element={<PedidosPage />} />
+
             <Route path="/config/filiais" element={<FiliaisPage />} />
             <Route path="/config/usuarios" element={<UsuariosPage />} />
             <Route path="/config/perfis" element={<PerfisPage />} />
