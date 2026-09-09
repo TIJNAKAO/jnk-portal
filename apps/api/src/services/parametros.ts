@@ -41,6 +41,17 @@ export const DEFINICAO_CAMPOS: Record<CategoriaParametro, DefinicaoCampo[]> = {
   ],
 };
 
+/**
+ * Deriva diretamente de `DEFINICAO_CAMPOS` — a única fonte de categorias
+ * válidas. Não duplicar esta checagem em lista própria (ex: um array
+ * separado na rota): foi exatamente essa duplicação que deixou ESTOQUE
+ * cadastrado aqui e esquecido em `routes/parametros.ts`, fazendo
+ * GET/PUT /parametros/ESTOQUE responder 400.
+ */
+export function categoriaValida(categoria: string | undefined): categoria is CategoriaParametro {
+  return categoria !== undefined && categoria !== '' && categoria in DEFINICAO_CAMPOS;
+}
+
 interface ParametroRow extends RowDataPacket {
   categoria: CategoriaParametro;
   chave: string;

@@ -27,13 +27,24 @@ export function ParametrosPage() {
   const [valores, setValores] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     setSalvo(false);
-    api<ParametroExposto[]>(`/parametros/${categoria}`).then((dados) => {
-      setCampos(dados);
-      setValores(Object.fromEntries(dados.map((c) => [c.chave, c.sensivel ? '' : (c.valor ?? '')])));
-    });
+    setErro(null);
+    // Limpa ANTES de buscar: se o fetch falhar, a tela fica vazia (com o
+    // erro visível) em vez de continuar mostrando os campos da categoria
+    // anterior sob o rótulo da nova aba — foi assim que a falta de
+    // categoriaValida('ESTOQUE') na API virou "Estoque mostrando campos
+    // de E-mail" em vez de um erro claro.
+    setCampos([]);
+    setValores({});
+    api<ParametroExposto[]>(`/parametros/${categoria}`)
+      .then((dados) => {
+        setCampos(dados);
+        setValores(Object.fromEntries(dados.map((c) => [c.chave, c.sensivel ? '' : (c.valor ?? '')])));
+      })
+      .catch((e: Error) => setErro(e.message));
   }, [api, categoria]);
 
   async function salvar(e: React.FormEvent) {
@@ -65,6 +76,8 @@ export function ParametrosPage() {
           </button>
         ))}
       </div>
+
+      {erro && <div className="max-w-lg rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{erro}</div>}
 
       <form onSubmit={salvar} className="max-w-lg space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         {campos.map((campo) => (

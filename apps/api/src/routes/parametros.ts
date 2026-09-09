@@ -1,18 +1,16 @@
-import type { CategoriaParametro } from '@jnk-portal/shared';
 import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
-import { DEFINICAO_CAMPOS, listarParametros, salvarParametros } from '../services/parametros.js';
+import {
+  categoriaValida,
+  DEFINICAO_CAMPOS,
+  listarParametros,
+  salvarParametros,
+} from '../services/parametros.js';
 
 export const parametrosRouter = Router();
 
 const ROTA = '/config/parametros';
-const CATEGORIAS_VALIDAS: CategoriaParametro[] = ['EMAIL', 'WHATSAPP', 'TELEGRAM', 'TI', 'SYSEMP', 'MERCADO_LIVRE'];
-
-function categoriaValida(categoria: string | undefined): categoria is CategoriaParametro {
-  if (!categoria) return false;
-  return (CATEGORIAS_VALIDAS as string[]).includes(categoria);
-}
 
 parametrosRouter.use(authTenant);
 
