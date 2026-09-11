@@ -22,7 +22,7 @@ tiResponsaveisRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (r
   const where = condicoes.length > 0 ? `WHERE ${condicoes.join(' AND ')}` : '';
 
   const [equipamentos] = await pool.query<RowDataPacket[]>(
-    `SELECT e.id, e.nome_computador, f.nome AS nome_filial, e.id_usuario_responsavel
+    `SELECT e.id, e.nome_computador, e.apelido, f.nome AS nome_filial, e.id_usuario_responsavel
      FROM ti_equipamento e
      LEFT JOIN filiais f ON f.id = e.filial_id
      ${where}

@@ -7,6 +7,7 @@ import { filtrarPorTexto, useOrdenacao } from '../../lib/tabela';
 interface EquipamentoResponsavel {
   id: number;
   nome_computador: string;
+  apelido: string | null;
   nome_filial: string | null;
   id_usuario_responsavel: number | null;
 }
@@ -49,6 +50,7 @@ export function ResponsaveisPage() {
   const [busca, setBusca] = useState('');
   const { linhasOrdenadas, campoOrdenado, direcao, ordenarPor } = useOrdenacao(filtrarPorTexto(equipamentos, busca), {
     nome_computador: (e) => e.nome_computador,
+    apelido: (e) => e.apelido,
     nome_filial: (e) => e.nome_filial,
   });
 
@@ -69,6 +71,7 @@ export function ResponsaveisPage() {
             <thead className="border-b border-slate-200 text-slate-500">
               <tr>
                 <ThOrdenavel campo="nome_computador" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Computador</ThOrdenavel>
+                <ThOrdenavel campo="apelido" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Apelido</ThOrdenavel>
                 <ThOrdenavel campo="nome_filial" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Filial</ThOrdenavel>
                 <th className="p-3">Responsável</th>
               </tr>
@@ -77,6 +80,7 @@ export function ResponsaveisPage() {
               {linhasOrdenadas.map((eq) => (
                 <tr key={eq.id} className="border-b border-slate-100 last:border-0">
                   <td className="p-3">{eq.nome_computador}</td>
+                  <td className="p-3 text-slate-500">{eq.apelido ?? '—'}</td>
                   <td className="p-3 text-slate-500">{eq.nome_filial ?? '—'}</td>
                   <td className="p-3">
                     <select
