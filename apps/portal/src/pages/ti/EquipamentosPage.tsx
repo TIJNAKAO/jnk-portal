@@ -16,6 +16,7 @@ interface Equipamento {
   so_caption: string | null;
   processador_nome: string | null;
   ram_total_bytes: number | null;
+  disco_total_bytes: number | null;
   ultima_coleta_em: string | null;
   total_coletas: number;
 }
@@ -48,6 +49,7 @@ export function EquipamentosPage() {
     so_caption: (e) => e.so_caption,
     processador_nome: (e) => e.processador_nome,
     ram_total_bytes: (e) => e.ram_total_bytes,
+    disco_total_bytes: (e) => e.disco_total_bytes,
     ultima_coleta_em: (e) => e.ultima_coleta_em,
   });
 
@@ -75,13 +77,14 @@ export function EquipamentosPage() {
               <ThOrdenavel campo="so_caption" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Sistema Operacional</ThOrdenavel>
               <ThOrdenavel campo="processador_nome" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Processador</ThOrdenavel>
               <ThOrdenavel campo="ram_total_bytes" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>RAM</ThOrdenavel>
+              <ThOrdenavel campo="disco_total_bytes" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>HD</ThOrdenavel>
               <ThOrdenavel campo="ultima_coleta_em" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Última Coleta</ThOrdenavel>
             </tr>
           </thead>
           <tbody>
             {linhasOrdenadas.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-4 text-center text-slate-400">
+                <td colSpan={10} className="p-4 text-center text-slate-400">
                   Nenhum equipamento coletado ainda.
                 </td>
               </tr>
@@ -100,6 +103,7 @@ export function EquipamentosPage() {
                 <td className="p-3 text-slate-500">{e.so_caption ?? '—'}</td>
                 <td className="p-3 text-slate-500">{e.processador_nome ?? '—'}</td>
                 <td className="p-3 text-slate-500">{fmtBytes(e.ram_total_bytes)}</td>
+                <td className="p-3 text-slate-500">{fmtBytes(e.disco_total_bytes)}</td>
                 <td className="p-3 text-slate-500">{fmtData(e.ultima_coleta_em)}</td>
               </tr>
             ))}

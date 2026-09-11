@@ -46,7 +46,8 @@ tiEquipamentosRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (r
         uc.id AS ultima_coleta_id,
         so.caption AS so_caption,
         proc.nome AS processador_nome,
-        (SELECT COALESCE(SUM(r.capacidade_bytes), 0) FROM ti_memoria_ram r WHERE r.id_coleta = uc.id) AS ram_total_bytes
+        (SELECT COALESCE(SUM(r.capacidade_bytes), 0) FROM ti_memoria_ram r WHERE r.id_coleta = uc.id) AS ram_total_bytes,
+        (SELECT COALESCE(SUM(dk.tamanho_bytes), 0) FROM ti_disco dk WHERE dk.id_coleta = uc.id) AS disco_total_bytes
      FROM ti_equipamento e
      LEFT JOIN filiais f ON f.id = e.filial_id
      LEFT JOIN usuarios u ON u.id = e.id_usuario_responsavel
