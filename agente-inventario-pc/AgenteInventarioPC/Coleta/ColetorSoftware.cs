@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.Win32;
 using AgenteInventarioPC.Modelos;
 
@@ -18,7 +19,32 @@ public static class ColetorSoftware
         var lista = new List<SoftwareInfo>();
         ColetarDeRegistro(RegistryView.Registry32, lista);
         ColetarDeRegistro(RegistryView.Registry64, lista);
-        return lista;
+        return Deduplicar(lista);
+    }
+
+    // Alguns instaladores (ex: Office 2016, Avira Security) registram o
+    // mesmo programa nas duas views do registro (32 e 64 bits) — sem isso,
+    // toda entrada assim aparecia duplicada no relatório, às vezes com uma
+    // cópia mais completa (com versão) e outra incompleta (sem versão).
+    // Deduplica por nome, mantendo a entrada com mais campos preenchidos
+    // quando há conflito.
+    private static List<SoftwareInfo> Deduplicar(List<SoftwareInfo> lista)
+    {
+        var porNome = new Dictionary<string, SoftwareInfo>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in lista)
+        {
+            if (!porNome.TryGetValue(item.Nome, out var existente) || ContagemCamposPreenchidos(item) > ContagemCamposPreenchidos(existente))
+            {
+                porNome[item.Nome] = item;
+            }
+        }
+        return porNome.Values.ToList();
+    }
+
+    private static int ContagemCamposPreenchidos(SoftwareInfo info)
+    {
+        var camposTexto = new[] { info.Versao, info.Fabricante, info.DataInstalacao, info.LocalInstalacao };
+        return camposTexto.Count(c => !string.IsNullOrWhiteSpace(c)) + (info.TamanhoEstimadoKb.HasValue ? 1 : 0);
     }
 
     private static void ColetarDeRegistro(RegistryView view, List<SoftwareInfo> lista)
