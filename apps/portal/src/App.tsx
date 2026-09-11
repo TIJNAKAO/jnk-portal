@@ -40,6 +40,8 @@ import { EquipamentoHistoricoPage } from './pages/ti/EquipamentoHistoricoPage';
 import { EquipamentosPage } from './pages/ti/EquipamentosPage';
 import { GerarScriptsPage } from './pages/ti/GerarScriptsPage';
 import { InstalarProgramasPage } from './pages/ti/InstalarProgramasPage';
+import { ProgramaMaquinasPage } from './pages/ti/ProgramaMaquinasPage';
+import { ProgramasDesatualizadosPage } from './pages/ti/ProgramasDesatualizadosPage';
 import { ResponsaveisPage } from './pages/ti/ResponsaveisPage';
 import { SoftwareMaquinasPage } from './pages/ti/SoftwareMaquinasPage';
 import { SoftwaresAprovadosPage } from './pages/ti/SoftwaresAprovadosPage';
@@ -88,6 +90,8 @@ export function App() {
             <Route path="/ti/gerar-scripts" element={<GerarScriptsPage />} />
             <Route path="/ti/softwares-aprovados" element={<SoftwaresAprovadosPage />} />
             <Route path="/ti/softwares-aprovados/maquinas" element={<SoftwareMaquinasPage />} />
+            <Route path="/ti/programas-desatualizados" element={<ProgramasDesatualizadosPage />} />
+            <Route path="/ti/programas-desatualizados/maquinas" element={<ProgramaMaquinasPage />} />
             <Route path="/ti/auditoria-coleta" element={<AuditoriaColetaPage />} />
 
             <Route path="/integracao/painel" element={<PainelPage />} />
