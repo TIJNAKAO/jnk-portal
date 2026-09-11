@@ -28,6 +28,7 @@ import { parametrosRouter } from './routes/parametros.js';
 import { perfisRouter } from './routes/perfis.js';
 import { tiAuditoriaRouter } from './routes/tiAuditoria.js';
 import { tiCatalogoProgramasRouter } from './routes/tiCatalogoProgramas.js';
+import { tiDashboardRouter } from './routes/tiDashboard.js';
 import { tiDepartamentosRouter } from './routes/tiDepartamentos.js';
 import { tiEquipamentosRouter } from './routes/tiEquipamentos.js';
 import { tiGerarScriptsRouter } from './routes/tiGerarScripts.js';
@@ -64,6 +65,7 @@ app.use('/api/parametros', parametrosRouter);
 // por X-Api-Key dentro do próprio router, fora do JWT de sessão.
 app.use('/api/ti/inventario', tiInventarioIngestaoRouter);
 
+app.use('/api/ti/dashboard', tiDashboardRouter);
 app.use('/api/ti/equipamentos', tiEquipamentosRouter);
 app.use('/api/ti/departamentos', tiDepartamentosRouter);
 app.use('/api/ti/responsaveis', tiResponsaveisRouter);
