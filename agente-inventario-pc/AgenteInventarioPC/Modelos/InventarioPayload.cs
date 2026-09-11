@@ -45,6 +45,9 @@ public class InventarioPayload
 
     [JsonPropertyName("dispositivo_usb")]
     public List<DispositivoUsbInfo> DispositivoUsb { get; set; } = new();
+
+    [JsonPropertyName("volume")]
+    public List<VolumeInfo> Volume { get; set; } = new();
 }
 
 public class ComputadorInfo
@@ -311,4 +314,22 @@ public class DispositivoUsbInfo
 
     [JsonPropertyName("ultima_vez_visto")]
     public string? UltimaVezVisto { get; set; }
+}
+
+public class VolumeInfo
+{
+    [JsonPropertyName("letra_unidade")]
+    public string? LetraUnidade { get; set; }
+
+    [JsonPropertyName("rotulo")]
+    public string? Rotulo { get; set; }
+
+    [JsonPropertyName("sistema_arquivos")]
+    public string? SistemaArquivos { get; set; }
+
+    [JsonPropertyName("tamanho_bytes")]
+    public ulong? TamanhoBytes { get; set; }
+
+    [JsonPropertyName("espaco_livre_bytes")]
+    public ulong? EspacoLivreBytes { get; set; }
 }
