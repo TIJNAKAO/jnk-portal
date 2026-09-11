@@ -31,6 +31,7 @@ import { FilaPage } from './pages/integracao/FilaPage';
 import { MercadoLivrePage } from './pages/integracao/MercadoLivrePage';
 import { PainelPage } from './pages/integracao/PainelPage';
 import { ParametrosFilaPage } from './pages/integracao/ParametrosFilaPage';
+import { AnalisesDashboardPage } from './pages/ti/AnalisesDashboardPage';
 import { AuditoriaColetaPage } from './pages/ti/AuditoriaColetaPage';
 import { CatalogoProgramasPage } from './pages/ti/CatalogoProgramasPage';
 import { CompararColetasPage } from './pages/ti/CompararColetasPage';
@@ -75,6 +76,7 @@ export function App() {
             <Route path="/config/logs" element={<LogsAcessoPage />} />
             <Route path="/config/parametros" element={<ParametrosPage />} />
 
+            <Route path="/ti/dashboard" element={<AnalisesDashboardPage />} />
             <Route path="/ti/equipamentos" element={<EquipamentosPage />} />
             <Route path="/ti/equipamentos/:id" element={<EquipamentoHistoricoPage />} />
             <Route path="/ti/equipamentos/:id/comparar" element={<CompararColetasPage />} />
