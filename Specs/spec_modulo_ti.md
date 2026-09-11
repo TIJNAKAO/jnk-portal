@@ -796,8 +796,10 @@ script baixado pela API de verdade, não só lendo o código-fonte.
 
 ## 10. Análises TI (dashboards e relatórios)
 
-**Nada nesta seção está implementado ainda — documento pra validação antes
-de qualquer código, mesma regra da seção 1.**
+**✅ Implementado** — plano `.superpowers/sdd/2026-09-11-analises-ti/` (Tasks
+1–14), incluindo o agrupamento de menu (10.5) e o agente 1.4.0 (10.2, 10.3).
+Rollout do parque ainda é gradual (10.4) e o `.exe` do agente e a liberação
+de permissão em Configurador → Perfis são passos manuais fora do plano.
 
 ### 10.1. Contexto e decisões
 
