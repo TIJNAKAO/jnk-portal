@@ -1,5 +1,6 @@
 using System.Management;
 using AgenteInventarioPC.Modelos;
+using static AgenteInventarioPC.Coleta.ColetaWmi;
 
 namespace AgenteInventarioPC.Coleta;
 
@@ -10,7 +11,6 @@ namespace AgenteInventarioPC.Coleta;
 /// </summary>
 public static class ColetorHardware
 {
-    private const string Escopo = @"root\cimv2";
     private const string EscopoStorage = @"root\Microsoft\Windows\Storage";
 
     public static SistemaOperacionalInfo? ColetarSistemaOperacional()
@@ -237,107 +237,5 @@ public static class ColetorHardware
         }
 
         return lista;
-    }
-
-    // ---- Auxiliares de consulta WMI ----
-
-    private static ManagementBaseObject? ConsultarUmaLinha(string query)
-    {
-        foreach (var linha in ConsultarVariasLinhas(query))
-        {
-            return linha;
-        }
-        return null;
-    }
-
-    private static IEnumerable<ManagementBaseObject> ConsultarVariasLinhas(string query, string? escopo = null)
-    {
-        List<ManagementBaseObject> resultado = new();
-        try
-        {
-            using var pesquisador = new ManagementObjectSearcher(new ManagementScope(escopo ?? Escopo), new ObjectQuery(query));
-            using var colecao = pesquisador.Get();
-            foreach (ManagementBaseObject linha in colecao)
-            {
-                resultado.Add(linha);
-            }
-        }
-        catch (Exception ex)
-        {
-            // Uma classe WMI indisponível/bloqueada nesta máquina não pode
-            // impedir a coleta do resto — devolve vazio e segue. Mas sem
-            // registrar o motivo, uma falha ampla (ex: WMI inteiro
-            // inacessível nesta máquina) fica invisível — snapshot chega
-            // vazio no portal e não sobra nenhuma pista de por quê.
-            RegistrarErroWmi(query, ex);
-        }
-        return resultado;
-    }
-
-    private static readonly string CaminhoLog = Path.Combine(AppContext.BaseDirectory, "agente.log");
-
-    private static void RegistrarErroWmi(string query, Exception ex)
-    {
-        try
-        {
-            var linha = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [WMI] Falha em \"{query}\": {ex.GetType().Name} - {ex.Message}";
-            File.AppendAllText(CaminhoLog, linha + Environment.NewLine);
-        }
-        catch
-        {
-            // Idem — se nem o log funcionar, não tem mais pra onde reportar.
-        }
-    }
-
-    private static string? Texto(ManagementBaseObject linha, string propriedade)
-    {
-        try
-        {
-            return linha[propriedade]?.ToString();
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static uint? Inteiro(ManagementBaseObject linha, string propriedade)
-    {
-        try
-        {
-            var valor = linha[propriedade];
-            return valor is null ? null : Convert.ToUInt32(valor);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static ulong? InteiroGrande(ManagementBaseObject linha, string propriedade)
-    {
-        try
-        {
-            var valor = linha[propriedade];
-            return valor is null ? null : Convert.ToUInt64(valor);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static string? DataWmi(ManagementBaseObject linha, string propriedade)
-    {
-        try
-        {
-            var valor = linha[propriedade]?.ToString();
-            if (string.IsNullOrEmpty(valor)) return null;
-            return ManagementDateTimeConverter.ToDateTime(valor).ToString("yyyy-MM-dd HH:mm:ss");
-        }
-        catch
-        {
-            return null;
-        }
     }
 }
