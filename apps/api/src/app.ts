@@ -30,6 +30,7 @@ import { tiAuditoriaRouter } from './routes/tiAuditoria.js';
 import { tiCatalogoProgramasRouter } from './routes/tiCatalogoProgramas.js';
 import { tiDashboardRouter } from './routes/tiDashboard.js';
 import { tiDepartamentosRouter } from './routes/tiDepartamentos.js';
+import { tiDriversDesatualizadosRouter } from './routes/tiDriversDesatualizados.js';
 import { tiEquipamentosRouter } from './routes/tiEquipamentos.js';
 import { tiGerarScriptsRouter } from './routes/tiGerarScripts.js';
 import { tiInstalarProgramasRouter } from './routes/tiInstalarProgramas.js';
@@ -76,6 +77,7 @@ app.use('/api/ti/gerar-scripts', tiGerarScriptsRouter);
 app.use('/api/ti/softwares-aprovados', tiSoftwaresAprovadosRouter);
 app.use('/api/ti/auditoria-coleta', tiAuditoriaRouter);
 app.use('/api/ti/programas-desatualizados', tiProgramasDesatualizadosRouter);
+app.use('/api/ti/drivers-desatualizados', tiDriversDesatualizadosRouter);
 
 app.use('/api/integracao/painel', integracaoPainelRouter);
 app.use('/api/integracao/execucoes', integracaoExecucoesRouter);
