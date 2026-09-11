@@ -8,6 +8,7 @@ export interface TiInventarioPayload {
     id_empresa?: number | null; // interpretado como filial_id
     serial_bios?: string | null;
     serial_placa_mae?: string | null;
+    asset_tag?: string | null;
   };
   coleta: {
     coletado_em: string;
@@ -26,4 +27,6 @@ export interface TiInventarioPayload {
   periferico?: Record<string, unknown>[];
   software?: Record<string, unknown>[];
   dispositivo_usb?: Record<string, unknown>[];
+  volume?: Record<string, unknown>[];
+  driver?: Record<string, unknown>[];
 }

@@ -94,12 +94,13 @@ export async function processarInventario(payload: TiInventarioPayload, corpoBru
     const filialId = inteiro(payload.computador, 'id_empresa');
     const serialBios = valor(payload.computador, 'serial_bios');
     const serialPlacaMae = valor(payload.computador, 'serial_placa_mae');
+    const assetTag = valor(payload.computador, 'asset_tag');
 
     if (existentes.length === 0) {
       const [resultado] = await connection.query<ResultSetHeader>(
-        `INSERT INTO ti_equipamento (nome_computador, filial_id, serial_bios, serial_placa_mae, primeira_coleta_em, ultima_coleta_em)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [nomeComputador, filialId, serialBios, serialPlacaMae, coletadoEm, coletadoEm],
+        `INSERT INTO ti_equipamento (nome_computador, filial_id, serial_bios, serial_placa_mae, asset_tag, primeira_coleta_em, ultima_coleta_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [nomeComputador, filialId, serialBios, serialPlacaMae, assetTag, coletadoEm, coletadoEm],
       );
       idEquipamento = resultado.insertId;
     } else {
@@ -109,9 +110,10 @@ export async function processarInventario(payload: TiInventarioPayload, corpoBru
            filial_id = COALESCE(?, filial_id),
            serial_bios = COALESCE(?, serial_bios),
            serial_placa_mae = COALESCE(?, serial_placa_mae),
+           asset_tag = COALESCE(?, asset_tag),
            ultima_coleta_em = ?
          WHERE id = ?`,
-        [filialId, serialBios, serialPlacaMae, coletadoEm, idEquipamento],
+        [filialId, serialBios, serialPlacaMae, assetTag, coletadoEm, idEquipamento],
       );
     }
 
@@ -184,8 +186,8 @@ export async function processarInventario(payload: TiInventarioPayload, corpoBru
     const bios = payload.bios;
     if (bios) {
       await connection.query(
-        `INSERT INTO ti_bios (id_coleta, fabricante, numero_serie, versao) VALUES (?, ?, ?, ?)`,
-        [idColeta, valor(bios, 'fabricante'), valor(bios, 'numero_serie'), valor(bios, 'versao')],
+        `INSERT INTO ti_bios (id_coleta, fabricante, numero_serie, versao, asset_tag) VALUES (?, ?, ?, ?, ?)`,
+        [idColeta, valor(bios, 'fabricante'), valor(bios, 'numero_serie'), valor(bios, 'versao'), valor(bios, 'asset_tag')],
       );
     }
 
@@ -278,6 +280,34 @@ export async function processarInventario(payload: TiInventarioPayload, corpoBru
         valor(item, 'numero_serie'),
         valor(item, 'nome_amigavel'),
         valor(item, 'ultima_vez_visto'),
+      ]),
+    );
+
+    await inserirEmLote(
+      connection,
+      'ti_volume',
+      ['id_coleta', 'letra_unidade', 'rotulo', 'sistema_arquivos', 'tamanho_bytes', 'espaco_livre_bytes'],
+      (payload.volume ?? []).map((item) => [
+        idColeta,
+        valor(item, 'letra_unidade'),
+        valor(item, 'rotulo'),
+        valor(item, 'sistema_arquivos'),
+        valor(item, 'tamanho_bytes'),
+        valor(item, 'espaco_livre_bytes'),
+      ]),
+    );
+
+    await inserirEmLote(
+      connection,
+      'ti_driver',
+      ['id_coleta', 'nome', 'fabricante', 'versao', 'data_versao', 'hardware_id'],
+      (payload.driver ?? []).map((item) => [
+        idColeta,
+        valor(item, 'nome'),
+        valor(item, 'fabricante'),
+        valor(item, 'versao'),
+        valor(item, 'data_versao'),
+        valor(item, 'hardware_id'),
       ]),
     );
 
