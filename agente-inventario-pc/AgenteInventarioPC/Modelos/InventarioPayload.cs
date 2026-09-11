@@ -48,6 +48,9 @@ public class InventarioPayload
 
     [JsonPropertyName("volume")]
     public List<VolumeInfo> Volume { get; set; } = new();
+
+    [JsonPropertyName("driver")]
+    public List<DriverInfo> Driver { get; set; } = new();
 }
 
 public class ComputadorInfo
@@ -332,4 +335,22 @@ public class VolumeInfo
 
     [JsonPropertyName("espaco_livre_bytes")]
     public ulong? EspacoLivreBytes { get; set; }
+}
+
+public class DriverInfo
+{
+    [JsonPropertyName("nome")]
+    public string? Nome { get; set; }
+
+    [JsonPropertyName("fabricante")]
+    public string? Fabricante { get; set; }
+
+    [JsonPropertyName("versao")]
+    public string? Versao { get; set; }
+
+    [JsonPropertyName("data_versao")]
+    public string? DataVersao { get; set; }
+
+    [JsonPropertyName("hardware_id")]
+    public string? HardwareId { get; set; }
 }

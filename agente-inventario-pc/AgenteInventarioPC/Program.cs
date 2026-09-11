@@ -71,6 +71,7 @@ try
         Software = ColetorSoftware.ColetarProgramasInstalados(),
         DispositivoUsb = ColetorUsb.ColetarDispositivosArmazenamento(),
         Volume = ColetorVolumes.ColetarVolumes(),
+        Driver = ColetorDrivers.ColetarDrivers(),
     };
 
     // Serial do BIOS/placa-mãe também vai no bloco "computador" — é o que
@@ -80,7 +81,7 @@ try
 
     Log(
         $"  {payload.MemoriaRam.Count} pente(s) de memória, {payload.Disco.Count} disco(s), " +
-        $"{payload.Volume.Count} volume(s), " +
+        $"{payload.Volume.Count} volume(s), {payload.Driver.Count} driver(s), " +
         $"{payload.Rede.Count} rede(s) conectada(s), {payload.Software.Count} programa(s) instalado(s), " +
         $"{payload.DispositivoUsb.Count} dispositivo(s) USB conhecido(s), " +
         $"AnyDesk ID: {payload.Coleta.AnydeskId ?? "não encontrado"}.");
