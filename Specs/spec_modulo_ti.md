@@ -791,3 +791,238 @@ quando for um erro 4xx — evita mascarar erro de requisição do cliente
 sem isso o Windows PowerShell 5.1 corrompe caracteres acentuados ao ler o
 arquivo. Achado testando o parser de PowerShell diretamente contra o
 script baixado pela API de verdade, não só lendo o código-fonte.
+
+---
+
+## 10. Análises TI (dashboards e relatórios)
+
+**Nada nesta seção está implementado ainda — documento pra validação antes
+de qualquer código, mesma regra da seção 1.**
+
+### 10.1. Contexto e decisões
+
+Pedido do usuário: um agrupamento novo no menu do módulo TI — **"Análises
+TI"** — reunindo avaliação individual de equipamento, lista resumo,
+dashboard (SO/processador/memória/disco) e dois relatórios de exceção
+(máquina sem coleta recente, programa/driver desatualizado).
+
+Duas das cinco partes já existiam antes de qualquer linha de código nova:
+
+- **Avaliação individual** já é `/ti/equipamentos/:id` (seção 5.1) —
+  reaproveitada sem mudança.
+- **"Não inventariado há mais de 7 dias"** já é `/ti/auditoria-coleta`
+  (seção 5.9) — reaproveitada sem mudança (o corte de cor já existente em
+  2/5 dias cobre o mesmo objetivo com mais granularidade que um único corte
+  de 7).
+- **"Lista resumo"** também já é quase inteiramente `/ti/equipamentos`
+  (a consulta já devolve nome, apelido, patrimônio, filial, responsável,
+  departamento, SO, processador e RAM total — ver `apps/api/src/routes/tiEquipamentos.ts`).
+  Só falta um resumo de disco físico na mesma linha — ver 10.4.
+
+Decisão: **não duplicar essas duas telas.** Elas só mudam de agrupamento no
+menu (`telas_modulo.grupo_menu`, seção 10.4) — saem do primeiro nível do
+módulo TI e passam a viver dentro de "Análises TI", junto com as três
+telas genuinamente novas.
+
+O que sobrou como trabalho novo, e o motivo de cada peça:
+
+| Pedido original | Por que é novo | Onde entra |
+|---|---|---|
+| Dashboard por SO/processador/memória/disco | Não existe nenhum gráfico agregado no módulo TI hoje | 10.5, Dashboard TI |
+| Espaço em disco usado/livre | O agente só coleta o disco físico inteiro (`ti_disco.tamanho_bytes`), não o volume lógico (C:, D:...) com livre/usado | 10.2, 10.3 |
+| Programas desatualizados | Já documentado como lacuna (seção 5.8: "não existe fonte confiável de versão mais recente") | 10.6 |
+| Drivers desatualizados | O agente não coleta driver nenhum hoje | 10.2, 10.3, 10.6 |
+
+Durante a conversa, o usuário também pediu pra incluir a **leitura do
+Número de Ativo (Asset Tag) da BIOS** — campo padrão do SMBIOS (Type 3,
+"Asset Tag Number"), o mesmo em Dell/HP/Lenovo/montada, então cabe na mesma
+leva de mudança do agente (10.3). **Gravar** esse campo já é
+fabricante-específico (Lenovo expõe método WMI nativo; Dell e HP exigem
+ferramenta própria; máquina montada não tem caminho padrão) — fica
+registrado como melhoria futura fora de escopo (seção 10.9), não desenhado
+aqui.
+
+### 10.2. Modelo de dados — duas tabelas novas, uma coluna nova
+
+Mesmo padrão 1:N por coleta que o resto do módulo já usa (`ti_memoria_ram`,
+`ti_disco`):
+
+```sql
+-- Volumes logicos (C:, D:...) -- diferente de ti_disco, que e o disco
+-- FISICO: um disco fisico pode ter varios volumes. Filtra DriveType=3
+-- (fixo) na coleta -- sem unidade de rede, sem CD/DVD, sem particao de
+-- recuperacao sem letra.
+CREATE TABLE ti_volume (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    id_coleta          INT NOT NULL,
+    letra_unidade      VARCHAR(5)   NULL,
+    rotulo             VARCHAR(100) NULL,
+    sistema_arquivos   VARCHAR(20)  NULL,
+    tamanho_bytes      BIGINT UNSIGNED NULL,
+    espaco_livre_bytes BIGINT UNSIGNED NULL,
+    FOREIGN KEY (id_coleta) REFERENCES ti_inventario_coleta(id) ON DELETE CASCADE,
+    INDEX idx_id_coleta (id_coleta)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Drivers assinados instalados (Win32_PnPSignedDriver). hardware_id e a
+-- chave de comparacao entre maquinas -- nome do dispositivo pode variar
+-- um pouco por instancia/fabricante do mesmo chip, hardware_id identifica
+-- o componente real (ver 10.6).
+CREATE TABLE ti_driver (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    id_coleta      INT NOT NULL,
+    nome           VARCHAR(255) NULL,
+    fabricante     VARCHAR(150) NULL,
+    versao         VARCHAR(100) NULL,
+    data_versao    DATETIME NULL,
+    hardware_id    VARCHAR(255) NULL,
+    FOREIGN KEY (id_coleta) REFERENCES ti_inventario_coleta(id) ON DELETE CASCADE,
+    INDEX idx_id_coleta (id_coleta),
+    INDEX idx_hardware_id (hardware_id(100))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Numero de Ativo: mesmo tratamento de serial_bios/serial_placa_mae (secao 4)
+-- -- capturado por coleta em ti_bios, copiado pra ti_equipamento no upsert.
+ALTER TABLE ti_bios ADD COLUMN asset_tag VARCHAR(100) NULL AFTER numero_serie;
+ALTER TABLE ti_equipamento ADD COLUMN asset_tag VARCHAR(100) NULL AFTER patrimonio;
+```
+
+`ti_volume`/`ti_driver` seguem exatamente o mesmo ciclo de vida de
+`ti_disco`/`ti_rede` no resto do spec: um snapshot novo por coleta, sem
+soft delete próprio (a linha morre com a coleta via `ON DELETE CASCADE`; o
+que "desapareceu" só se nota comparando duas coletas, não apagando nada).
+
+### 10.3. Mudanças no agente (.NET) — versão 1.4.0
+
+Dois coletores novos em `agente-inventario-pc/AgenteInventarioPC/Coleta/`,
+seguindo o padrão de `ColetorHardware.cs`:
+
+- **`ColetorVolumes.cs`** — `Win32_LogicalDisk` filtrado por `DriveType=3`
+  (unidade fixa). Campos: `DeviceID` (letra), `VolumeName` (rótulo),
+  `FileSystem`, `Size`, `FreeSpace`.
+- **`ColetorDrivers.cs`** — `Win32_PnPSignedDriver`. Campos: `DeviceName`,
+  `Manufacturer`, `DriverVersion`, `DriverDate`, `HardWareID`. Sem filtro
+  por classe de dispositivo na primeira versão — traz tudo que está
+  assinado; refinar depois se a lista ficar ruidosa demais (ex.: dispositivo
+  virtual sem interesse nenhum pra "desatualizado").
+- **`ColetorHardware.ColetarBios()`** ganha mais um campo:
+  `Win32_SystemEnclosure.SMBIOSAssetTag` (Número de Ativo).
+
+`InventarioPayload.cs` ganha `Volume[]` e `Driver[]` (opcionais, mesma
+regra da seção 4: se uma consulta WMI falhar, o resto do payload continua
+sendo aceito) e `Bios.AssetTag`. `Program.cs`: `VersaoAgente` sobe de
+`"1.3.0"` pra `"1.4.0"`.
+
+**Ingestão (`POST /api/ti/inventario`):** grava `ti_volume`/`ti_driver` em
+lote, mesma lógica de `ti_disco`/`ti_rede` (seção 4, passo 4). O upsert de
+`ti_equipamento` (passo 1) ganha `asset_tag` na mesma regra de
+`serial_bios`/`serial_placa_mae` — `COALESCE`, só atualiza se vier
+preenchido, nunca apaga um valor já existente.
+
+### 10.4. Rollout gradual — o parque não tem dado no primeiro dia
+
+O agente roda como tarefa agendada **no boot** (seção 5.7, Card 2), não em
+ciclo periódico. No dia em que a versão 1.4.0 sobe, **nenhuma máquina tem
+`ti_volume`/`ti_driver`/`asset_tag` até reiniciar pelo menos uma vez** — o
+parque inteiro aparece como "sem dado" nas telas novas até lá, e a
+cobertura completa pode levar dias ou semanas, dependendo de quanto tempo
+cada máquina fica ligada sem reiniciar. Telas que dependem desses dados
+tratam ausência como estado normal (ex.: "Espaço em disco: sem dado —
+aguardando atualização do agente"), não como erro.
+
+### 10.5. Grupo de menu e telas
+
+Todas ganham/mantêm `requirePermissao(rotaTela, acao)` — mesma regra de
+sempre, nenhuma delas fica visível sozinha: seedar `telas_modulo` não
+concede permissão a ninguém, alguém precisa marcar em Configurador →
+Perfis depois do deploy (regra geral do CLAUDE.md).
+
+| Tela | `rota_tela` | `grupo_menu` | Status |
+|---|---|---|---|
+| Equipamentos | `/ti/equipamentos` | `Análises TI` | Existente — só muda `grupo_menu` (era `NULL`) |
+| Auditoria de Coleta | `/ti/auditoria-coleta` | `Análises TI` | Existente — só muda `grupo_menu` |
+| Dashboard TI | `/ti/dashboard` | `Análises TI` | Nova |
+| Programas Desatualizados | `/ti/programas-desatualizados` | `Análises TI` | Nova |
+| Drivers Desatualizados | `/ti/drivers-desatualizados` | `Análises TI` | Nova |
+
+**Equipamentos** ganha uma coluna na lista (`GET /ti/equipamentos`): soma
+de `ti_disco.tamanho_bytes` da última coleta, mesmo padrão do subselect que
+já soma `ti_memoria_ram.capacidade_bytes` — completa o requisito de "lista
+resumo com HD" sem tela nova.
+
+### 10.6. Dashboard TI (`/ti/dashboard`)
+
+Componente `lazy` (mesmo motivo do `DashboardPage` de Faturamento —
+Recharts dobra o bundle), com filtro por filial/departamento. Cada card lê
+só a última coleta de cada equipamento ativo (mesmo `LEFT JOIN` por
+subquery que `GET /ti/equipamentos` já usa):
+
+- **Por Sistema Operacional** — contagem agrupada por `ti_sistema_operacional.caption`.
+- **Por Processador** — contagem agrupada por `ti_processador.nome`, top 8 + "Outros".
+- **Por faixa de memória RAM** — bucket fixo (`< 8 GB`, `8–16 GB`,
+  `16–32 GB`, `> 32 GB`) sobre a soma de `ti_memoria_ram.capacidade_bytes`
+  por coleta.
+- **Espaço em disco (parque)** — soma de `tamanho_bytes` e
+  `espaco_livre_bytes` de `ti_volume` em todas as máquinas com dado, mais
+  uma lista das 10 máquinas com menor percentual livre (a régua de "crítico"
+  é a mesma faixa de cores que Auditoria de Coleta já usa como padrão
+  visual do módulo — não uma nova convenção).
+
+Todo card mostra quantas máquinas ativas têm dado vs. quantas ainda não
+(rollout, seção 10.4) — não esconde a lacuna, mostra "N de M máquinas".
+
+### 10.7. Programas Desatualizados (`/ti/programas-desatualizados`)
+
+Uma linha por **nome de software**, olhando só a última coleta de cada
+equipamento ativo (mesmo universo de "Softwares Aprovados", seção 5.8):
+
+1. Agrupa `ti_software` (última coleta de cada máquina) por `nome`.
+2. Para cada nome, acha a maior `versao` vista no parque **por comparação
+   textual** (`ORDER BY versao DESC` em SQL, ou lexicográfica se
+   precisar de lógica que o `ORDER BY` puro não cobre) — limitação aceita
+   e documentada: não entende semver de verdade (`"2.10"` pode comparar
+   errado com `"2.9"`). O valor do relatório é achar disparidade grande no
+   parque, não fazer ranking preciso de versão.
+3. Marca "desatualizada" toda máquina cuja versão para aquele nome é
+   diferente da versão máxima achada.
+
+Colunas: nome do software, versão máxima no parque, quantas máquinas
+atualizadas, quantas desatualizadas. Clicar abre o mesmo padrão de
+drill-down de "Máquinas com o Software" (seção 5.8): quais máquinas, com
+qual versão, responsável.
+
+### 10.8. Drivers Desatualizados (`/ti/drivers-desatualizados`)
+
+Mesma lógica da seção 10.7, mas agrupando por `hardware_id` em vez de
+`nome` — dois dispositivos com o mesmo `hardware_id` são fisicamente o
+mesmo componente (mesmo chip/modelo), então a comparação de versão faz
+sentido; `nome` sozinho pode variar por driver instalado mesmo sendo o
+mesmo hardware. Linha sem `hardware_id` fica de fora da comparação (mesma
+regra de "sem chave estável não compara" que o diff de coletas já usa,
+seção 6). Some da lista até o agente 1.4.0 chegar na máquina (seção 10.4).
+
+### 10.9. Fora de escopo (registrado, não desenhado)
+
+- **Gravar o Número de Ativo na BIOS por fabricante** — Lenovo tem método
+  WMI nativo (`Lenovo_SetBiosSetting`); Dell exige Dell Command | Configure
+  (`cctk.exe`); HP exige HP BIOS Configuration Utility ou o módulo
+  PowerShell HP CMSL; máquina montada não tem caminho padrão (depende da
+  BIOS/UEFI da placa-mãe específica, algumas só aceitam gravação manual na
+  tela de setup). Quando for desenhado, o lugar natural é um card novo em
+  **Gerar Scripts** (seção 5.7), não em Análises TI — é geração de script
+  de ação, não relatório.
+- **Threshold configurável de "não inventariado"** — hoje fixo em
+  código (Auditoria de Coleta, seção 5.9); virar parâmetro editável em
+  Configurador → Parâmetros é uma melhoria futura, não pedida nesta rodada.
+- **Comparação de versão ciente de semver** — troca da comparação textual
+  (10.7/10.8) por uma que entenda `major.minor.patch` de verdade, se a
+  taxa de falso positivo/negativo se mostrar um problema real em uso.
+- **Windows Update como fonte de "driver pendente"** (em vez de comparação
+  de parque) — mais preciso (pergunta ao Windows Update se existe mesmo
+  uma atualização), mas exige rodar a mesma consulta COM
+  (`Microsoft.Update.Session`) que o script de Atualizar Programas e
+  Drivers já usa (seção 5.7) dentro do próprio agente, com risco real de
+  lentidão (busca no Windows Update pode levar dezenas de segundos) e de
+  falhar logo no boot se o serviço do Windows Update ainda não subiu.
+  Considerado e descartado por ora em favor da comparação de parque
+  (10.8), que é rápida e não depende de nenhum serviço externo.
