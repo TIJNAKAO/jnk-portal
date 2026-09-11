@@ -66,6 +66,9 @@ public class ComputadorInfo
 
     [JsonPropertyName("serial_placa_mae")]
     public string? SerialPlacaMae { get; set; }
+
+    [JsonPropertyName("asset_tag")]
+    public string? AssetTag { get; set; }
 }
 
 public class ColetaInfo
@@ -177,6 +180,9 @@ public class BiosInfo
 
     [JsonPropertyName("versao")]
     public string? Versao { get; set; }
+
+    [JsonPropertyName("asset_tag")]
+    public string? AssetTag { get; set; }
 }
 
 public class MemoriaRamInfo

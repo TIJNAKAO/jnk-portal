@@ -3,7 +3,7 @@ using AgenteInventarioPC.Configuracao;
 using AgenteInventarioPC.Envio;
 using AgenteInventarioPC.Modelos;
 
-const string VersaoAgente = "1.3.0";
+const string VersaoAgente = "1.4.0";
 
 // Log em arquivo ao lado do .exe, além do console — rodando via Tarefa
 // Agendada (principalmente como SYSTEM/onstart) não existe console
@@ -78,6 +78,7 @@ try
     // tb_pc_maquina usa como referência mais estável que o nome do PC.
     payload.Computador.SerialBios = payload.Bios?.NumeroSerie;
     payload.Computador.SerialPlacaMae = payload.PlacaMae?.NumeroSerie;
+    payload.Computador.AssetTag = payload.Bios?.AssetTag;
 
     Log(
         $"  {payload.MemoriaRam.Count} pente(s) de memória, {payload.Disco.Count} disco(s), " +

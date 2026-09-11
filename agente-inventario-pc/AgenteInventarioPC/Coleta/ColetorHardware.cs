@@ -74,12 +74,34 @@ public static class ColetorHardware
         var linha = ConsultarUmaLinha("SELECT Manufacturer, SerialNumber, Version FROM Win32_BIOS");
         if (linha is null) return null;
 
+        // Número de Ativo (Asset Tag) é um campo SMBIOS Type 3 (chassi), não
+        // do BIOS — consulta separada. É padrão do SMBIOS, não proprietário
+        // de fabricante: funciona igual em Dell/HP/Lenovo/montada.
+        var chassi = ConsultarUmaLinha("SELECT SMBIOSAssetTag FROM Win32_SystemEnclosure");
+
         return new BiosInfo
         {
             Fabricante = Texto(linha, "Manufacturer"),
             NumeroSerie = Texto(linha, "SerialNumber")?.Trim(),
             Versao = Texto(linha, "Version"),
+            AssetTag = chassi is null ? null : NormalizarAssetTag(Texto(chassi, "SMBIOSAssetTag")),
         };
+    }
+
+    // Fabricantes de placa-mãe deixam esse campo com um valor-padrão quando
+    // ninguém nunca gravou um Número de Ativo de verdade — tratar como
+    // "sem dado" evita a lista de Análises TI ficar cheia desses
+    // placeholders assim que o agente 1.4.0 chegar no parque.
+    private static readonly HashSet<string> PlaceholdersAssetTag = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "No Asset Tag", "Not Specified", "Default string", "To Be Filled By O.E.M.", "0", "",
+    };
+
+    private static string? NormalizarAssetTag(string? valor)
+    {
+        var texto = valor?.Trim();
+        if (string.IsNullOrEmpty(texto) || PlaceholdersAssetTag.Contains(texto)) return null;
+        return texto;
     }
 
     public static List<MemoriaRamInfo> ColetarMemoriaRam()
