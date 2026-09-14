@@ -29,6 +29,14 @@ derrubam duas suposições iniciais.
 | Tabelas `TOTVS_*` | **todas com 0 linhas** |
 | Última NF no `KPL_NF` | **31/12/2024** |
 | Linhas vindas da lista `CUSTO_JNK` (docto `999999999`) | **2.137 de 6.902** no último período (31%) |
+| Períodos distintos | **111**, não 112 — falta `201912` |
+
+**Dezembro de 2019 não existe, e vai continuar não existindo.** O intervalo
+201701–202604 tem 112 meses, mas a origem só tem 111: a procedure nunca foi
+executada para `201912`. Conferido no SQL Server, não é perda da carga. O
+dono do processo decidiu **deixar a lacuna como está** — margem retroativa
+daquele mês não tem custo, e isso é esperado, não defeito. Não reabra esta
+investigação.
 
 Três consequências:
 
