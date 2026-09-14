@@ -23,6 +23,21 @@ import { COLUNAS_LEGADO, data, decimal, periodoParaData, texto } from '../servic
  * (periodo, origem, empresa, cd_produto). Rodar de novo reescreve os mesmos
  * valores, nao duplica.
  *
+ * O CSV e gerado no SQL Server de origem com o `bcp` abaixo (sem
+ * credenciais aqui):
+ *
+ * ```
+ * bcp "SELECT CD_EMPRESA, PERIODO, CD_PROD, DC_PROD, MARCA, NCM, CONVERT(varchar(10),DT_MOVTO,23), CONVERT(varchar(10),DT_EMISSAO,23), DOCTO, SERIE, CD_CLIFOR, DC_CLIFOR, MUN_CLIFOR, UF_CLIFOR, QTDE, VU_MERC, ALIQ_ICMS, ALIQ_RED_ICMS, VB_ICMS, VT_ICMS, VT_ICMS_ST, VT_ST_GNRE, ALIQ_IPI, VB_IPI, VT_IPI, ALIQ_PIS, VB_PIS, VT_PIS, ALIQ_COFINS, VB_COFINS, VT_COFINS, VT_NF, VT_CUSTO, VU_CUSTO, VT_FOB_EURO, CST FROM RDW.dbo.KPL_ULT_COMPRA ORDER BY PERIODO, CD_EMPRESA, CD_PROD" queryout <arquivo.csv> -S <host> -d RDW -U <usuario> -P <senha> -c -C 65001 -u -t"~|~"
+ * ```
+ *
+ * O `CONVERT(varchar(10), ..., 23)` nas duas colunas de data e o `-C 65001`
+ * (UTF-8) NAO sao opcionais: sem o CONVERT, o SQL Server escreve
+ * `DATETIME` no formato default (`2016-04-09 00:00:00.000`), que `data()`
+ * em `comprasCustoLegado.ts` rejeita — e rejeita lancando, de proposito,
+ * pra esse tipo de reexportacao quebrada nao virar 742.830 datas NULL em
+ * silencio. Sem `-C 65001`, acento em nome de produto/fornecedor grava
+ * errado.
+ *
  * Uso:
  *   npm run import:custo-entrada --workspace=apps/api -- --arquivo <caminho.csv>
  *   npm run import:custo-entrada --workspace=apps/api -- --arquivo <caminho.csv> --limite 1000
@@ -57,17 +72,28 @@ interface ProdutoRow extends RowDataPacket {
 /**
  * De-para carregado UMA vez na memoria. Sao 11.509 produtos: cabe folgado, e
  * evita 742 mil consultas de resolucao.
+ *
+ * `codigo_auxiliar` tem indice NAO-unico em `sysemp_produto` e o SELECT
+ * abaixo nao tem ORDER BY: quando o mesmo codigo aparece em mais de um
+ * produto, a colisao e resolvida em silencio pelo primeiro que o InnoDB
+ * devolver (mesma estrategia da 029 — nao mudar aqui). `codigosAmbiguos`
+ * so conta quantos codigos distintos colidiram, pra aparecer no log final
+ * ao lado de `sem_produto_no_cadastro`.
  */
-async function carregarDePara() {
+async function carregarDePara(): Promise<{ porCodigo: Map<string, number>; codigosAmbiguos: number }> {
   const [produtos] = await pool.query<ProdutoRow[]>(
     'SELECT id_produto, codigo_auxiliar FROM sysemp_produto WHERE codigo_auxiliar IS NOT NULL',
   );
   const porCodigo = new Map<string, number>();
+  const ocorrencias = new Map<string, number>();
   for (const p of produtos) {
     const chave = String(p.codigo_auxiliar).trim().toUpperCase();
-    if (chave && !porCodigo.has(chave)) porCodigo.set(chave, p.id_produto);
+    if (!chave) continue;
+    ocorrencias.set(chave, (ocorrencias.get(chave) ?? 0) + 1);
+    if (!porCodigo.has(chave)) porCodigo.set(chave, p.id_produto);
   }
-  return porCodigo;
+  const codigosAmbiguos = [...ocorrencias.values()].filter((n) => n > 1).length;
+  return { porCodigo, codigosAmbiguos };
 }
 
 async function main() {
@@ -79,7 +105,7 @@ async function main() {
   }
   const limite = Number(argumento('limite') ?? 0);
 
-  const porCodigo = await carregarDePara();
+  const { porCodigo, codigosAmbiguos } = await carregarDePara();
   console.log(`[custo] de-para de produto carregado: ${porCodigo.size} codigos.`);
 
   const leitor = createInterface({ input: createReadStream(arquivo, 'utf8'), crlfDelay: Infinity });
@@ -138,7 +164,10 @@ async function main() {
   }
   await gravar();
 
-  console.log(`[custo] lidas=${lidas} gravadas=${gravadas} sem_produto_no_cadastro=${semProduto}`);
+  console.log(
+    `[custo] lidas=${lidas} gravadas=${gravadas} sem_produto_no_cadastro=${semProduto} ` +
+      `codigos_ambiguos_no_cadastro=${codigosAmbiguos}`,
+  );
 }
 
 main()

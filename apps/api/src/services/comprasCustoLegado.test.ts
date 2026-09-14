@@ -52,8 +52,8 @@ describe('decimal', () => {
     expect(decimal(undefined)).toBeNull();
   });
 
-  test('texto que nao e numero vira null em vez de NaN', () => {
-    expect(decimal('N/D')).toBeNull();
+  test('texto que nao e numero lanca em vez de virar NaN ou null em silencio', () => {
+    expect(() => decimal('N/D')).toThrow();
   });
 });
 
@@ -68,7 +68,7 @@ describe('data', () => {
   });
 
   test('recusa data fora do formato ISO em vez de deixar o MySQL adivinhar', () => {
-    expect(data('01/04/2026')).toBeNull();
+    expect(() => data('01/04/2026')).toThrow();
   });
 });
 

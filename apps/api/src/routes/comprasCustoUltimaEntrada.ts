@@ -10,6 +10,17 @@ export const comprasCustoUltimaEntradaRouter = Router();
 
 const ROTA = '/compras/custo-ultima-entrada';
 
+// Ao contrario das demais telas de relatorio (ver comprasPedidos.ts), esta
+// rota NAO aplica escopoEmpresas.ts. Decisao consciente, nao esquecimento:
+// id_empresa fica NULL em 100% do historico importado pela Fase 1 (ver
+// importarCustoUltimaEntrada.ts) — nao ha chave pra escopoEmpresas casar,
+// porque a coluna do filtro simplesmente nao foi preenchida na carga. A
+// contencao hoje e so a permissao de tela (requirePermissao abaixo), que
+// ninguem tem ate ser marcada em Configurador -> Perfis.
+// Quando a Fase 2 gravar linhas com id_empresa preenchido, ISTO PRECISA SER
+// REVISTO — o service deste modulo nao pode ser copiado como modelo sem
+// saber disso.
+
 comprasCustoUltimaEntradaRouter.use(authTenant);
 
 comprasCustoUltimaEntradaRouter.get('/periodos', requirePermissao(ROTA, 'podeVisualizar'), async (_req, res) => {

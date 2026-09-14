@@ -35,16 +35,39 @@ export function texto(valor: string | undefined): string | null {
   return limpo === '' ? null : limpo;
 }
 
-/** Numero do bcp; vazio ou nao-numerico vira NULL em vez de NaN. */
+/**
+ * Numero do bcp. Campo vazio vira NULL (ha 5.557 deles, legitimos, em
+ * VU_MERC e VT_FOB_EURO); campo preenchido mas nao-numerico LANCA, em vez
+ * de virar NULL em silencio — um NULL por dado malformado ficaria
+ * indistinguivel de um NULL por campo vazio de verdade.
+ */
 export function decimal(valor: string | undefined): number | null {
   const limpo = String(valor ?? '').trim();
   if (limpo === '') return null;
   const n = Number(limpo);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) {
+    throw new Error(`Valor numerico invalido vindo do bcp: ${valor}`);
+  }
+  return n;
 }
 
-/** Data ja exportada em ISO pelo SELECT do export; qualquer outro formato vira NULL. */
+/**
+ * Data ja exportada em ISO pelo SELECT do export (`CONVERT(varchar(10), ...,
+ * 23)`). Campo vazio vira NULL; formato fora do ISO LANCA — nao vira NULL
+ * em silencio.
+ *
+ * Isso importa porque o `bcp` que gera o CSV depende desse CONVERT pra
+ * garantir ISO (ver JSDoc de `importarCustoUltimaEntrada.ts`). Reexportar
+ * sem ele faz o bcp escrever `2016-04-09 00:00:00.000`; se essa funcao
+ * devolvesse NULL pra esse formato, as 742.830 datas virariam NULL sem
+ * nenhuma mensagem — a tela mostraria a coluna "Entrada" vazia e a
+ * contagem de linhas continuaria batendo, escondendo o problema.
+ */
 export function data(valor: string | undefined): string | null {
   const limpo = String(valor ?? '').trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(limpo) ? limpo : null;
+  if (limpo === '') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(limpo)) {
+    throw new Error(`Data fora do formato ISO vinda do bcp: ${valor}`);
+  }
+  return limpo;
 }

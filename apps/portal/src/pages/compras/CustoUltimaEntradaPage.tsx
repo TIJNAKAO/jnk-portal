@@ -52,6 +52,12 @@ export function CustoUltimaEntradaPage() {
   const [dados, setDados] = useState<Resposta | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Controla a corrida com o efeito de baixo: sem esperar os periodos
+  // carregarem, a primeira busca de dados dispara com periodo = '' —
+  // COUNT(*) sem WHERE mais ORDER BY sem indice sobre 742 mil linhas — e
+  // dispara de novo, ja filtrada, assim que o periodo padrao chega. Duas
+  // varreduras completas em toda montagem da tela.
+  const [periodosCarregados, setPeriodosCarregados] = useState(false);
 
   useEffect(() => {
     api<string[]>('/compras/custo-ultima-entrada/periodos')
@@ -59,10 +65,13 @@ export function CustoUltimaEntradaPage() {
         setPeriodos(lista);
         if (lista.length > 0 && !periodo) setPeriodo(lista[0] ?? '');
       })
-      .catch((e) => setErro(String(e)));
+      .catch((e) => setErro(String(e)))
+      .finally(() => setPeriodosCarregados(true));
   }, []);
 
   useEffect(() => {
+    if (!periodosCarregados) return;
+
     setCarregando(true);
     setErro(null);
     const params = new URLSearchParams({ pagina: String(pagina), tamanho: String(TAMANHO) });
@@ -74,7 +83,7 @@ export function CustoUltimaEntradaPage() {
       .then(setDados)
       .catch((e) => setErro(String(e)))
       .finally(() => setCarregando(false));
-  }, [periodo, empresa, produto, pagina]);
+  }, [periodosCarregados, periodo, empresa, produto, pagina]);
 
   const totalPaginas = dados ? Math.max(1, Math.ceil(dados.total / TAMANHO)) : 1;
 
@@ -148,7 +157,11 @@ export function CustoUltimaEntradaPage() {
                 <td className="p-2">{l.documento}</td>
                 <td className="p-2">{l.dc_clifor}</td>
                 <td className="p-2 text-right">{fmtNumero(l.qtde, 2)}</td>
-                <td className="p-2 text-right">{fmtNumero(l.vu_custo, 4)}</td>
+                {/* vu_custo e DECIMAL(18,6) na tabela — vem de divisao por
+                    quantidade, e a tela existe pra conferir esse numero
+                    contra o legado. Arredondar pra 4 casas escondia
+                    divergencia em ~32% das linhas medidas. */}
+                <td className="p-2 text-right">{fmtNumero(l.vu_custo, 6)}</td>
                 <td className="p-2 text-right">{fmtNumero(l.vt_custo, 2)}</td>
                 <td className="p-2">{l.origem}</td>
               </tr>

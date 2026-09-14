@@ -58,8 +58,9 @@ export async function buscarCustoUltimaEntradaPaginado(filtro: FiltroCusto) {
 
   const offset = (filtro.pagina - 1) * filtro.tamanho;
   const [linhas] = await pool.query<LinhaCusto[]>(
-    `SELECT id, periodo, origem, empresa, cd_produto, descricao_produto, marca,
-            dt_movto, documento, dc_clifor, qtde, vu_custo, vt_custo, produto_encontrado
+    `SELECT id, DATE_FORMAT(periodo, '%Y-%m-%d') AS periodo, origem, empresa, cd_produto,
+            descricao_produto, marca, DATE_FORMAT(dt_movto, '%Y-%m-%d') AS dt_movto,
+            documento, dc_clifor, qtde, vu_custo, vt_custo, produto_encontrado
        FROM compras_custo_ultima_entrada
        ${where}
       ORDER BY periodo DESC, empresa, cd_produto
@@ -70,9 +71,19 @@ export async function buscarCustoUltimaEntradaPaginado(filtro: FiltroCusto) {
   return { linhas, total };
 }
 
+/**
+ * O pool usa `dateStrings: false`, entao coluna DATE chega como objeto
+ * `Date` do driver; `String(date)` produziria o formato verboso do
+ * `Date.toString()` ("Wed Apr 01 2026 ..."), que nao bate com o
+ * `WHERE periodo = ?` da consulta paginada nem serve de rotulo na tela.
+ * `DATE_FORMAT` no SQL devolve a data ja como string ISO, igual ao mesmo
+ * padrao usado em `estoqueCustoFechamento.ts`.
+ */
 export async function buscarPeriodosDisponiveis(): Promise<string[]> {
   const [linhas] = await pool.query<RowDataPacket[]>(
-    'SELECT DISTINCT periodo FROM compras_custo_ultima_entrada ORDER BY periodo DESC',
+    `SELECT DISTINCT DATE_FORMAT(periodo, '%Y-%m-%d') AS periodo
+       FROM compras_custo_ultima_entrada
+      ORDER BY periodo DESC`,
   );
   return linhas.map((l) => String(l.periodo));
 }
