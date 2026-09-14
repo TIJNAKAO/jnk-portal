@@ -17,8 +17,12 @@ comprasCustoUltimaEntradaRouter.get('/periodos', requirePermissao(ROTA, 'podeVis
 });
 
 comprasCustoUltimaEntradaRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
-  const pagina = Math.max(1, Number(req.query.pagina ?? 1));
-  const tamanho = Math.min(200, Math.max(1, Number(req.query.tamanho ?? 50)));
+  // `||` (nao `??`) pra cair no default tambem em NaN — `pagina=abc` vira
+  // `Number('abc') = NaN`, que `??` nao trata. `Math.floor` garante inteiro:
+  // sem ele, `pagina=2.5`/`tamanho=50.7` chegam decimais no LIMIT/OFFSET do
+  // SQL e o MySQL rejeita com erro de sintaxe (500 pro cliente).
+  const pagina = Math.max(1, Math.floor(Number(req.query.pagina) || 1));
+  const tamanho = Math.min(200, Math.max(1, Math.floor(Number(req.query.tamanho) || 50)));
 
   const resultado = await buscarCustoUltimaEntradaPaginado({
     periodo: (req.query.periodo as string) || undefined,
