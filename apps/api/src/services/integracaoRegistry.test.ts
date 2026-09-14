@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { buscarEntidadeIntegracao } from './integracaoRegistry.js';
+import { buscarEntidadeIntegracao, ENTIDADES_INTEGRACAO } from './integracaoRegistry.js';
 
 /**
  * A chave da entidade precisa ser identica a gravada em
@@ -24,5 +24,14 @@ describe('entidade notas_compra', () => {
     expect(compra).toBeDefined();
     expect(pedido).toBeDefined();
     expect(compra?.chave).not.toBe(pedido?.chave);
+  });
+
+  // O teste acima compara duas strings literais diferentes - verdade por
+  // construcao, nao pega o risco real: duas entidades cadastradas com a
+  // MESMA chave (find() so acharia a primeira, a segunda ficaria invisivel
+  // e sincronizarFila nunca seria chamada pra ela). Esta verificacao cobre
+  // o registro inteiro, nao so o par notas_compra/pedidos_compra.
+  test('nenhuma entidade registrada colide de chave com outra', () => {
+    expect(new Set(ENTIDADES_INTEGRACAO.map((e) => e.chave)).size).toBe(ENTIDADES_INTEGRACAO.length);
   });
 });

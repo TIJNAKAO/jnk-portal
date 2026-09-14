@@ -1,4 +1,4 @@
-import './sysemp/entidades/notasFiscais.js'; // side-effect: registra o consumidor de fila (tipo_tabela 2)
+import './sysemp/entidades/notasFiscais.js'; // side-effect: registra os consumidores de fila (tipo_tabela 2 e 3)
 import './sysemp/entidades/estoque.js'; // side-effect: registra o consumidor de fila (tipo_tabela 9)
 import './sysemp/entidades/pedidos.js'; // side-effect: registra o consumidor de fila (tipo_tabela 7)
 import './sysemp/entidades/pedidosCompra.js'; // side-effect: registra o consumidor de fila (tipo_tabela 5)
