@@ -7,6 +7,7 @@ import { EsqueciSenhaPage } from './pages/EsqueciSenhaPage';
 import { LoginPage } from './pages/LoginPage';
 import { ModulesPage } from './pages/ModulesPage';
 import { RedefinirSenhaPage } from './pages/RedefinirSenhaPage';
+import { CustoUltimaEntradaPage } from './pages/compras/CustoUltimaEntradaPage';
 import { PedidosPage } from './pages/compras/PedidosPage';
 import { AvisosPage } from './pages/config/AvisosPage';
 import { FiliaisPage } from './pages/config/FiliaisPage';
@@ -66,6 +67,7 @@ export function App() {
             <Route path="/modules" element={<ModulesPage />} />
 
             <Route path="/compras/pedidos" element={<PedidosPage />} />
+            <Route path="/compras/custo-ultima-entrada" element={<CustoUltimaEntradaPage />} />
 
             <Route path="/config/filiais" element={<FiliaisPage />} />
             <Route path="/config/usuarios" element={<UsuariosPage />} />
