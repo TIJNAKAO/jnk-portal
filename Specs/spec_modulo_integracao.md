@@ -159,8 +159,11 @@ o mapeamento completo `tipo_tabela → configuração`.
 
 Notas Fiscais e Estoque nasceram na fila (era o escopo da v1 — seção
 7.1); Pedidos, Parceiros, Preços e Produtos migraram depois do lote pra
-cá, sem mexer no motor. Hoje só as buscas completas (seção 3.5) seguem
-fora da fila.
+cá, sem mexer no motor. NF de Compra (`tipo_tabela=3`) entrou depois, sem
+lote nenhum por trás — a tabela abaixo já a documentava desde a v1, mas
+sem consumidor registrado até a Fase 2a (14/09/2026, ver seção 7.5), que
+plugou o mesmo consumidor de NF Venda sob esse tipo. Hoje só as buscas
+completas (seção 3.5) seguem fora da fila.
 
 | `tipo_tabela` | Entidade | `endpoint_detalhe` | `campo_id_detalhe` | Grava em |
 |---|---|---|---|---|
@@ -212,6 +215,19 @@ Regras específicas de cada consumidor:
 - **Nota Fiscal**: cabeçalho e itens vêm juntos no mesmo JSON de detalhe.
   Itens: soft-delete de todos antes do upsert, "revivendo" só os que vêm
   na resposta atual (item que não voltar mais fica `deleted=true`).
+- **NF Compra**: mesmo endpoint, mesmo formato de JSON e mesmo consumidor
+  de Nota Fiscal, registrado sob `tipo_tabela=3` (Fase 2a, 14/09/2026) — o
+  que separa as duas é `entrada_saida`. O consumidor roda atrás de uma
+  guarda que confere `entrada_saida` antes de gravar (recusa e lança erro
+  se o registro/payload não for de entrada), porque ninguém mediu, na
+  ORIGEM, se o espaço de `id_nota_saida` do tipo 3 é de fato disjunto do
+  tipo 2 — a medição que existe foi feita dentro de `sysemp_nota_fiscal`,
+  onde `id_nota_saida` é a própria PRIMARY KEY (ver
+  `services/sysemp/entidades/notasFiscais.ts` e a retificação da migration
+  039 sobre a justificativa original da 038). **Risco em aberto**: a
+  primeira execução em produção rodou com sucesso e trouxe **zero**
+  registros, e `sysemp_fila` não tem nenhuma linha de `tipo_tabela=3` até
+  agora — ninguém viu ainda o payload real de uma NF de compra.
 - **Estoque**: chave natural `(id_produto, id_empresa)` → upsert direto
   (`ON DUPLICATE KEY UPDATE`), não delete+insert.
 - **Parceiro**: sem sub-tabelas (cliente/fornecedor/transportadora são
@@ -1023,7 +1039,8 @@ CREATE TABLE etl_fatcom (
 ### 5.1. Painel de Integrações (`/integracao/painel`)
 
 Um card por entidade (Empresas, Produtos, Parceiros, Preços, Estoque,
-Pedidos, Notas Fiscais, Representantes, ML Pedidos, + os 3 ETLs). Cada
+Pedidos, Notas Fiscais, Notas Fiscais de Compra, Representantes, ML
+Pedidos, + os 3 ETLs). Cada
 card mostra: status da última execução (badge), quando rodou, quantidade
 de registros, e botão "Sincronizar agora" (dispara o job em background e
 leva pro histórico dessa execução, já acompanhando ao vivo via SSE).
@@ -1101,7 +1118,11 @@ foi feito pro módulo TI.
    (seção 4.2).
 5. **OS (`tipo_tabela=8`)** — continua fora de escopo, não implementar por
    ora. **Pedido de Compra (`tipo_tabela=5`)**, que estava no mesmo item
-   como fora de escopo, foi implementado depois — ver seção 3.3.
+   como fora de escopo, foi implementado depois — ver seção 3.3. **NF de
+   Compra (`tipo_tabela=3`)** também não tinha consumidor registrado na
+   v1 (a tabela da seção 3.3 já a documentava, mas sem código por trás) —
+   passou a sincronizar pela fila na Fase 2a (14/09/2026), reaproveitando
+   o consumidor de NF Venda sob esse tipo — ver seção 3.3.
 6. **Migração do KPL** (`migration/kpl/migrate_kpl.py` no projeto
    original) — **pendente**, não faz parte desta spec. Fica em aberto pra
    decisão futura (vira spec própria se algum dia for necessária).
