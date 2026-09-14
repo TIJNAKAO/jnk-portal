@@ -12,3 +12,6 @@ npm-debug.log*
 coverage/
 .vite/
 *.tsbuildinfo
+
+# Rascunho de controle do subagent-driven-development (nao e codigo)
+.superpowers/
