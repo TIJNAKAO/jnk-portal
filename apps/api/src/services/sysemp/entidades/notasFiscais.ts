@@ -228,10 +228,45 @@ export async function gravarNotaFiscal(
 
 registrarConsumidorFila({ tipoTabela: 2, gravar: gravarNotaFiscal });
 
-// NF de Compra (tipo 3): mesmo endpoint, mesmo formato de JSON e mesma
-// tabela de destino da NF de Venda - o que separa as duas e entrada_saida.
-// Por isso o consumidor e o MESMO, e nao uma copia: o mapeamento de ~46
-// colunas deste arquivo foi conferido contra payload real, e duplica-lo
-// seria criar um segundo lugar para o descompasso de nomes que ja custou o
-// bloco fiscal inteiro entre 19 e 31/08/2026.
-registrarConsumidorFila({ tipoTabela: 3, gravar: gravarNotaFiscal });
+/**
+ * NF de Compra (tipo 3): mesmo endpoint, mesmo formato de JSON e mesma
+ * tabela de destino da NF de Venda - o que separa as duas e entrada_saida.
+ * Por isso o consumidor e o MESMO, e nao uma copia: o mapeamento de ~46
+ * colunas deste arquivo foi conferido contra payload real, e duplica-lo
+ * seria criar um segundo lugar para o descompasso de nomes que ja custou o
+ * bloco fiscal inteiro entre 19 e 31/08/2026.
+ *
+ * Guarda abaixo por causa do risco que isso cria: `id_nota_saida` e
+ * PRIMARY KEY de `sysemp_nota_fiscal`, e `gravarNotaFiscal` reescreve ~46
+ * colunas por upsert (ou soft-deleta cabecalho + itens inteiros, num
+ * evento `D` que nao vem com payload nenhum pra conferir). Isso pressupoe
+ * que o espaco de `id_nota_saida` do tipo_tabela=3 (compra) e disjunto do
+ * tipo_tabela=2 (venda) na ORIGEM (SysEmp) - e ninguem mediu isso na
+ * origem (a medicao que existe foi feita dentro de `sysemp_nota_fiscal`,
+ * onde `id_nota_saida` e a propria PK e por isso e trivialmente unico; ver
+ * a retificacao na migration 039). Se os espacos colidirem, um evento tipo
+ * 3 reescreveria ou apagaria em silencio uma nota de VENDA - e o
+ * soft-delete ainda tiraria as linhas dela do `etl_fatcom`. Em vez de
+ * confiar nisso, a guarda confere `entrada_saida` antes de gravar: se o
+ * registro ja existente (caso `D`, sem payload) ou o payload recebido
+ * (caso `I`/`U`) nao for de ENTRADA, lanca erro. O motor grava isso em
+ * `erro_consumo` e para naquele evento (ver `services/sysemp/fila.ts`) -
+ * transforma corrupcao silenciosa em falha alta, visivel no Painel.
+ */
+registrarConsumidorFila({
+  tipoTabela: 3,
+  gravar: async (conexao, payload, acao, idRegistro) => {
+    if (acao === 'D') {
+      const [linhas] = await conexao.query('SELECT entrada_saida FROM sysemp_nota_fiscal WHERE id_nota_saida = ?', [idRegistro]);
+      const existente = (linhas as { entrada_saida: string | null }[])[0];
+      if (existente && existente.entrada_saida !== 'E') {
+        throw new Error(
+          `Evento de NF de Compra (tipo 3) apontou para id_nota_saida=${idRegistro}, que e uma nota de SAIDA. Espaco de id divergente - nao apagar.`,
+        );
+      }
+    } else if (payload && payload.entrada_saida !== 'E') {
+      throw new Error(`Detalhe de id_nota_saida=${idRegistro} veio com entrada_saida='${String(payload.entrada_saida)}' num evento tipo 3.`);
+    }
+    await gravarNotaFiscal(conexao, payload, acao, idRegistro);
+  },
+});
