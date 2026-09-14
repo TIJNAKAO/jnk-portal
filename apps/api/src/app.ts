@@ -6,6 +6,7 @@ import express from 'express';
 import { env } from './config/env.js';
 import { authRouter } from './routes/auth.js';
 import { avisosRouter } from './routes/avisos.js';
+import { comprasCustoUltimaEntradaRouter } from './routes/comprasCustoUltimaEntrada.js';
 import { comprasPedidosRouter } from './routes/comprasPedidos.js';
 import { estoqueCurvaAbcRouter } from './routes/estoqueCurvaAbc.js';
 import { estoqueFechamentoComparativoRouter } from './routes/estoqueFechamentoComparativo.js';
@@ -82,6 +83,7 @@ app.use('/api/integracao/parametros-fila', integracaoParametrosFilaRouter);
 app.use('/api/integracao/mercado-livre', mercadoLivreRouter);
 
 app.use('/api/compras/pedidos', comprasPedidosRouter);
+app.use('/api/compras/custo-ultima-entrada', comprasCustoUltimaEntradaRouter);
 
 app.use('/api/estoque/curva-abc', estoqueCurvaAbcRouter);
 app.use('/api/estoque/saldos', estoqueSaldosRouter);
