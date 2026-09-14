@@ -143,8 +143,17 @@ Script de uso único em `apps/api/src/scripts/`, no padrão do
    adicionada** ao projeto para isso.
 2. Carregar em lotes de 200 com `inserirEmLote`.
 3. Converter `PERIODO` `aaaamm` → `DATE` no primeiro dia do mês.
-4. Resolver `id_empresa` e `id_produto` contra o cadastro atual; o que não
-   casar entra com id nulo e a flag em `FALSE`.
+4. Resolver **`id_produto`** contra o cadastro atual pelo `codigo_auxiliar`;
+   o que não casar entra com id nulo e `produto_encontrado = FALSE`.
+
+   **`id_empresa` fica nulo em toda a carga histórica**, e isso é decisão,
+   não omissão. O legado grava `CD_EMPRESA` como `'JNK'`/`'NK2'`, e a
+   `018_etl_empresa_kpl.sql` mostra por que a tradução não é direta: `'NK2'`
+   corresponde a uma única filial, mas `'JNK'` é **grupo de três filiais**
+   do KPL. Resolver só metade faria `empresa_encontrada` significar coisas
+   diferentes em linhas diferentes da mesma tabela. O texto da empresa é
+   preservado, a tela filtra por ele, e a tradução fica para quando houver
+   regra de negócio que diga qual filial representa o grupo.
 5. Gravar tudo com `origem = 'SQLSERVER'`.
 
 O script é **idempotente**: reexecutar não duplica, porque a chave única
@@ -180,6 +189,15 @@ Configurador → Perfis.
 | Fechar a lacuna de mai–ago/2026 | 2 |
 | Planilha do despachante e override de importação | 3 |
 | Mudar a margem do Faturamento para usar este custo | — |
+| Escopo por empresa do ERP na tela (`escopoEmpresas`) | 2 |
+
+A tela **não** aplica `escopoEmpresas.ts`, ao contrário das outras telas de
+relatório do projeto. Não há o que filtrar: `id_empresa` é nulo em toda a
+carga, então não existe chave para o escopo casar. A contenção nesta fase é
+a permissão de tela, que ninguém tem até ser marcada em Configurador →
+Perfis — conceda-a apenas a quem pode ver as duas empresas. **Quando a Fase
+2 gravar linhas com `id_empresa` preenchido, isto precisa ser revisto**, e
+está anotado também no código da rota.
 
 A margem fica de fora por decisão explícita: há hoje custo contábil
 (Fechamento de Custo) e custo médio, e trocar a base de cálculo muda
