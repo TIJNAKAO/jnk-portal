@@ -49,6 +49,25 @@ const DATA_MOVIMENTO = 'COALESCE(nf.nota_emissao, nf.nota_saida, nf.nota_cadastr
 const AUTORIZADA = `nf.protocolo_nfe IS NOT NULL AND nf.protocolo_nfe <> ''`;
 
 /**
+ * Exclui NF de Compra (CFOP de entrada/compra `1.1xx`/`2.1xx`/`3.1xx`, e
+ * devolução de compra `1.55x`/`2.55x`/`3.55x`) do fato de faturamento.
+ *
+ * `nota_cfop` é o CFOP do CABEÇALHO (não `item_cfop`, que pode variar por
+ * item dentro da mesma nota) — é ele que classifica a natureza da
+ * operação. Nota de compra de fornecedor não é faturamento em sentido
+ * nenhum: a numeração de NF é sequência do FORNECEDOR, independente da
+ * nossa, e `uq_fatcom (origem_dados, grupo_empresa, cd_filial, nf, serie,
+ * item, cd_produto)` não inclui `ent_sai` — um item de compra que caia na
+ * mesma combinação sobrescreveria a linha de uma venda. Devolução de
+ * VENDA (estorno) não entra aqui: continua incluída de propósito, é
+ * analisada pelo módulo de Faturamento.
+ */
+const NAO_E_COMPRA = `NOT (
+    nf.nota_cfop LIKE '1.1%' OR nf.nota_cfop LIKE '2.1%' OR nf.nota_cfop LIKE '3.1%'
+    OR nf.nota_cfop LIKE '1.55%' OR nf.nota_cfop LIKE '2.55%' OR nf.nota_cfop LIKE '3.55%'
+  )`;
+
+/**
  * Número e série da NF. 89 notas autorizadas chegam com `nota_numero` vazio
  * ou "0" — sem tratamento, todas colidem entre si na chave única e se
  * sobrescrevem. A chave de acesso da NF-e carrega os dois campos em posição
@@ -184,6 +203,7 @@ const ORIGEM = `
     AND ${AUTORIZADA}
     AND nf.data_cancelamento_nfe IS NULL
     AND COALESCE(nf.status_nota, '') <> '101'
+    AND ${NAO_E_COMPRA}
 `;
 
 function montarInsert(): string {
