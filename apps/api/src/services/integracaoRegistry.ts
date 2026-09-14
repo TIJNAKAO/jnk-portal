@@ -23,6 +23,7 @@ export interface EntidadeIntegracao {
 /** Registro central de todas as entidades sincronizáveis — usado pelo Painel e pelo endpoint de gatilho manual. */
 export const ENTIDADES_INTEGRACAO: EntidadeIntegracao[] = [
   { chave: 'notas_fiscais', nome: 'Notas Fiscais', sincronizar: (idLog) => sincronizarFila('notas_fiscais', idLog) },
+  { chave: 'notas_compra', nome: 'Notas Fiscais de Compra', sincronizar: (idLog) => sincronizarFila('notas_compra', idLog) },
   { chave: 'estoque', nome: 'Saldo de Estoque', sincronizar: (idLog) => sincronizarFila('estoque', idLog) },
   { chave: 'produtos', nome: 'Produtos', sincronizar: (idLog) => sincronizarFila('produtos', idLog) },
   { chave: 'parceiros', nome: 'Parceiros', sincronizar: (idLog) => sincronizarFila('parceiros', idLog) },

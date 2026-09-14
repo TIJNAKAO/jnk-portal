@@ -227,3 +227,11 @@ export async function gravarNotaFiscal(
 }
 
 registrarConsumidorFila({ tipoTabela: 2, gravar: gravarNotaFiscal });
+
+// NF de Compra (tipo 3): mesmo endpoint, mesmo formato de JSON e mesma
+// tabela de destino da NF de Venda - o que separa as duas e entrada_saida.
+// Por isso o consumidor e o MESMO, e nao uma copia: o mapeamento de ~46
+// colunas deste arquivo foi conferido contra payload real, e duplica-lo
+// seria criar um segundo lugar para o descompasso de nomes que ja custou o
+// bloco fiscal inteiro entre 19 e 31/08/2026.
+registrarConsumidorFila({ tipoTabela: 3, gravar: gravarNotaFiscal });
