@@ -1,0 +1,42 @@
+
+CREATE TABLE [dbo].[KPL_ULT_COMPRA](
+	[CD_EMPRESA] [varchar](3) NULL,
+	[PERIODO] [varchar](6) NULL,
+	[CD_PROD] [varchar](50) NULL,
+	[DC_PROD] [varchar](200) NULL,
+	[MARCA] [varchar](200) NULL,
+	[NCM] [varchar](10) NULL,
+	[DT_MOVTO] [date] NULL,
+	[DT_EMISSAO] [date] NULL,
+	[DOCTO] [varchar](9) NULL,
+	[SERIE] [varchar](3) NULL,
+	[CD_CLIFOR] [varchar](100) NULL,
+	[DC_CLIFOR] [varchar](100) NULL,
+	[MUN_CLIFOR] [varchar](100) NULL,
+	[UF_CLIFOR] [varchar](2) NULL,
+	[QTDE] [float] NULL,
+	[VU_MERC] [float] NULL,
+	[ALIQ_ICMS] [float] NULL,
+	[ALIQ_RED_ICMS] [float] NULL,
+	[VB_ICMS] [float] NULL,
+	[VT_ICMS] [float] NULL,
+	[VT_ICMS_ST] [float] NULL,
+	[VT_ST_GNRE] [float] NULL,
+	[ALIQ_IPI] [float] NULL,
+	[VB_IPI] [float] NULL,
+	[VT_IPI] [float] NULL,
+	[ALIQ_PIS] [float] NULL,
+	[VB_PIS] [float] NULL,
+	[VT_PIS] [float] NULL,
+	[ALIQ_COFINS] [float] NULL,
+	[VB_COFINS] [float] NULL,
+	[VT_COFINS] [float] NULL,
+	[VT_NF] [float] NULL,
+	[VT_CUSTO] [float] NULL,
+	[VU_CUSTO] [float] NULL,
+	[VT_FOB_EURO] [float] NULL,
+	[CST] [varchar](3) NULL
+) ON [PRIMARY]
+GO
+
+

@@ -15,3 +15,6 @@ coverage/
 
 # Rascunho de controle do subagent-driven-development (nao e codigo)
 .superpowers/
+
+# XMLs fiscais do cliente (Qive): ficam so no disco
+XML_Qive/
