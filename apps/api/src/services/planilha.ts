@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 
 /**
  * Leitura de planilha `.xlsx` das telas de importação do Fechamento de
@@ -60,10 +61,55 @@ function celulaParaTexto(valor: ExcelJS.CellValue): string | null {
   return null;
 }
 
+const ABA_VAZIA =
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+  '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>';
+
+/**
+ * Esvazia, dentro do zip, todas as abas menos a primeira — a única que as
+ * telas de importação leem.
+ *
+ * O exceljs carrega **todas** as abas na memória antes de a gente escolher
+ * uma. O modelo de inventário de produção tem 255 linhas úteis, mas uma aba
+ * oculta de 104MB descompactados (milhões de células vazias formatadas):
+ * ~2GB de RAM só para ler, e o gateway devolvia 504 antes de qualquer INSERT.
+ * Trocar o XML das outras abas por uma aba vazia evita nem descompactá-las;
+ * workbook, estilos e referências seguem válidos. Ver spec do Estoque, 3.4.
+ *
+ * Se a estrutura não for a esperada (sem workbook.xml, prefixo de namespace
+ * diferente), devolve o arquivo como veio: perde a otimização, não o dado.
+ */
+export async function reduzirParaPrimeiraAba(buffer: Buffer): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(buffer);
+  const workbookXml = await zip.file('xl/workbook.xml')?.async('string');
+  const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string');
+  if (!workbookXml || !relsXml) return buffer;
+
+  const rid = /<sheet\s[^>]*?\br:id="([^"]+)"/.exec(workbookXml)?.[1];
+  if (!rid) return buffer;
+
+  const relacao = new RegExp(`<Relationship\\b[^>]*\\bId="${rid}"[^>]*>`).exec(relsXml)?.[0];
+  const alvoBruto = relacao ? /\bTarget="([^"]+)"/.exec(relacao)?.[1] : undefined;
+  if (!alvoBruto) return buffer;
+
+  const semBarra = alvoBruto.replace(/^\//, '');
+  const alvo = semBarra.startsWith('xl/') ? semBarra : `xl/${semBarra}`;
+  if (!zip.file(alvo)) return buffer;
+
+  for (const nome of Object.keys(zip.files)) {
+    if (/^xl\/worksheets\/[^/]+\.xml$/.test(nome) && nome !== alvo) {
+      zip.file(nome, ABA_VAZIA);
+    }
+  }
+
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
 export async function lerPlanilha(buffer: Buffer): Promise<PlanilhaLida> {
   const workbook = new ExcelJS.Workbook();
 
   try {
+    buffer = await reduzirParaPrimeiraAba(buffer);
     // O exceljs declara um `interface Buffer extends ArrayBuffer` próprio,
     // que não é o Buffer do Node (um Uint8Array). Em runtime ele aceita o
     // do Node sem problema — a divergência é só de tipagem, e o cast fica

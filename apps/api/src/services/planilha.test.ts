@@ -7,6 +7,7 @@ import {
   parsePeriodo,
   parseTexto,
   PlanilhaForaDoModeloError,
+  reduzirParaPrimeiraAba,
 } from './planilha.js';
 
 /**
@@ -21,6 +22,47 @@ async function montarPlanilha(linhas: unknown[][]): Promise<Buffer> {
   for (const linha of linhas) sheet.addRow(linha);
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
+
+/** Duas abas: a primeira com o dado de verdade, a segunda "pesada" e oculta. */
+async function montarPlanilhaComAbaPesada(): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const dados = workbook.addWorksheet('GERAL');
+  dados.addRow(['ID_EMPRESA', 'CD_PRODUTO']);
+  dados.addRow(['7', '0012']);
+  const pesada = workbook.addWorksheet('Proxxon');
+  pesada.state = 'hidden';
+  for (let i = 1; i <= 2000; i++) pesada.addRow([`lixo-${i}`, i, 'x'.repeat(50)]);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+describe('reduzirParaPrimeiraAba', () => {
+  // O modelo de produção tem uma aba oculta de 104MB descompactados (células
+  // vazias formatadas). O exceljs carrega TODAS as abas antes de a gente usar
+  // só a primeira: ~2GB de RAM e o 504 do gateway. Ver spec do Estoque, 3.4.
+  test('esvazia as abas que não são a primeira e mantém os dados dela', async () => {
+    const original = await montarPlanilhaComAbaPesada();
+    const reduzido = await reduzirParaPrimeiraAba(original);
+
+    expect(reduzido.length).toBeLessThan(original.length);
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(reduzido as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    expect(wb.worksheets.map((s) => s.name)).toEqual(['GERAL', 'Proxxon']);
+    expect(wb.getWorksheet('GERAL')?.getRow(2).getCell(2).value).toBe('0012');
+    expect(wb.getWorksheet('Proxxon')?.actualRowCount).toBe(0);
+  });
+
+  test('lerPlanilha devolve a primeira aba mesmo com outra pesada', async () => {
+    const { cabecalho, linhas } = await lerPlanilha(await montarPlanilhaComAbaPesada());
+
+    expect(cabecalho).toEqual(['ID_EMPRESA', 'CD_PRODUTO']);
+    expect(linhas).toEqual([['7', '0012']]);
+  });
+
+  test('arquivo que não é zip continua virando erro de modelo (422)', async () => {
+    await expect(lerPlanilha(Buffer.from('isto não é um xlsx'))).rejects.toThrow(PlanilhaForaDoModeloError);
+  });
+});
 
 describe('mapearColunas', () => {
   test('mapeia cada coluna esperada para o seu índice', () => {

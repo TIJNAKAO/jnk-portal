@@ -188,14 +188,25 @@ com o número da linha na planilha e o motivo.
 A gravação de uma importação roda inteira dentro de `withTransaction`, em
 lotes: ou a planilha entra toda, ou não entra nenhuma linha.
 
-O **Inventário Físico** grava em lotes de 500 linhas (`INSERT ... VALUES ?
-ON DUPLICATE KEY UPDATE`). A versão anterior fazia um INSERT por linha: com
-API e banco em regiões diferentes, a planilha de produção (dezenas de milhares
-de linhas) passava do timeout do proxy da DigitalOcean e a tela mostrava
-"Erro 504". Como o `affectedRows` de um lote mistura inserção (1) e
-atualização (2), `inseridas` e `atualizadas` saem da contagem de linhas dos
-períodos antes e depois da gravação — o que também respeita a collation da
-chave única. Fechamento Mensal e Estoque FULL ainda gravam linha a linha.
+**Só a primeira aba é lida, e as outras nem são descompactadas.** O exceljs
+carrega **todas** as abas na memória antes de a gente escolher uma, e o
+modelo de produção (`EstoqueFinal_NK2_202608_V01.xlsx`) tem 255 linhas úteis
+na aba `GERAL` e uma aba oculta (`Proxxon`) de **104MB descompactados**,
+milhões de células vazias formatadas. Medido: ~2GB de RAM e 5,5s só para
+ler; no servidor isso virava o "Erro 504" da tela de Inventário Físico,
+antes de qualquer INSERT. `reduzirParaPrimeiraAba` troca, dentro do zip, o
+XML das demais abas por uma aba vazia antes de entregar ao exceljs: a mesma
+leitura cai para ~0,1s e ~115MB. Se a estrutura do zip não for a esperada, o
+arquivo segue como veio (perde a otimização, não o dado).
+
+O **Inventário Físico** também grava em lotes de 500 linhas (`INSERT ...
+VALUES ? ON DUPLICATE KEY UPDATE`) em vez de um INSERT por linha, o que
+poupa idas e voltas entre API e banco (regiões diferentes). Não era a causa
+do 504 desta planilha, mas cresceria com ela. Como o `affectedRows` de um
+lote mistura inserção (1) e atualização (2), `inseridas` e `atualizadas`
+saem da contagem de linhas dos períodos antes e depois da gravação — o que
+também respeita a collation da chave única. Fechamento Mensal e Estoque FULL
+ainda gravam linha a linha.
 
 ### 3.5. Cálculo de custo — a regra
 
