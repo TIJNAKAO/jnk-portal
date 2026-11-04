@@ -118,6 +118,19 @@ async function empresasExistentes(conexao: PoolConnection, ids: number[]): Promi
   return new Set(linhas.map((l) => Number(l.id_empresa)));
 }
 
+/** 17 parâmetros por linha: 500 linhas ficam bem abaixo do max_allowed_packet. */
+const TAMANHO_LOTE = 500;
+
+async function contarLinhasDosPeriodos(conexao: PoolConnection, periodos: string[]): Promise<number> {
+  if (periodos.length === 0) return 0;
+  const marcadores = periodos.map(() => '?').join(',');
+  const [linhas] = await conexao.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total FROM estoque_inventario_fisico WHERE periodo IN (${marcadores})`,
+    periodos,
+  );
+  return Number(linhas[0]?.total ?? 0);
+}
+
 export async function importarInventarioFisico(
   buffer: Buffer,
   arquivo: string,
@@ -130,23 +143,35 @@ export async function importarInventarioFisico(
     const produtos = await codigosExistentes(conexao, [...new Set(validas.map((l) => l.cdProduto))]);
     const empresas = await empresasExistentes(conexao, [...new Set(validas.map((l) => l.idEmpresa))]);
 
-    let inseridas = 0;
-    let atualizadas = 0;
     let produtosNaoEncontrados = 0;
     let empresasNaoEncontradas = 0;
 
-    for (const linha of validas) {
-      const produtoEncontrado = produtos.has(linha.cdProduto);
-      const empresaEncontrada = empresas.has(linha.idEmpresa);
-      if (!produtoEncontrado) produtosNaoEncontrados++;
-      if (!empresaEncontrada) empresasNaoEncontradas++;
+    const periodos = new Set(validas.map((l) => l.periodo));
+    const antes = await contarLinhasDosPeriodos(conexao, [...periodos]);
 
-      const [resultado] = await conexao.query<ResultSetHeader>(
+    // INSERT em lote: uma linha por query, com API e banco em regiões
+    // diferentes, estourava o timeout do gateway (504) numa planilha de
+    // dezenas de milhares de linhas.
+    for (let i = 0; i < validas.length; i += TAMANHO_LOTE) {
+      const lote = validas.slice(i, i + TAMANHO_LOTE).map((linha) => {
+        const produtoEncontrado = produtos.has(linha.cdProduto);
+        const empresaEncontrada = empresas.has(linha.idEmpresa);
+        if (!produtoEncontrado) produtosNaoEncontrados++;
+        if (!empresaEncontrada) empresasNaoEncontradas++;
+        return [
+          linha.periodo, linha.idEmpresa, linha.cdProduto, linha.almox, linha.marca,
+          linha.contagem1, linha.contagem2, linha.contagem3, linha.contagem4, linha.contagem5,
+          linha.contagemFinal, linha.saldoSysemp, linha.divergencia, linha.analise, linha.acao,
+          produtoEncontrado, empresaEncontrada,
+        ];
+      });
+
+      await conexao.query<ResultSetHeader>(
         `INSERT INTO estoque_inventario_fisico
            (periodo, id_empresa, cd_produto, almox, marca, contagem_1, contagem_2, contagem_3,
             contagem_4, contagem_5, contagem_final, saldo_sysemp, divergencia, analise, acao,
             produto_encontrado, empresa_encontrada)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES ?
          ON DUPLICATE KEY UPDATE
            marca = VALUES(marca), contagem_1 = VALUES(contagem_1), contagem_2 = VALUES(contagem_2),
            contagem_3 = VALUES(contagem_3), contagem_4 = VALUES(contagem_4),
@@ -155,19 +180,17 @@ export async function importarInventarioFisico(
            analise = VALUES(analise), acao = VALUES(acao),
            produto_encontrado = VALUES(produto_encontrado),
            empresa_encontrada = VALUES(empresa_encontrada)`,
-        [
-          linha.periodo, linha.idEmpresa, linha.cdProduto, linha.almox, linha.marca,
-          linha.contagem1, linha.contagem2, linha.contagem3, linha.contagem4, linha.contagem5,
-          linha.contagemFinal, linha.saldoSysemp, linha.divergencia, linha.analise, linha.acao,
-          produtoEncontrado, empresaEncontrada,
-        ],
+        [lote],
       );
-
-      if (resultado.affectedRows === 1) inseridas++;
-      else atualizadas++;
     }
 
-    const periodos = new Set(validas.map((l) => l.periodo));
+    // `affectedRows` de um INSERT em lote mistura inserção (1) e atualização
+    // (2), e não dá para separar as duas. A contagem antes/depois respeita a
+    // collation da chave única, que uma comparação em memória não respeitaria.
+    const depois = await contarLinhasDosPeriodos(conexao, [...periodos]);
+    const inseridas = depois - antes;
+    const atualizadas = validas.length - inseridas;
+
     const resultado: ResultadoImportacao = {
       totalLinhas: planilha.linhas.length,
       inseridas,

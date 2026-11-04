@@ -188,6 +188,15 @@ com o número da linha na planilha e o motivo.
 A gravação de uma importação roda inteira dentro de `withTransaction`, em
 lotes: ou a planilha entra toda, ou não entra nenhuma linha.
 
+O **Inventário Físico** grava em lotes de 500 linhas (`INSERT ... VALUES ?
+ON DUPLICATE KEY UPDATE`). A versão anterior fazia um INSERT por linha: com
+API e banco em regiões diferentes, a planilha de produção (dezenas de milhares
+de linhas) passava do timeout do proxy da DigitalOcean e a tela mostrava
+"Erro 504". Como o `affectedRows` de um lote mistura inserção (1) e
+atualização (2), `inseridas` e `atualizadas` saem da contagem de linhas dos
+períodos antes e depois da gravação — o que também respeita a collation da
+chave única. Fechamento Mensal e Estoque FULL ainda gravam linha a linha.
+
 ### 3.5. Cálculo de custo — a regra
 
 Junta duas origens em `estoque_custo_fechamento`, distinguidas pela coluna
