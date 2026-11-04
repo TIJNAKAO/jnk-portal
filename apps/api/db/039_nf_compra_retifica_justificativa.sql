@@ -33,6 +33,14 @@
 -- uso real - a 038 seedou 500 (mesmo valor de NF Venda) sem medicao
 -- propria, por nao existir ainda volume de producao pra medir.
 
+-- sysemp_fila_config.observacoes nasceu VARCHAR(255) (010) e o texto da
+-- retificacao tem ~700 caracteres: a primeira versao desta migration falhou
+-- em producao com ER_DATA_TOO_LONG (1406) no PRE_DEPLOY, antes de ser
+-- registrada em schema_migrations. Por nunca ter sido aplicada, foi
+-- corrigida aqui em vez de criar a 041. Alargar VARCHAR -> TEXT e aditivo e
+-- compativel com o codigo anterior (ver deploy_digitalocean.md, secao 7.1).
+ALTER TABLE sysemp_fila_config MODIFY COLUMN observacoes TEXT NULL;
+
 UPDATE sysemp_fila_config
 SET observacoes = CONCAT(
     observacoes,
