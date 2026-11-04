@@ -13,6 +13,7 @@ import { estoqueFechamentoComparativoRouter } from './routes/estoqueFechamentoCo
 import { estoqueFechamentoCustoRouter } from './routes/estoqueFechamentoCusto.js';
 import { estoqueFechamentoImportarRouter } from './routes/estoqueFechamentoImportar.js';
 import { estoqueImportacaoLogsRouter } from './routes/estoqueImportacaoLogs.js';
+import { estoqueFullMlRouter } from './routes/estoqueFullMl.js';
 import { estoqueSaldosRouter } from './routes/estoqueSaldos.js';
 import { faturamentoDashboardRouter } from './routes/faturamentoDashboard.js';
 import { faturamentoNotasFiscaisRouter } from './routes/faturamentoNotasFiscais.js';
@@ -87,6 +88,7 @@ app.use('/api/compras/custo-ultima-entrada', comprasCustoUltimaEntradaRouter);
 
 app.use('/api/estoque/curva-abc', estoqueCurvaAbcRouter);
 app.use('/api/estoque/saldos', estoqueSaldosRouter);
+app.use('/api/estoque/full-ml', estoqueFullMlRouter);
 app.use('/api/estoque/fechamento/comparativo', estoqueFechamentoComparativoRouter);
 app.use('/api/estoque/fechamento/custo', estoqueFechamentoCustoRouter);
 app.use('/api/estoque/fechamento/importar', estoqueFechamentoImportarRouter);

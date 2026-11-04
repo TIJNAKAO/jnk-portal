@@ -919,6 +919,56 @@ CREATE TABLE ml_pedido_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
 
+#### 4.3.1. Estoque FULL (`ml_estoque_full`)
+
+Foto diária do saldo do FULL por conta e `inventory_id`, para confronto com
+o `saldo_disponivel` da SysEmp (relatório em `spec_modulo_estoque.md`, seção 4).
+Migration `041_ml_estoque_full_schema.sql`.
+
+```sql
+CREATE TABLE ml_estoque_full (
+    id                      INT AUTO_INCREMENT PRIMARY KEY,
+    data_ref                DATE NOT NULL, -- dia de Brasília (UTC-3), ver dataRefBrasilia
+    user_id_ml              BIGINT NOT NULL,
+    inventory_id            VARCHAR(30) NOT NULL,
+    item_id                 VARCHAR(20) NOT NULL,
+    variacao_id             BIGINT NULL,
+    sku                     VARCHAR(100) NOT NULL DEFAULT '', -- seller_custom_field = sysemp_produto.codigo_auxiliar
+    titulo                  VARCHAR(255) NOT NULL DEFAULT '',
+    total                   INT NOT NULL DEFAULT 0,
+    disponivel              INT NOT NULL DEFAULT 0, -- available_units: o que o relatório compara
+    nao_disponivel          INT NOT NULL DEFAULT 0,
+    nao_disponivel_detalhe  JSON NULL, -- [{status, quantity}] (avariado, extraviado, ...)
+    atualizado_em           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_mlfull_dia_conta_inv (data_ref, user_id_ml, inventory_id),
+    INDEX idx_mlfull_dia_sku (data_ref, sku)
+);
+
+-- De-para conta ML -> empresa do ERP. Conta sem linha aqui é ignorada
+-- (com aviso no log) pela sincronização.
+CREATE TABLE ml_conta_empresa (
+    ml_conta_id  INT NOT NULL PRIMARY KEY, -- FK ml_conta ON DELETE CASCADE
+    id_empresa   INT NOT NULL              -- FK sysemp_empresa
+);
+```
+
+- **Entidade** `ml_estoque_full` no `integracaoRegistry`; job `cron-ml-estoque-full`
+  a cada 2 horas (`0 */2 * * *`, `America/Sao_Paulo`). Cada rodada **substitui**
+  a foto do dia da conta (o dia guarda o último saldo lido); a troca é uma
+  transação feita só depois de coletar tudo, então falha no meio não apaga nem
+  deixa a foto pela metade.
+- **Chamadas ao ML** (hipótese de implementação — **confirmar contra a API real**
+  e anotar aqui o formato observado, principalmente anúncios com variação ou
+  User Product): `GET /users/{id}/items/search?logistic_type=fulfillment&search_type=scan`
+  (rolagem por `scroll_id`), `GET /items?ids=...` (blocos de 20) para
+  `inventory_id`/SKU, e `GET /inventories/{inventory_id}/stock/fulfillment`
+  para `total`, `available_units`, `not_available_units` e `not_available_detail`.
+- **SKU**: `seller_custom_field` do anúncio/variação, com fallback para o
+  atributo `SELLER_SKU`. Variação sem SKU herda o do anúncio. Um `inventory_id`
+  repetido em mais de um anúncio é gravado uma vez.
+- **Vínculo** conta → empresa é editado em Integração → Mercado Livre
+  (`PUT /api/integracao/mercado-livre/contas/:id/empresa`).
+
 ### 4.4. Camada de Consumo (ETL)
 
 Não fala com nenhuma API — só transforma tabelas já sincronizadas em

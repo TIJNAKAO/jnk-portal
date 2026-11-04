@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
+import type { RowDataPacket } from 'mysql2';
 import { env } from '../config/env.js';
+import { pool } from '../config/database.js';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import {
@@ -89,7 +91,57 @@ mercadoLivreRouter.get('/callback', async (req, res) => {
 
 mercadoLivreRouter.get('/contas', authTenant, requirePermissao(ROTA, 'podeVisualizar'), async (_req, res) => {
   const contas = await listarContas();
-  res.json(contas.map((c) => ({ id: c.id, userIdMl: c.user_id_ml, nickname: c.nickname, expiraEm: c.expira_em })));
+  const [vinculos] = await pool.query<RowDataPacket[]>('SELECT ml_conta_id, id_empresa FROM ml_conta_empresa');
+  const empresaDaConta = new Map(vinculos.map((v) => [Number(v.ml_conta_id), Number(v.id_empresa)]));
+
+  res.json(
+    contas.map((c) => ({
+      id: c.id,
+      userIdMl: c.user_id_ml,
+      nickname: c.nickname,
+      expiraEm: c.expira_em,
+      idEmpresa: empresaDaConta.get(c.id) ?? null,
+    })),
+  );
+});
+
+// Empresas do ERP disponíveis para o vínculo conta ML -> empresa (estoque FULL).
+mercadoLivreRouter.get('/empresas', authTenant, requirePermissao(ROTA, 'podeVisualizar'), async (_req, res) => {
+  const [linhas] = await pool.query<RowDataPacket[]>('SELECT id_empresa, fantasia FROM sysemp_empresa ORDER BY fantasia');
+  res.json(linhas.map((e) => ({ idEmpresa: Number(e.id_empresa), fantasia: String(e.fantasia ?? e.id_empresa).trim() })));
+});
+
+mercadoLivreRouter.put('/contas/:id/empresa', authTenant, requirePermissao(ROTA, 'podeEditar'), async (req, res) => {
+  const idConta = Number(req.params.id);
+  const { idEmpresa } = req.body as { idEmpresa?: number | null };
+
+  if (idEmpresa !== null && !Number.isInteger(idEmpresa)) {
+    res.status(400).json({ erro: 'Informe idEmpresa (inteiro) ou null para remover o vínculo.' });
+    return;
+  }
+
+  const contas = await listarContas();
+  if (!contas.some((c) => c.id === idConta)) {
+    res.status(404).json({ erro: 'Conta não encontrada.' });
+    return;
+  }
+
+  if (idEmpresa === null) {
+    await pool.query('DELETE FROM ml_conta_empresa WHERE ml_conta_id = ?', [idConta]);
+  } else {
+    const [empresa] = await pool.query<RowDataPacket[]>('SELECT 1 FROM sysemp_empresa WHERE id_empresa = ?', [idEmpresa]);
+    if (empresa.length === 0) {
+      res.status(400).json({ erro: 'Empresa não encontrada.' });
+      return;
+    }
+    await pool.query(
+      `INSERT INTO ml_conta_empresa (ml_conta_id, id_empresa) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE id_empresa = VALUES(id_empresa)`,
+      [idConta, idEmpresa],
+    );
+  }
+
+  res.json({ ok: true });
 });
 
 mercadoLivreRouter.post('/contas/:id/testar', authTenant, requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {

@@ -9,6 +9,7 @@ import { rodarEtlEmpresa } from './etl/empresa.js';
 import { rodarEtlFatcom } from './etl/fatcom.js';
 import { rodarEtlProduto } from './etl/produto.js';
 import type { ResultadoSincronizacao } from './integracaoLog.js';
+import { sincronizarMlEstoqueFull } from './mercadoLivre/estoqueFull.js';
 import { sincronizarMlPedidos } from './mercadoLivre/pedidos.js';
 import { sincronizarEmpresas } from './sysemp/entidades/empresas.js';
 import { sincronizarRepresentantes } from './sysemp/entidades/representantes.js';
@@ -33,6 +34,7 @@ export const ENTIDADES_INTEGRACAO: EntidadeIntegracao[] = [
   { chave: 'empresas', nome: 'Empresas', sincronizar: sincronizarEmpresas },
   { chave: 'representantes', nome: 'Representantes', sincronizar: sincronizarRepresentantes },
   { chave: 'ml_pedidos', nome: 'Pedidos Mercado Livre', sincronizar: sincronizarMlPedidos },
+  { chave: 'ml_estoque_full', nome: 'Estoque FULL Mercado Livre', sincronizar: sincronizarMlEstoqueFull },
   { chave: 'etl_empresa', nome: 'ETL Empresa', sincronizar: rodarEtlEmpresa },
   { chave: 'etl_produto', nome: 'ETL Produto', sincronizar: rodarEtlProduto },
   { chave: 'etl_fatcom', nome: 'ETL Fatcom', sincronizar: rodarEtlFatcom },

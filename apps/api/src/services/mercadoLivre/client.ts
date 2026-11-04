@@ -3,6 +3,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../../config/database.js';
 import { ConfiguracaoAusenteError } from '../erros.js';
 import { obterParametro } from '../parametros.js';
+import type { EstoqueFulfillmentMl, ItemMl } from './estoqueFullParse.js';
 
 export const ML_AUTH_URL = 'https://auth.mercadolivre.com.br/authorization';
 const ML_API_URL = 'https://api.mercadolibre.com';
@@ -145,6 +146,63 @@ export async function accessTokenValido(conta: ContaMlRow): Promise<string> {
 export async function buscarPedidosMl<T>(accessToken: string, params: Record<string, string>): Promise<T> {
   const query = new URLSearchParams(params).toString();
   return request<T>(`${ML_API_URL}/orders/search?${query}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+}
+
+const TAMANHO_BLOCO_ITEMS = 20;
+
+/**
+ * Ids dos anúncios FULL do vendedor. Usa `search_type=scan` (rolagem por
+ * `scroll_id`), que não tem o teto de 1000 resultados do offset.
+ * Formato a confirmar contra a API real — ver spec, seção 4.3.
+ */
+export async function listarIdsItensFull(accessToken: string, userIdMl: number): Promise<string[]> {
+  const ids: string[] = [];
+  let scrollId: string | undefined;
+
+  for (;;) {
+    const params: Record<string, string> = { logistic_type: 'fulfillment', search_type: 'scan', limit: '100' };
+    if (scrollId) params.scroll_id = scrollId;
+
+    const resposta = await request<{ results?: string[]; scroll_id?: string }>(
+      `${ML_API_URL}/users/${userIdMl}/items/search?${new URLSearchParams(params).toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const pagina = resposta.results ?? [];
+    if (pagina.length === 0) break;
+
+    ids.push(...pagina);
+    scrollId = resposta.scroll_id;
+    if (!scrollId) break;
+  }
+
+  return ids;
+}
+
+/** Detalhe dos anúncios em blocos de 20 (limite do multiget); entradas com erro são descartadas. */
+export async function buscarItensMl(accessToken: string, ids: string[]): Promise<ItemMl[]> {
+  const itens: ItemMl[] = [];
+
+  for (let i = 0; i < ids.length; i += TAMANHO_BLOCO_ITEMS) {
+    const bloco = ids.slice(i, i + TAMANHO_BLOCO_ITEMS);
+    const query = new URLSearchParams({
+      ids: bloco.join(','),
+      attributes: 'id,title,inventory_id,seller_custom_field,attributes,variations',
+    });
+    const resposta = await request<{ code: number; body: ItemMl }[]>(`${ML_API_URL}/items?${query.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    for (const entrada of resposta) {
+      if (entrada.code === 200 && entrada.body) itens.push(entrada.body);
+    }
+  }
+
+  return itens;
+}
+
+export async function buscarEstoqueFulfillment(accessToken: string, inventoryId: string): Promise<EstoqueFulfillmentMl> {
+  return request<EstoqueFulfillmentMl>(`${ML_API_URL}/inventories/${encodeURIComponent(inventoryId)}/stock/fulfillment`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 }
 
 export async function desconectarConta(id: number): Promise<void> {

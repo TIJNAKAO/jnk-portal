@@ -10,12 +10,19 @@ interface Conta {
   userIdMl: number;
   nickname: string;
   expiraEm: string;
+  idEmpresa: number | null;
+}
+
+interface EmpresaErp {
+  idEmpresa: number;
+  fantasia: string;
 }
 
 export function MercadoLivrePage() {
   const api = useApi();
   const [searchParams, setSearchParams] = useSearchParams();
   const [contas, setContas] = useState<Conta[]>([]);
+  const [empresas, setEmpresas] = useState<EmpresaErp[]>([]);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -25,7 +32,20 @@ export function MercadoLivrePage() {
 
   useEffect(() => {
     carregar().catch(console.error);
+    api<EmpresaErp[]>('/integracao/mercado-livre/empresas').then(setEmpresas).catch(console.error);
   }, [api]);
+
+  async function vincularEmpresa(id: number, valor: string) {
+    try {
+      await api(`/integracao/mercado-livre/contas/${id}/empresa`, {
+        method: 'PUT',
+        body: { idEmpresa: valor === '' ? null : Number(valor) },
+      });
+      await carregar();
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : 'Não foi possível salvar o vínculo.');
+    }
+  }
 
   useEffect(() => {
     const status = searchParams.get('ml');
@@ -90,13 +110,14 @@ export function MercadoLivrePage() {
             <tr>
               <ThOrdenavel campo="nickname" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Conta</ThOrdenavel>
               <ThOrdenavel campo="userIdMl" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>user_id</ThOrdenavel>
+              <th className="p-3">Empresa do ERP (estoque FULL)</th>
               <th className="p-3" />
             </tr>
           </thead>
           <tbody>
             {contas.length === 0 && (
               <tr>
-                <td colSpan={3} className="p-4 text-center text-slate-400">
+                <td colSpan={4} className="p-4 text-center text-slate-400">
                   Nenhuma conta conectada ainda.
                 </td>
               </tr>
@@ -105,6 +126,23 @@ export function MercadoLivrePage() {
               <tr key={c.id} className="border-b border-slate-100 last:border-0">
                 <td className="p-3">{c.nickname}</td>
                 <td className="p-3 text-slate-500">{c.userIdMl}</td>
+                <td className="p-3">
+                  <select
+                    value={c.idEmpresa ?? ''}
+                    onChange={(e) => vincularEmpresa(c.id, e.target.value)}
+                    className="min-h-[36px] rounded-lg border border-slate-300 px-2 text-sm"
+                  >
+                    <option value="">— sem vínculo —</option>
+                    {empresas.map((e) => (
+                      <option key={e.idEmpresa} value={e.idEmpresa}>
+                        {e.fantasia}
+                      </option>
+                    ))}
+                  </select>
+                  {c.idEmpresa === null && (
+                    <p className="mt-1 text-xs text-amber-600">Sem empresa vinculada, esta conta não entra na sincronização do FULL.</p>
+                  )}
+                </td>
                 <td className="flex justify-end gap-2 p-3">
                   <button type="button" onClick={() => testar(c.id)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
                     Testar conexão

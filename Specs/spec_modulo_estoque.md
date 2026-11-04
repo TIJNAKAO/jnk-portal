@@ -425,3 +425,39 @@ Vitest ao lado do código, escritos antes da implementação:
 Nenhum destes testes toca o banco: as funções cobertas recebem a planilha
 já lida ou os valores já carregados, e a persistência fica fora. É o que
 permite rodá-los sem MySQL no ambiente.
+
+## 4. Estoque FULL ML x SysEmp
+
+**Rota:** `/estoque/full-ml` · **API:** `/api/estoque/full-ml` (`/filtros`, `/`,
+`/exportar`) · **Migrations:** `041` (tabelas), `042` (seed da tela).
+
+Confronta o saldo do FULL do Mercado Livre com o `saldo_disponivel` da SysEmp.
+Não tem relação com o Fechamento (seção 3): aqui o saldo vem da API do ML a cada
+2 horas (ver `spec_modulo_integracao.md`, seção 4.3.1), não de planilha.
+
+### 4.1. Regras de comparação
+
+- **Chave:** `(empresa, SKU)`. SKU do anúncio ML = `sysemp_produto.codigo_auxiliar`,
+  comparado com `trim` e maiúsculas. A empresa vem do vínculo conta ML → empresa
+  (`ml_conta_empresa`); só empresas com conta vinculada entram.
+- **Quantidades:** ML = `available_units` (disponível para venda); SysEmp =
+  `sysemp_estoque_fisico.saldo_disponivel` (`deleted = FALSE`, nulo conta 0).
+  `diferenca = ML − SysEmp`. Total e não disponível do ML aparecem como colunas
+  informativas e não entram na diferença.
+- **Situações:** `OK` (iguais), `DIVERGENTE`, `SO_ML` (SKU sem produto na empresa,
+  inclusive SKU vazio — uma linha por anúncio, nunca descartado) e `SO_SYSEMP`
+  (produto com saldo ≠ 0 e sem anúncio no FULL; saldo 0 não gera linha).
+  Produtos do SysEmp com o mesmo `codigo_auxiliar` na empresa têm o saldo somado.
+- **Ordem:** divergentes primeiro, pela maior diferença absoluta; depois os `OK`.
+- **Foto:** padrão é a última disponível; o seletor lista as últimas 60 datas.
+  Sem foto na data pedida a resposta vem vazia, com a última data disponível.
+  A tela mostra a data/hora da última sincronização para não comparar dado velho.
+- **Escopo:** `buscarEmpresasPermitidas` + `condicaoEscopoDeUmaOrigem(…, 'SYSEMP', …)`
+  nos dois lados; escopo vazio devolve vazio. A exportação usa o mesmo caminho.
+- Marca e busca filtram o resultado já comparado (o lado "só ML" não tem marca,
+  então some quando há filtro de marca).
+
+### 4.2. Testes
+
+`estoqueFullMl.test.ts` (função pura `compararSaldosFull`),
+`mercadoLivre/estoqueFullParse.test.ts` e `mercadoLivre/estoqueFull.test.ts`.

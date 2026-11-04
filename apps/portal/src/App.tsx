@@ -17,6 +17,7 @@ import { PerfilPermissoesPage } from './pages/config/PerfilPermissoesPage';
 import { PerfisPage } from './pages/config/PerfisPage';
 import { UsuariosPage } from './pages/config/UsuariosPage';
 import { CurvaAbcPage } from './pages/estoque/CurvaAbcPage';
+import { FullMlPage } from './pages/estoque/FullMlPage';
 import { SaldosPage } from './pages/estoque/SaldosPage';
 import { ComparativoPage } from './pages/estoque/fechamento/ComparativoPage';
 import { CustoFechamentoPage } from './pages/estoque/fechamento/CustoFechamentoPage';
@@ -99,6 +100,7 @@ export function App() {
 
             <Route path="/estoque/curva-abc" element={<CurvaAbcPage />} />
             <Route path="/estoque/saldos" element={<SaldosPage />} />
+            <Route path="/estoque/full-ml" element={<FullMlPage />} />
             <Route path="/estoque/fechamento/importar" element={<ImportarFechamentoPage />} />
             <Route path="/estoque/fechamento/estoque-full" element={<ImportarEstoqueFullPage />} />
             <Route path="/estoque/fechamento/inventario" element={<ImportarInventarioPage />} />
