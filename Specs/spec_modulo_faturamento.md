@@ -227,6 +227,66 @@ identidade correta é o **nome** da unidade:
 'CASA J NAKAO LT - PDV'                           -> cd_filial 4 (JNK Pinheiro)
 ```
 
+### 3.7. Carga incremental — `040_etl_fatcom_incremental_indices.sql`
+
+**Problema (05/10/2026).** Alertas recorrentes "CPU is running high" da
+DigitalOcean no `jnk-portal-db` (plano de 1 vCPU). O `cron-etl-fatcom` (minuto
+45, de hora em hora) relia o histórico inteiro a cada execução, e a limpeza de
+canceladas era um `DELETE` que cruzava todas as notas com todo o fato por
+expressão calculada (`NUMERO_NF`/`SERIE_NF`), sem índice possível: dezenas de
+milhões de avaliações por hora. O `ON DUPLICATE KEY UPDATE` também reescrevia
+fisicamente todas as linhas, porque `atualizado_em = CURRENT_TIMESTAMP` sempre
+muda.
+
+**Notas candidatas.** Cada execução processa só as notas que podem ter
+mudado desde a **marca d'água**:
+
+1. notas com `sysemp_nota_fiscal.atualizado_em` posterior a ela. É
+   `atualizado_em`, e não `synced_at`, porque a exclusão vinda da fila só
+   liga `deleted = TRUE` sem tocar `synced_at`, mas dispara o `ON UPDATE`
+   do `atualizado_em`. O consumidor regrava cabeçalho e itens juntos, então
+   mudança em item aparece aqui também;
+2. notas de **clientes** (`sysemp_parceiro.atualizado_em`) alterados ou
+   criados depois dela;
+3. notas com itens de **produtos** (`sysemp_produto.atualizado_em`)
+   alterados ou criados depois dela.
+
+Os itens 2 e 3 resolvem `ref_pendente` quando o cliente ou produto chega
+depois da nota, e propagam renomeações. Antes isso só acontecia porque o
+histórico inteiro era relido. O custo continua congelado (3.3).
+
+**Marca d'água:** início da última execução `sucesso` do `etl_fatcom` em
+`integracao_log`, **menos 60 minutos**. A margem cobre a nota gravada pelo
+consumidor de fila antes do início da execução e confirmada depois dela.
+Os dois lados usam `CURRENT_TIMESTAMP` do banco, sem conversão de fuso no
+Node. Sem nenhuma execução com sucesso, o ETL processa tudo.
+
+**Mecânica.** As candidatas vão para uma tabela temporária
+(`tmp_fatcom_notas`, com chave primária por causa de `sql_require_primary_key`
+no MySQL gerenciado), numa conexão dedicada. Não é `IN (... UNION ...)`
+porque o MySQL não converte subconsulta com `UNION` em semi-join e voltaria a
+varrer tudo. O `INSERT` e a limpeza fazem `JOIN` com essa tabela. A limpeza
+parte da nota e acha as linhas do fato pelo índice novo
+`idx_fatcom_nf (cd_filial, nf, serie)`; `uq_fatcom` não serve porque
+`grupo_empresa` vem antes de `cd_filial`.
+
+**O que o incremental não acompanha:** mudança em `sysemp_empresa`.
+`grupo_empresa` faz parte da chave única, então trocá-lo não é atualização,
+é outra linha: exige recarga.
+
+**Modos.** Cron e botão do Painel rodam o incremental.
+`npm run etl:fatcom:recarregar --workspace=apps/api` continua fazendo a
+recarga completa (apaga a origem SYSEMP e refaz o congelamento do custo).
+Com `-- --sem-apagar`, reprocessa todas as notas sem apagar nada e mantém o
+custo gravado: é a rede de segurança caso o incremental deixe passar algo.
+
+**Observabilidade.** Cada execução incremental registra no detalhe do
+`integracao_log` a marca d'água usada e quantas notas candidatas entraram.
+
+**Validação pós-deploy:** comparar `duracao_ms` do `etl_fatcom` antes e
+depois; conferir que a soma do faturamento de um mês fechado não muda; ver
+se os alertas de CPU no minuto 45 param.
+
 ---
 
 ## 4. Fase 2 — Camada de consulta
@@ -338,6 +398,11 @@ deliberadamente a cargo do administrador, perfil a perfil.
 O repositório não tem infraestrutura de teste. Este módulo introduz **Vitest**
 cobrindo apenas a camada de cálculo — fórmulas de líquido e margem, exclusão de
 canceladas, tratamento de custo ausente. Não cobre UI nem banco.
+
+`services/etl/fatcom.test.ts` cobre a montagem da carga incremental (3.7):
+escolha do modo, restrição às notas candidatas no `INSERT` e na limpeza, custo
+fora do `ON DUPLICATE KEY UPDATE` e a marca d'água. Verifica o SQL gerado, não
+o executa.
 
 A justificativa é o próprio histórico desta spec: três bugs sobreviveram em
 produção porque nada verificava o resultado. Cálculo de margem errado é

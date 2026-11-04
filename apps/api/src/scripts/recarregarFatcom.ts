@@ -18,14 +18,20 @@ import { rodarEtlFatcom } from '../services/etl/fatcom.js';
  * reconstrução, use a sincronização normal, que preserva o custo já gravado.
  *
  * Uso: npm run etl:fatcom:recarregar --workspace=apps/api
+ *
+ * Com `-- --sem-apagar`, reprocessa todas as notas SEM apagar nada: o custo
+ * já gravado continua congelado. É a rede de segurança da carga incremental
+ * (spec de Faturamento, seção 3.7) — e o que usar depois de mudança em
+ * `sysemp_empresa`, que o incremental não acompanha.
  */
 async function main() {
+  const semApagar = process.argv.includes('--sem-apagar');
   const idLog = await integracaoLog.iniciar('etl_fatcom');
   const inicio = Date.now();
-  console.log(`[recarga-fatcom] iniciada (id_log=${idLog}).`);
+  console.log(`[recarga-fatcom] iniciada (id_log=${idLog}, ${semApagar ? 'sem apagar' : 'apagando a origem SYSEMP'}).`);
 
   try {
-    const { qtde } = await rodarEtlFatcom(idLog, { recargaCompleta: true });
+    const { qtde } = await rodarEtlFatcom(idLog, semApagar ? { reprocessarTudo: true } : { recargaCompleta: true });
     await integracaoLog.finalizar(idLog, { status: 'sucesso', qtdeRegistros: qtde, duracaoMs: Date.now() - inicio });
     console.log(`[recarga-fatcom] concluída: ${qtde} linha(s) afetada(s) em ${Date.now() - inicio}ms.`);
   } catch (erro) {

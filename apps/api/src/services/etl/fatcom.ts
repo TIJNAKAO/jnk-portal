@@ -189,9 +189,74 @@ const MAPEAMENTO: Record<string, string> = {
   atualizado_em: 'CURRENT_TIMESTAMP',
 };
 
-const ORIGEM = `
+/**
+ * Carga incremental — ver `Specs/spec_modulo_faturamento.md`, seção 3.7.
+ *
+ * Até 05/10/2026 o ETL relia o histórico inteiro de hora em hora, e a limpeza
+ * de canceladas cruzava todas as notas com todo o fato por expressão
+ * calculada (`NUMERO_NF`/`SERIE_NF`, sem índice possível). Era isso que
+ * levava a CPU do banco (1 vCPU) ao alerta da DigitalOcean.
+ *
+ * Agora só entram as notas "candidatas": alteradas desde a marca d'água, ou
+ * cujo cliente/produto mudou — este segundo caso resolve `ref_pendente` e
+ * propaga renomeação de cliente/produto, que antes só se corrigiam porque
+ * tudo era relido. Mudança em `sysemp_empresa` NÃO dispara reprocessamento:
+ * `grupo_empresa` faz parte da chave única, e trocá-lo exige recarga.
+ */
+export type ModoEtlFatcom = 'incremental' | 'completo';
+
+/**
+ * Recuo aplicado à marca d'água. Uma nota pode ter `atualizado_em` anterior
+ * ao início da última execução e só ser confirmada pelo consumidor de fila
+ * depois dela; sem a margem, ela nunca entraria. Reprocessar uma hora a mais
+ * custa pouco.
+ */
+export const MARGEM_MARCA_DAGUA_MINUTOS = 60;
+
+/**
+ * Formatado no próprio SQL para não passar por `Date` do Node — ver regra de
+ * fuso no CLAUDE.md. A execução corrente está `iniciado`, então não conta.
+ */
+export const SQL_MARCA_DAGUA = `
+  SELECT DATE_FORMAT(MAX(executado_em) - INTERVAL ${MARGEM_MARCA_DAGUA_MINUTOS} MINUTE, '%Y-%m-%d %H:%i:%s') AS marca
+  FROM integracao_log
+  WHERE entidade = 'etl_fatcom' AND status = 'sucesso'
+`;
+
+export const TABELA_CANDIDATAS = 'tmp_fatcom_notas';
+
+/**
+ * Tabela temporária em vez de `IN (... UNION ...)`: o MySQL não transforma
+ * subconsulta com UNION em semi-join e a avaliaria por linha — de volta à
+ * varredura completa. A chave primária também atende `sql_require_primary_key`
+ * do MySQL gerenciado da DigitalOcean.
+ */
+const SQL_CRIAR_CANDIDATAS = `
+  CREATE TEMPORARY TABLE ${TABELA_CANDIDATAS} (id_nota_saida INT NOT NULL PRIMARY KEY)
+`;
+
+/** Cada fonte recebe a marca d'água como único parâmetro. */
+export const SQLS_NOTAS_CANDIDATAS = [
+  `INSERT IGNORE INTO ${TABELA_CANDIDATAS} (id_nota_saida)
+   SELECT nf.id_nota_saida FROM sysemp_nota_fiscal nf
+   WHERE nf.atualizado_em >= ?`,
+  `INSERT IGNORE INTO ${TABELA_CANDIDATAS} (id_nota_saida)
+   SELECT nf.id_nota_saida FROM sysemp_parceiro par
+   JOIN sysemp_nota_fiscal nf ON nf.id_cliente = par.id_parceiro
+   WHERE par.atualizado_em >= ?`,
+  `INSERT IGNORE INTO ${TABELA_CANDIDATAS} (id_nota_saida)
+   SELECT DISTINCT it.id_nota_saida FROM sysemp_produto pr
+   JOIN sysemp_nota_fiscal_item it ON it.id_produto = pr.id_produto
+   WHERE pr.atualizado_em >= ?`,
+];
+
+const JOIN_CANDIDATAS = `JOIN ${TABELA_CANDIDATAS} c ON c.id_nota_saida = nf.id_nota_saida`;
+
+function origem(modo: ModoEtlFatcom): string {
+  return `
   FROM sysemp_nota_fiscal_item it
   JOIN sysemp_nota_fiscal nf ON nf.id_nota_saida = it.id_nota_saida
+  ${modo === 'incremental' ? JOIN_CANDIDATAS : ''}
   LEFT JOIN sysemp_empresa e ON e.id_empresa = nf.id_empresa
   LEFT JOIN sysemp_parceiro par ON par.id_parceiro = nf.id_cliente
   LEFT JOIN sysemp_produto pr ON pr.id_produto = it.id_produto
@@ -205,14 +270,15 @@ const ORIGEM = `
     AND COALESCE(nf.status_nota, '') <> '101'
     AND ${NAO_E_COMPRA}
 `;
+}
 
-function montarInsert(): string {
+export function montarInsert(modo: ModoEtlFatcom): string {
   const colunas = Object.keys(MAPEAMENTO);
   const atualizaveis = colunas.filter((c) => !COLUNAS_CONGELADAS.has(c));
 
   return `INSERT INTO etl_fatcom (${colunas.join(', ')})
     SELECT ${colunas.map((c) => `${MAPEAMENTO[c]} AS ${c}`).join(',\n           ')}
-    ${ORIGEM}
+    ${origem(modo)}
     ON DUPLICATE KEY UPDATE
       ${atualizaveis.map((c) => `${c} = VALUES(${c})`).join(',\n      ')}`;
 }
@@ -223,15 +289,20 @@ function montarInsert(): string {
  * o que já entrou. Sem isto, uma nota cancelada hoje continuaria somando ao
  * faturamento para sempre.
  */
-const SQL_LIMPEZA = `
-  DELETE f FROM etl_fatcom f
-  JOIN sysemp_nota_fiscal nf
-    ON nf.id_empresa = f.cd_filial
-   AND ${NUMERO_NF} = f.nf
-   AND ${SERIE_NF} = f.serie
+export function montarLimpeza(modo: ModoEtlFatcom): string {
+  // O índice idx_fatcom_nf (cd_filial, nf, serie) — migration 040 — é o que
+  // permite achar as linhas do fato a partir de cada nota cancelada.
+  return `
+  DELETE f FROM sysemp_nota_fiscal nf
+  ${modo === 'incremental' ? JOIN_CANDIDATAS : ''}
+  JOIN etl_fatcom f
+    ON f.cd_filial = nf.id_empresa
+   AND f.nf = ${NUMERO_NF}
+   AND f.serie = ${SERIE_NF}
   WHERE f.origem_dados = 'SYSEMP'
     AND (nf.deleted = TRUE OR nf.data_cancelamento_nfe IS NOT NULL OR COALESCE(nf.status_nota, '') = '101')
 `;
+}
 
 export interface OpcoesEtlFatcom {
   /**
@@ -243,32 +314,73 @@ export interface OpcoesEtlFatcom {
    * Atenção: recarregar refaz o congelamento do custo com o valor de hoje.
    */
   recargaCompleta?: boolean;
+  /**
+   * Reprocessa todas as notas, sem apagar nada — o custo já gravado continua
+   * congelado. Rede de segurança caso o incremental deixe escapar algo, ou
+   * depois de mudança em `sysemp_empresa`.
+   */
+  reprocessarTudo?: boolean;
+}
+
+export function escolherModo(opcoes: OpcoesEtlFatcom, marcaDagua: string | null): ModoEtlFatcom {
+  if (opcoes.recargaCompleta || opcoes.reprocessarTudo || marcaDagua === null) return 'completo';
+  return 'incremental';
 }
 
 export async function rodarEtlFatcom(idLog: number, opcoes: OpcoesEtlFatcom = {}): Promise<ResultadoSincronizacao> {
   const inicio = Date.now();
 
-  if (opcoes.recargaCompleta) {
-    const [apagadas] = await pool.query(`DELETE FROM etl_fatcom WHERE origem_dados = 'SYSEMP'`);
+  // Conexão dedicada: a tabela temporária de candidatas só existe nela.
+  const conexao = await pool.getConnection();
+  try {
+    if (opcoes.recargaCompleta) {
+      const [apagadas] = await conexao.query(`DELETE FROM etl_fatcom WHERE origem_dados = 'SYSEMP'`);
+      await integracaoLog.detalhe(idLog, {
+        status: 'ok',
+        qtdeRegistros: (apagadas as { affectedRows: number }).affectedRows,
+        mensagem: `Recarga completa: ${(apagadas as { affectedRows: number }).affectedRows} linha(s) da origem SYSEMP removida(s).`,
+      });
+    }
+
+    const [linhasMarca] = await conexao.query(SQL_MARCA_DAGUA);
+    const marcaDagua = (linhasMarca as { marca: string | null }[])[0]?.marca ?? null;
+    const modo = escolherModo(opcoes, marcaDagua);
+
+    if (modo === 'incremental') {
+      // A conexão volta ao pool depois; uma temporária esquecida por uma
+      // execução que falhou no meio derrubaria o CREATE da próxima.
+      await conexao.query(`DROP TEMPORARY TABLE IF EXISTS ${TABELA_CANDIDATAS}`);
+      await conexao.query(SQL_CRIAR_CANDIDATAS);
+      for (const sql of SQLS_NOTAS_CANDIDATAS) {
+        await conexao.query(sql, [marcaDagua]);
+      }
+      const [contagem] = await conexao.query(`SELECT COUNT(*) AS qtde FROM ${TABELA_CANDIDATAS}`);
+      await integracaoLog.detalhe(idLog, {
+        status: 'ok',
+        qtdeRegistros: Number((contagem as { qtde: number }[])[0]?.qtde ?? 0),
+        mensagem: `Incremental desde ${marcaDagua}: nota(s) candidata(s).`,
+      });
+    }
+
+    const [resultado] = await conexao.query(montarInsert(modo));
+    const qtde = (resultado as { affectedRows: number }).affectedRows;
+
+    const [removidas] = await conexao.query(montarLimpeza(modo));
+    const canceladas = (removidas as { affectedRows: number }).affectedRows;
+
     await integracaoLog.detalhe(idLog, {
       status: 'ok',
-      qtdeRegistros: (apagadas as { affectedRows: number }).affectedRows,
-      mensagem: `Recarga completa: ${(apagadas as { affectedRows: number }).affectedRows} linha(s) da origem SYSEMP removida(s).`,
+      qtdeRegistros: qtde,
+      duracaoMs: Date.now() - inicio,
+      mensagem: [
+        modo === 'completo' ? 'Processamento completo.' : undefined,
+        canceladas > 0 ? `${canceladas} linha(s) de nota cancelada/excluída removida(s).` : undefined,
+      ].filter(Boolean).join(' ') || undefined,
     });
+
+    return { qtde };
+  } finally {
+    await conexao.query(`DROP TEMPORARY TABLE IF EXISTS ${TABELA_CANDIDATAS}`).catch(() => undefined);
+    conexao.release();
   }
-
-  const [resultado] = await pool.query(montarInsert());
-  const qtde = (resultado as { affectedRows: number }).affectedRows;
-
-  const [removidas] = await pool.query(SQL_LIMPEZA);
-  const canceladas = (removidas as { affectedRows: number }).affectedRows;
-
-  await integracaoLog.detalhe(idLog, {
-    status: 'ok',
-    qtdeRegistros: qtde,
-    duracaoMs: Date.now() - inicio,
-    mensagem: canceladas > 0 ? `${canceladas} linha(s) de nota cancelada/excluída removida(s).` : undefined,
-  });
-
-  return { qtde };
 }
