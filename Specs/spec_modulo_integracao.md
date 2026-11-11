@@ -866,7 +866,7 @@ CREATE TABLE ml_conta (
     access_token    TEXT NOT NULL,
     refresh_token   TEXT NOT NULL,
     expira_em       DATETIME NOT NULL, -- validade do access_token (~6h)
-    scopes          VARCHAR(255) NOT NULL DEFAULT '',
+    scopes          TEXT NOT NULL, -- era VARCHAR(255): o texto de permissões do ML não cabia (migration 043)
     criado_em       DATETIME DEFAULT CURRENT_TIMESTAMP,
     atualizado_em   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_ml_user (user_id_ml)
