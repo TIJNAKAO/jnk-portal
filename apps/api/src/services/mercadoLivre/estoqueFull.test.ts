@@ -24,6 +24,12 @@ describe('linhaParaGravacao', () => {
     expect(linha.sku).toBe('ABC-1');
   });
 
+  test('guarda a resposta bruta, inclusive campos não mapeados', () => {
+    const bruto = { inventory_id: 'INV1', total: 5, available_units: 5, not_available_units: 0, campo_novo: 9 };
+    const linha = linhaParaGravacao(inv, bruto);
+    expect(JSON.parse(linha.payload)).toEqual(bruto);
+  });
+
   test('sem detalhe grava null', () => {
     const linha = linhaParaGravacao(inv, { inventory_id: 'INV1', total: 4, available_units: 4, not_available_units: 0 });
     expect(linha.naoDisponivelDetalhe).toBeNull();

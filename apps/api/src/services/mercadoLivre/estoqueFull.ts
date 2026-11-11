@@ -23,6 +23,8 @@ export interface LinhaEstoqueFull {
   disponivel: number;
   naoDisponivel: number;
   naoDisponivelDetalhe: string | null;
+  /** Resposta bruta do ML, para descobrir campos ainda não mapeados. */
+  payload: string;
 }
 
 export function linhaParaGravacao(inv: InventarioItem, estoque: EstoqueFulfillmentMl): LinhaEstoqueFull {
@@ -37,6 +39,7 @@ export function linhaParaGravacao(inv: InventarioItem, estoque: EstoqueFulfillme
     disponivel: estoque.available_units ?? 0,
     naoDisponivel: estoque.not_available_units ?? 0,
     naoDisponivelDetalhe: detalhe?.length ? JSON.stringify(detalhe) : null,
+    payload: JSON.stringify(estoque),
   };
 }
 
@@ -107,8 +110,8 @@ export async function sincronizarMlEstoqueFull(idLog: number): Promise<Resultado
         for (const l of linhas) {
           await connection.query(
             `INSERT INTO ml_estoque_full
-               (data_ref, user_id_ml, inventory_id, item_id, variacao_id, sku, titulo, total, disponivel, nao_disponivel, nao_disponivel_detalhe)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (data_ref, user_id_ml, inventory_id, item_id, variacao_id, sku, titulo, total, disponivel, nao_disponivel, nao_disponivel_detalhe, payload_ml)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               dataRef,
               conta.user_id_ml,
@@ -121,6 +124,7 @@ export async function sincronizarMlEstoqueFull(idLog: number): Promise<Resultado
               l.disponivel,
               l.naoDisponivel,
               l.naoDisponivelDetalhe,
+              l.payload,
             ],
           );
         }

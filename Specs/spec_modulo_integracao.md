@@ -939,6 +939,7 @@ CREATE TABLE ml_estoque_full (
     disponivel              INT NOT NULL DEFAULT 0, -- available_units: o que o relatório compara
     nao_disponivel          INT NOT NULL DEFAULT 0,
     nao_disponivel_detalhe  JSON NULL, -- [{status, quantity}] (avariado, extraviado, ...)
+    payload_ml              JSON NULL, -- resposta bruta do ML (migration 044): o formato real, incluindo unidades em transito, ainda nao foi validado; as colunas dedicadas saem deste dado
     atualizado_em           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_mlfull_dia_conta_inv (data_ref, user_id_ml, inventory_id),
     INDEX idx_mlfull_dia_sku (data_ref, sku)
