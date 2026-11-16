@@ -674,6 +674,24 @@ coletou aparece primeiro — pior caso). Cores: até 2 dias = normal (cobre
 fim de semana), 3–5 = atenção, mais de 5 (ou nunca) = crítico. Serve pra
 achar máquina com agente desinstalado/quebrado ou desligada há muito tempo.
 
+#### 5.9.1. Cobrança por e-mail
+
+Equipamento com mais de **3 dias** sem coletar (ou que nunca coletou) ganha,
+na linha, os botões **Enviar e-mail** e **Testar**:
+
+- `POST /api/ti/auditoria-coleta/:id/email`, permissão `podeEditar` da tela.
+  Corpo `{ teste?: boolean }`. Acima do limite apenas; abaixo dele a API
+  responde 422.
+- **Enviar e-mail** vai para o e-mail do responsável (`usuarios.email`) e
+  pede confirmação; fica desativado sem responsável com e-mail.
+- **Testar** manda o mesmo texto (assunto prefixado com `[TESTE]`) para o
+  e-mail do usuário logado, para conferir antes de cobrar alguém.
+- Usa `services/email.ts` (SMTP em Parâmetros → categoria EMAIL). Sem SMTP
+  configurado a API responde 422 com a orientação, em vez de fingir sucesso.
+- Texto em `services/tiAuditoriaEmail.ts` (função pura, testada; escapa HTML
+  de apelido e nome). Não há log de envios nem trava contra reenvio: cada
+  clique envia um e-mail.
+
 ---
 
 ## 6. Lógica de Comparação de Coletas (diff)

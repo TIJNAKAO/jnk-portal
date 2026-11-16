@@ -12,12 +12,19 @@ interface EquipamentoAuditoria {
   nome_filial: string | null;
   nome_responsavel: string | null;
   nome_departamento: string | null;
+  email_responsavel: string | null;
   ultima_coleta_em: string | null;
   dias_sem_coletar: number | null;
 }
 
 const DIAS_ALERTA = 2;
 const DIAS_CRITICO = 5;
+/** Acima disso o equipamento pode ser cobrado por e-mail (igual ao da API). */
+const DIAS_LIMITE_EMAIL = 3;
+
+function precisaCobranca(e: EquipamentoAuditoria): boolean {
+  return e.dias_sem_coletar === null || e.dias_sem_coletar > DIAS_LIMITE_EMAIL;
+}
 
 function fmtData(v: string | null): string {
   if (!v) return '—';
@@ -35,6 +42,26 @@ export function AuditoriaColetaPage() {
   const [equipamentos, setEquipamentos] = useState<EquipamentoAuditoria[]>([]);
 
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState<number | null>(null);
+
+  async function enviarEmail(e: EquipamentoAuditoria, teste: boolean) {
+    const nome = e.apelido || e.nome_computador;
+    if (!teste && !window.confirm(`Enviar e-mail de cobrança de inventário para ${e.nome_responsavel} (${e.email_responsavel}) sobre ${nome}?`)) {
+      return;
+    }
+    setEnviando(e.id);
+    setErro(null);
+    setAviso(null);
+    try {
+      const r = await api<{ para: string }>(`/ti/auditoria-coleta/${e.id}/email`, { method: 'POST', body: { teste } });
+      setAviso(`${teste ? 'E-mail de teste' : 'E-mail'} sobre ${nome} enviado para ${r.para}.`);
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Falha ao enviar o e-mail.');
+    } finally {
+      setEnviando(null);
+    }
+  }
 
   useEffect(() => {
     api<EquipamentoAuditoria[]>('/ti/auditoria-coleta')
@@ -72,6 +99,7 @@ export function AuditoriaColetaPage() {
       </div>
 
       {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
+      {aviso && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{aviso}</p>}
 
       <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar equipamento..." />
 
@@ -85,12 +113,13 @@ export function AuditoriaColetaPage() {
               <ThOrdenavel campo="nome_departamento" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Departamento</ThOrdenavel>
               <ThOrdenavel campo="ultima_coleta_em" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Última Coleta</ThOrdenavel>
               <ThOrdenavel campo="dias_sem_coletar" campoOrdenado={campoOrdenado} direcao={direcao} onOrdenar={ordenarPor}>Dias sem Coletar</ThOrdenavel>
+              <th className="p-3 font-medium">E-mail</th>
             </tr>
           </thead>
           <tbody>
             {linhasOrdenadas.length === 0 && !erro && (
               <tr>
-                <td colSpan={6} className="p-4 text-center text-slate-400">
+                <td colSpan={7} className="p-4 text-center text-slate-400">
                   Nenhum equipamento ativo cadastrado.
                 </td>
               </tr>
@@ -110,6 +139,32 @@ export function AuditoriaColetaPage() {
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${corBadge(e.dias_sem_coletar)}`}>
                     {e.dias_sem_coletar === null ? 'Nunca coletou' : `${e.dias_sem_coletar} dia(s)`}
                   </span>
+                </td>
+                <td className="p-3">
+                  {precisaCobranca(e) ? (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={enviando === e.id || !e.email_responsavel}
+                        title={e.email_responsavel ? `Cobrar ${e.email_responsavel}` : 'Sem responsável com e-mail cadastrado'}
+                        onClick={() => void enviarEmail(e, false)}
+                        className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Enviar e-mail
+                      </button>
+                      <button
+                        type="button"
+                        disabled={enviando === e.id}
+                        title="Envia o mesmo e-mail para o seu endereço, para conferir o texto"
+                        onClick={() => void enviarEmail(e, true)}
+                        className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-40"
+                      >
+                        Testar
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-300">—</span>
+                  )}
                 </td>
               </tr>
             ))}
