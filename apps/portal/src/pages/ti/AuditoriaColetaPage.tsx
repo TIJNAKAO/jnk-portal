@@ -34,8 +34,12 @@ export function AuditoriaColetaPage() {
   const api = useApi();
   const [equipamentos, setEquipamentos] = useState<EquipamentoAuditoria[]>([]);
 
+  const [erro, setErro] = useState<string | null>(null);
+
   useEffect(() => {
-    api<EquipamentoAuditoria[]>('/ti/auditoria-coleta').then(setEquipamentos).catch(console.error);
+    api<EquipamentoAuditoria[]>('/ti/auditoria-coleta')
+      .then(setEquipamentos)
+      .catch((e: unknown) => setErro(e instanceof Error ? e.message : 'Falha ao carregar a auditoria.'));
   }, [api]);
 
   const [busca, setBusca] = useState('');
@@ -67,6 +71,8 @@ export function AuditoriaColetaPage() {
         </span>
       </div>
 
+      {erro && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
+
       <CampoBusca valor={busca} onChange={setBusca} placeholder="Buscar equipamento..." />
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -82,7 +88,7 @@ export function AuditoriaColetaPage() {
             </tr>
           </thead>
           <tbody>
-            {linhasOrdenadas.length === 0 && (
+            {linhasOrdenadas.length === 0 && !erro && (
               <tr>
                 <td colSpan={6} className="p-4 text-center text-slate-400">
                   Nenhum equipamento ativo cadastrado.

@@ -12,8 +12,8 @@ describe('linhaParaGravacao', () => {
     const linha = linhaParaGravacao(inv, {
       inventory_id: 'INV1',
       total: 10,
-      available_units: 7,
-      not_available_units: 3,
+      available_quantity: 7,
+      not_available_quantity: 3,
       not_available_detail: detalhe,
     });
 
@@ -25,13 +25,18 @@ describe('linhaParaGravacao', () => {
   });
 
   test('guarda a resposta bruta, inclusive campos não mapeados', () => {
-    const bruto = { inventory_id: 'INV1', total: 5, available_units: 5, not_available_units: 0, campo_novo: 9 };
+    const bruto = { inventory_id: 'INV1', total: 5, available_quantity: 5, not_available_quantity: 0, campo_novo: 9 };
     const linha = linhaParaGravacao(inv, bruto);
     expect(JSON.parse(linha.payload)).toEqual(bruto);
   });
 
+  test('aceita os nomes antigos available_units/not_available_units como reserva', () => {
+    const linha = linhaParaGravacao(inv, { inventory_id: 'INV1', total: 6, available_units: 4, not_available_units: 2 });
+    expect([linha.disponivel, linha.naoDisponivel]).toEqual([4, 2]);
+  });
+
   test('sem detalhe grava null', () => {
-    const linha = linhaParaGravacao(inv, { inventory_id: 'INV1', total: 4, available_units: 4, not_available_units: 0 });
+    const linha = linhaParaGravacao(inv, { inventory_id: 'INV1', total: 4, available_quantity: 4, not_available_quantity: 0 });
     expect(linha.naoDisponivelDetalhe).toBeNull();
   });
 

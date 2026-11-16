@@ -36,8 +36,8 @@ export function linhaParaGravacao(inv: InventarioItem, estoque: EstoqueFulfillme
     sku: inv.sku,
     titulo: inv.titulo,
     total: estoque.total ?? 0,
-    disponivel: estoque.available_units ?? 0,
-    naoDisponivel: estoque.not_available_units ?? 0,
+    disponivel: estoque.available_quantity ?? estoque.available_units ?? 0,
+    naoDisponivel: estoque.not_available_quantity ?? estoque.not_available_units ?? 0,
     naoDisponivelDetalhe: detalhe?.length ? JSON.stringify(detalhe) : null,
     payload: JSON.stringify(estoque),
   };

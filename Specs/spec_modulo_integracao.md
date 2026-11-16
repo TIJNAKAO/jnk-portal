@@ -936,7 +936,7 @@ CREATE TABLE ml_estoque_full (
     sku                     VARCHAR(100) NOT NULL DEFAULT '', -- seller_custom_field = sysemp_produto.codigo_auxiliar
     titulo                  VARCHAR(255) NOT NULL DEFAULT '',
     total                   INT NOT NULL DEFAULT 0,
-    disponivel              INT NOT NULL DEFAULT 0, -- available_units: o que o relatório compara
+    disponivel              INT NOT NULL DEFAULT 0, -- available_quantity: o que o relatório compara
     nao_disponivel          INT NOT NULL DEFAULT 0,
     nao_disponivel_detalhe  JSON NULL, -- [{status, quantity}] (avariado, extraviado, ...)
     payload_ml              JSON NULL, -- resposta bruta do ML (migration 044): o formato real, incluindo unidades em transito, ainda nao foi validado; as colunas dedicadas saem deste dado
@@ -963,7 +963,11 @@ CREATE TABLE ml_conta_empresa (
   User Product): `GET /users/{id}/items/search?logistic_type=fulfillment&search_type=scan`
   (rolagem por `scroll_id`), `GET /items?ids=...` (blocos de 20) para
   `inventory_id`/SKU, e `GET /inventories/{inventory_id}/stock/fulfillment`
-  para `total`, `available_units`, `not_available_units` e `not_available_detail`.
+  para `total`, `available_quantity`, `not_available_quantity` e `not_available_detail`
+  (validado em produção em 16/11/2026; resposta traz ainda `external_references`).
+  `not_available_detail` usa `status` como `transfer` (30 un. em transferência entre
+  centros do Full, ou seja, o "em trânsito" interno). Envios de entrada ainda a caminho
+  do Full NÃO vêm deste endpoint.
 - **SKU**: `seller_custom_field` do anúncio/variação, com fallback para o
   atributo `SELLER_SKU`. Variação sem SKU herda o do anúncio. Um `inventory_id`
   repetido em mais de um anúncio é gravado uma vez.

@@ -24,8 +24,12 @@ export interface ItemMl {
 export interface EstoqueFulfillmentMl {
   inventory_id: string;
   total: number;
-  available_units: number;
-  not_available_units: number;
+  /** Nomes reais da API (validados em produção em 16/11/2026). */
+  available_quantity?: number;
+  not_available_quantity?: number;
+  /** Nomes que supus na primeira versão; mantidos só como reserva. */
+  available_units?: number;
+  not_available_units?: number;
   not_available_detail?: { status: string; quantity: number }[];
 }
 

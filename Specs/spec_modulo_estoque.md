@@ -440,7 +440,7 @@ Não tem relação com o Fechamento (seção 3): aqui o saldo vem da API do ML a
 - **Chave:** `(empresa, SKU)`. SKU do anúncio ML = `sysemp_produto.codigo_auxiliar`,
   comparado com `trim` e maiúsculas. A empresa vem do vínculo conta ML → empresa
   (`ml_conta_empresa`); só empresas com conta vinculada entram.
-- **Quantidades:** ML = `available_units` (disponível para venda); SysEmp =
+- **Quantidades:** ML = `available_quantity` (disponível para venda); SysEmp =
   `sysemp_estoque_fisico.saldo_disponivel` (`deleted = FALSE`, nulo conta 0).
   `diferenca = ML − SysEmp`. Total e não disponível do ML aparecem como colunas
   informativas e não entram na diferença.
