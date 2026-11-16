@@ -121,7 +121,11 @@ export function compararSaldosFull(
     let situacao: SituacaoFull;
     if (a.temMl && a.temSys) situacao = a.qtdeMl === a.qtdeSys ? 'OK' : 'DIVERGENTE';
     else if (a.temMl) situacao = 'SO_ML';
-    else if (a.qtdeSys !== 0) situacao = 'SO_SYSEMP';
+    // Só saldo POSITIVO conta como estoque sem anúncio: saldo negativo no
+    // SysEmp é venda/baixa de kit sem entrada, não mercadoria (na empresa
+    // FULL Máquinas, 235 de 314 SKUs com saldo eram negativos e inundavam a
+    // lista). Se o SKU tem anúncio no ML, o negativo ainda diverge acima.
+    else if (a.qtdeSys > 0) situacao = 'SO_SYSEMP';
     else continue;
 
     linhas.push({

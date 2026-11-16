@@ -45,11 +45,13 @@ describe('compararSaldosFull', () => {
     expect(r[0]).toMatchObject({ situacao: 'SO_ML', codigo: '' });
   });
 
-  test('só no SysEmp com saldo vira SO_SYSEMP; com saldo zero não gera linha', () => {
+  test('só no SysEmp com saldo positivo vira SO_SYSEMP; saldo zero ou negativo não gera linha', () => {
     const com = compararSaldosFull([], [sys({ codigoAuxiliar: 'A', saldo: 6 })], NOMES);
     const zero = compararSaldosFull([], [sys({ codigoAuxiliar: 'A', saldo: 0 })], NOMES);
+    const negativo = compararSaldosFull([], [sys({ codigoAuxiliar: 'A', saldo: -180 })], NOMES);
     expect(com[0]).toMatchObject({ situacao: 'SO_SYSEMP', qtdeMl: 0, qtdeSysemp: 6, diferenca: -6 });
     expect(zero).toHaveLength(0);
+    expect(negativo).toHaveLength(0);
   });
 
   test('soma produtos do SysEmp com o mesmo codigo_auxiliar na empresa', () => {
