@@ -954,7 +954,7 @@ CREATE TABLE ml_conta_empresa (
 ```
 
 - **Entidade** `ml_estoque_full` no `integracaoRegistry`; job `cron-ml-estoque-full`
-  a cada 2 horas (`0 */2 * * *`, `America/Sao_Paulo`). Cada rodada **substitui**
+  de hora em hora, no minuto 30 (`30 * * * *`, `America/Sao_Paulo`; 15 min depois do job `cron-estoque` da SysEmp, que roda no :15, para o comparativo ler saldos do mesmo ciclo). Cada rodada **substitui**
   a foto do dia da conta (o dia guarda o último saldo lido); a troca é uma
   transação feita só depois de coletar tudo, então falha no meio não apaga nem
   deixa a foto pela metade.

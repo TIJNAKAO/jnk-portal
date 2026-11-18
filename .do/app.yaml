@@ -544,7 +544,7 @@ jobs:
     instance_size_slug: basic-xxs
     instance_count: 1
     schedule:
-      cron: "0 */2 * * *"
+      cron: "30 * * * *"
       time_zone: America/Sao_Paulo
     envs:
       - key: DB_HOST

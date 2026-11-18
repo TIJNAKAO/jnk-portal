@@ -433,7 +433,7 @@ permite rodá-los sem MySQL no ambiente.
 
 Confronta o saldo do FULL do Mercado Livre com o `saldo_disponivel` da SysEmp.
 Não tem relação com o Fechamento (seção 3): aqui o saldo vem da API do ML a cada
-2 horas (ver `spec_modulo_integracao.md`, seção 4.3.1), não de planilha.
+1 hora (ver `spec_modulo_integracao.md`, seção 4.3.1), não de planilha.
 
 ### 4.1. Regras de comparação
 
