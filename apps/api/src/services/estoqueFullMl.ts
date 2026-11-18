@@ -27,6 +27,8 @@ export interface SaldoSysemp {
   descricao: string | null;
   marca: string | null;
   saldo: number | null;
+  /** `sysemp_produto.produto_kit = 1` (kit "vende itens, estoque itens": o saldo mora nos componentes). */
+  kit?: boolean;
 }
 
 export interface LinhaComparativoFull {
@@ -55,6 +57,8 @@ interface Acumulado {
   marca: string | null;
   temMl: boolean;
   temSys: boolean;
+  /** Algum produto SysEmp deste SKU é kit (flag `produto_kit`). */
+  kit: boolean;
   qtdeMl: number;
   totalMl: number;
   naoDisponivelMl: number;
@@ -82,6 +86,7 @@ export function compararSaldosFull(
         marca: null,
         temMl: false,
         temSys: false,
+        kit: false,
         qtdeMl: 0,
         totalMl: 0,
         naoDisponivelMl: 0,
@@ -111,6 +116,7 @@ export function compararSaldosFull(
     // decisão final sai depois, quando se sabe se o ML também o tem.
     const a = obter(chave, { idEmpresa: linha.idEmpresa, codigo: (linha.codigoAuxiliar ?? '').trim() });
     a.temSys = true;
+    a.kit ||= linha.kit === true;
     a.descricaoSys ??= linha.descricao;
     a.marca ??= linha.marca;
     a.qtdeSys += Number(linha.saldo ?? 0);
@@ -125,7 +131,10 @@ export function compararSaldosFull(
     // SysEmp é venda/baixa de kit sem entrada, não mercadoria (na empresa
     // FULL Máquinas, 235 de 314 SKUs com saldo eram negativos e inundavam a
     // lista). Se o SKU tem anúncio no ML, o negativo ainda diverge acima.
-    else if (a.qtdeSys > 0) situacao = 'SO_SYSEMP';
+    // Kit montado vai pronto para o Full e é cadastrado como produto normal
+    // (produto_kit = 0). Quem está marcado como kit no SysEmp e não tem anúncio
+    // não existe no Full: o saldo dele é razão de kit, não mercadoria.
+    else if (a.qtdeSys > 0 && !a.kit) situacao = 'SO_SYSEMP';
     else continue;
 
     linhas.push({
@@ -229,7 +238,7 @@ export async function buscarComparativoFull(
   if (linhasMl.length === 0) return { linhas: [], dataRef: disponivel, atualizadoEm: null };
 
   const [linhasSys] = await pool.query<RowDataPacket[]>(
-    `SELECT ef.id_empresa, pr.codigo_auxiliar, pr.nome_produto, pr.descricao_marca, ef.saldo_disponivel
+    `SELECT ef.id_empresa, pr.codigo_auxiliar, pr.nome_produto, pr.descricao_marca, pr.produto_kit, ef.saldo_disponivel
        FROM sysemp_estoque_fisico ef
        JOIN sysemp_produto pr ON pr.id_produto = ef.id_produto
       WHERE ef.deleted = FALSE
@@ -252,6 +261,7 @@ export async function buscarComparativoFull(
       codigoAuxiliar: l.codigo_auxiliar as string | null,
       descricao: l.nome_produto as string | null,
       marca: l.descricao_marca as string | null,
+      kit: Number(l.produto_kit) === 1,
       saldo: l.saldo_disponivel === null ? null : Number(l.saldo_disponivel),
     })),
     nomes,

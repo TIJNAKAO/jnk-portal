@@ -51,6 +51,23 @@ describe('compararSaldosFull', () => {
     expect(d).toMatchObject({ situacao: 'DIVERGENTE', diferenca: -30 });
   });
 
+  test('kit do SysEmp (produto_kit) sem anúncio no Full não vira SO_SYSEMP', () => {
+    const kit = compararSaldosFull([], [sys({ codigoAuxiliar: 'KIT1553', saldo: 49, kit: true })], NOMES);
+    const normal = compararSaldosFull([], [sys({ codigoAuxiliar: 'KIT2524', saldo: 24, kit: false })], NOMES);
+    expect(kit).toHaveLength(0);
+    // "KIT" no nome, mas cadastrado como produto normal: vai pronto para o Full e conta.
+    expect(normal[0]).toMatchObject({ situacao: 'SO_SYSEMP', qtdeSysemp: 24 });
+  });
+
+  test('kit do SysEmp que TEM anúncio no Full continua sendo comparado', () => {
+    const [l] = compararSaldosFull(
+      [ml({ sku: 'KIT9', disponivel: 5 })],
+      [sys({ codigoAuxiliar: 'KIT9', saldo: 3, kit: true })],
+      NOMES,
+    );
+    expect(l).toMatchObject({ situacao: 'DIVERGENTE', diferenca: 2 });
+  });
+
   test('SKU só no ML vira SO_ML', () => {
     const [l] = compararSaldosFull([ml({ sku: 'A', disponivel: 3 })], [], NOMES);
     expect(l).toMatchObject({ situacao: 'SO_ML', qtdeSysemp: 0, qtdeMl: 3, diferenca: 3 });

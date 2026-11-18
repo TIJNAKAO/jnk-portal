@@ -450,6 +450,7 @@ Não tem relação com o Fechamento (seção 3): aqui o saldo vem da API do ML a
 - **Situações:** `OK` (iguais), `DIVERGENTE`, `SO_ML` (SKU sem produto na empresa,
   inclusive SKU vazio — uma linha por anúncio, nunca descartado) e `SO_SYSEMP`
   (produto com saldo > 0 e sem anúncio no FULL; saldo 0 ou negativo não gera linha — negativo é baixa de kit sem entrada, não mercadoria).
+  **Kit não entra em `SO_SYSEMP`:** `sysemp_produto.produto_kit = 1` (tipo "KIT (VENDE ITENS - ESTOQUE ITENS)", cujo saldo mora nos componentes) sem anúncio no FULL é ignorado. O kit montado que vai para o FULL é cadastrado como produto normal (`produto_kit = 0`), mesmo com "KIT" no nome, e continua sendo comparado. Kit marcado que tenha anúncio no FULL também continua comparado (decisão de 18/11/2026).
   Produtos do SysEmp com o mesmo `codigo_auxiliar` na empresa têm o saldo somado.
 - **Filtros:** data da foto, empresa, marca, busca, "só divergências" (tudo que não é
   `OK`) e **situação** (uma das quatro). Valem também para o Excel exportado.
