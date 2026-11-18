@@ -46,7 +46,14 @@ async function request<T>(url: string, init: RequestInit, tentativa = 1): Promis
 
   if (!resposta.ok) {
     const corpo = await resposta.text();
-    throw new MercadoLivreError(`Mercado Livre respondeu HTTP ${resposta.status}: ${corpo.slice(0, 500)}`);
+    // Só o caminho (sem query): diz QUAL recurso o ML recusou, sem expor parâmetros.
+    let caminho = url;
+    try {
+      caminho = new URL(url).pathname;
+    } catch {
+      /* url relativa/estranha: mantém inteira */
+    }
+    throw new MercadoLivreError(`Mercado Livre respondeu HTTP ${resposta.status} em ${caminho}: ${corpo.slice(0, 500)}`);
   }
 
   return resposta.json() as Promise<T>;
