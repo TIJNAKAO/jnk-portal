@@ -16,6 +16,8 @@ export const DEFINICAO_CAMPOS: Record<CategoriaParametro, DefinicaoCampo[]> = {
     { chave: 'SMTP_USER', sensivel: false },
     { chave: 'SMTP_PASSWORD', sensivel: true },
     { chave: 'SMTP_FROM', sensivel: false },
+    // E-mails da TI que recebem os alertas de integração (separados por vírgula).
+    { chave: 'ALERTAS_DESTINATARIOS', sensivel: false },
   ],
   WHATSAPP: [{ chave: 'API_TOKEN', sensivel: true }],
   TELEGRAM: [{ chave: 'BOT_TOKEN', sensivel: true }],

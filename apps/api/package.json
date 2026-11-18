@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx db/migrate.ts",
     "cron:sincronizar": "tsx src/scripts/cronSincronizar.ts",
+    "cron:resumo-diario": "tsx src/scripts/resumoDiarioIntegracoes.ts",
     "backfill:nf": "tsx src/scripts/backfillNotasFiscais.ts",
     "import:custo-entrada": "tsx src/scripts/importarCustoUltimaEntrada.ts",
     "etl:fatcom:recarregar": "tsx src/scripts/recarregarFatcom.ts",

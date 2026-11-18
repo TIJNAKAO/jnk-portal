@@ -1188,3 +1188,59 @@ foi feito pro módulo TI.
 8. **Agendamento automático** — fora desta v1 (seção 3.6). Só gatilho
    manual por enquanto; `node-cron` ou equivalente entra numa fase
    posterior, quando fizer sentido.
+
+---
+
+## 8. Alertas por e-mail à TI
+
+Todas as integrações agendadas (`cron:sincronizar`) avisam a TI por e-mail, em
+vez de depender de alguém abrir o Histórico de Execuções. Duas peças:
+
+### 8.1. Aviso de falha e de recuperação (por rodada)
+
+`scripts/cronSincronizar.ts`, depois de finalizar a rodada, chama
+`avisarResultadoDoCron` (`services/alertasIntegracao.ts`):
+
+- **Falha:** a rodada terminou em `erro` e a anterior concluída (sucesso/erro;
+  `cancelado` e `iniciado` não contam) NÃO era erro — só o primeiro erro da
+  sequência gera e-mail. Erro repetido não reenvia (uma queda de horas viraria
+  enxurrada); quem lembra é o resumo diário.
+- **Recuperação:** a rodada terminou em `sucesso` e a anterior era `erro`.
+- Rodada cancelada nunca avisa. A rodada manual (botão do Painel) também não:
+  quem clicou vê o resultado na tela. Só o job agendado avisa.
+- Nunca lança: falha ao enviar o aviso não transforma uma sincronização boa em
+  job com erro (só loga).
+
+### 8.2. Resumo diário (08:00, Brasília)
+
+Job `cron-resumo-integracoes` (`npm run cron:resumo-diario`,
+`scripts/resumoDiarioIntegracoes.ts`) manda um e-mail com a situação de ONTEM
+de todas as entidades de `EXECUCOES_ESPERADAS_POR_DIA`
+(`services/resumoIntegracoes.ts`, espelha os `cron` do `.do/app.yaml` — ao criar
+um job novo, acrescentar a entidade ali):
+
+| Situação | Regra |
+|---|---|
+| `COM_ERRO` | teve erro no dia ou a última execução foi erro |
+| `SEM_EXECUCAO` | tem frequência esperada e nunca rodou |
+| `ATRASADA` | última execução há mais de 2,5 h (job horário) ou 26 h (diário) |
+| `RODOU_POUCO` | menos de 80% das execuções esperadas no dia (24/dia → mínimo 20) |
+| `OK` | nenhuma das anteriores |
+
+Problemas aparecem no topo; o assunto traz a contagem ("N com problema" ou
+"tudo certo"). Este resumo é a rede de segurança do aviso de falha: um job que
+nunca foi criado ou parou de disparar não gera erro algum, só silêncio, e
+silêncio só aparece comparando com o esperado (foi o caso do
+`cron-ml-estoque-full` antes de ser criado no App Spec). Entidade sem frequência
+esperada (ex.: `ml_pedidos`, sem job) é só relatada, sem cobrança.
+
+### 8.3. Configuração
+
+- Destinatários: parâmetro `ALERTAS_DESTINATARIOS` em Configurador →
+  Parâmetros → E-mail (vários e-mails separados por vírgula, ponto e vírgula ou
+  espaço). Vazio = nada é enviado (loga aviso; o job do resumo termina em erro
+  para aparecer no painel da DO).
+- Remetente e servidor: os mesmos `SMTP_*` do "Esqueci a Senha".
+- O job `cron-resumo-integracoes` precisa ser criado no App Spec real da DO
+  (o `.do/app.yaml` é só template), com as mesmas variáveis dos demais jobs,
+  inclusive `PARAMETROS_ENCRYPTION_KEY` (o SMTP_PASSWORD é criptografado).

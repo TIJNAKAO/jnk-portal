@@ -1,6 +1,7 @@
 import { pool } from '../config/database.js';
 import { buscarEntidadeIntegracao } from '../services/integracaoRegistry.js';
 import { finalizar, idExecucaoEmAndamento, iniciar } from '../services/integracaoLog.js';
+import { avisarResultadoDoCron } from '../services/alertasIntegracao.js';
 
 /**
  * Entrada usada pelos jobs SCHEDULED do App Platform — roda uma sincronização
@@ -42,12 +43,15 @@ async function main() {
       duracaoMs: Date.now() - inicio,
     });
     console.log(`[cron] ${chave}: ${qtde} registro(s) processado(s).`);
+    await avisarResultadoDoCron({ chave, nome: entidade.nome, idLog, status: cancelado ? 'cancelado' : 'sucesso' });
   } catch (error) {
+    const mensagem = error instanceof Error ? error.message : String(error);
     await finalizar(idLog, {
       status: 'erro',
-      mensagem: error instanceof Error ? error.message : String(error),
+      mensagem,
       duracaoMs: Date.now() - inicio,
     });
+    await avisarResultadoDoCron({ chave, nome: entidade.nome, idLog, status: 'erro', mensagem });
     console.error(`[cron] ${chave} falhou:`, error);
     process.exitCode = 1;
   }
