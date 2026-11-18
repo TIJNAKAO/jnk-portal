@@ -70,6 +70,7 @@ export function FullMlPage() {
   const [marca, setMarca] = useState('');
   const [busca, setBusca] = useState('');
   const [soDivergencias, setSoDivergencias] = useState(false);
+  const [situacao, setSituacao] = useState('');
 
   useEffect(() => {
     api<Filtros>('/estoque/full-ml/filtros')
@@ -84,8 +85,9 @@ export function FullMlPage() {
     if (marca) params.set('marcas', marca);
     if (busca) params.set('busca', busca);
     if (soDivergencias) params.set('soDivergencias', 'true');
+    if (situacao) params.set('situacao', situacao);
     return params;
-  }, [data, empresa, marca, busca, soDivergencias]);
+  }, [data, empresa, marca, busca, soDivergencias, situacao]);
 
   useEffect(() => {
     setCarregando(true);
@@ -164,6 +166,14 @@ export function FullMlPage() {
               {o.rotulo}
             </option>
           ))}
+        </select>
+
+        <select value={situacao} onChange={(e) => setSituacao(e.target.value)} className="min-h-[40px] rounded-lg border border-slate-300 px-3 text-sm">
+          <option value="">Todas as situações</option>
+          <option value="DIVERGENTE">Divergente</option>
+          <option value="SO_ML">Só no ML</option>
+          <option value="SO_SYSEMP">Só no SysEmp</option>
+          <option value="OK">OK</option>
         </select>
 
         <CampoBusca valor={busca} onChange={setBusca} placeholder="SKU ou descrição" />

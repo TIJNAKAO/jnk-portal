@@ -451,6 +451,8 @@ Não tem relação com o Fechamento (seção 3): aqui o saldo vem da API do ML a
   inclusive SKU vazio — uma linha por anúncio, nunca descartado) e `SO_SYSEMP`
   (produto com saldo > 0 e sem anúncio no FULL; saldo 0 ou negativo não gera linha — negativo é baixa de kit sem entrada, não mercadoria).
   Produtos do SysEmp com o mesmo `codigo_auxiliar` na empresa têm o saldo somado.
+- **Filtros:** data da foto, empresa, marca, busca, "só divergências" (tudo que não é
+  `OK`) e **situação** (uma das quatro). Valem também para o Excel exportado.
 - **Ordem:** divergentes primeiro, pela maior diferença absoluta; depois os `OK`.
 - **Foto:** padrão é a última disponível; o seletor lista as últimas 60 datas.
   Sem foto na data pedida a resposta vem vazia, com a última data disponível.

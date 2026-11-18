@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { authTenant } from '../middlewares/authTenant.js';
 import { requirePermissao } from '../middlewares/requirePermissao.js';
 import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
-import { buscarComparativoFull, buscarFiltrosFullMl, type FiltroFullMl } from '../services/estoqueFullMl.js';
+import { buscarComparativoFull, buscarFiltrosFullMl, type FiltroFullMl, type SituacaoFull } from '../services/estoqueFullMl.js';
 
 export const estoqueFullMlRouter = Router();
 
@@ -16,6 +16,8 @@ function lista(valor: string | undefined): string[] | undefined {
   return itens?.length ? itens : undefined;
 }
 
+const SITUACOES_VALIDAS: SituacaoFull[] = ['OK', 'DIVERGENTE', 'SO_ML', 'SO_SYSEMP'];
+
 function extrairFiltros(query: Record<string, string | undefined>): FiltroFullMl {
   const empresas = lista(query.empresas)
     ?.map(Number)
@@ -27,6 +29,7 @@ function extrairFiltros(query: Record<string, string | undefined>): FiltroFullMl
     marcas: lista(query.marcas),
     busca: query.busca?.trim() || undefined,
     soDivergencias: query.soDivergencias === 'true',
+    situacao: SITUACOES_VALIDAS.find((s) => s === query.situacao),
   };
 }
 

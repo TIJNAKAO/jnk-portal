@@ -159,6 +159,8 @@ export interface FiltroFullMl {
   marcas?: string[];
   busca?: string;
   soDivergencias?: boolean;
+  /** Uma situação específica (ex.: esconder os "Só no SysEmp" olhando só `DIVERGENTE`). */
+  situacao?: SituacaoFull;
 }
 
 export interface OpcaoFiltro {
@@ -262,6 +264,7 @@ export async function buscarComparativoFull(
     linhas = linhas.filter((l) => l.codigo.toUpperCase().includes(termo) || l.descricao.toUpperCase().includes(termo));
   }
   if (filtro.soDivergencias) linhas = linhas.filter((l) => l.situacao !== 'OK');
+  if (filtro.situacao) linhas = linhas.filter((l) => l.situacao === filtro.situacao);
 
   const atualizadoEm = linhasMl.reduce<string | null>((maior, l) => {
     const v = l.atualizado_em ? new Date(l.atualizado_em as string | Date).toISOString() : null;
