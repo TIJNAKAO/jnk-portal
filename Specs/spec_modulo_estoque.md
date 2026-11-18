@@ -7,6 +7,32 @@
 - ![Modelo da COnsulta/Relatório](image.png)
 - Possibilitar o usuário filtrar: Empresa e Marca
 
+#### 1.1.1. Regras de cálculo (validadas com o Marcelo, 18/11/2026)
+
+O Marcelo (Gestão e Logística) reclamou que a curva trazia **um único item A** e
+que o FP12X, o maior estoque, aparecia como **C**. Dois erros de cálculo, ambos
+medidos na produção, corrigidos assim:
+
+- **Kit fica fora.** `sysemp_produto.produto_kit = 1` não entra. Os kits do tipo
+  "KIT (VENDE ITENS - ESTOQUE ITENS)" têm saldo que não é físico (o estoque mora
+  nos componentes, que já estão na curva): somavam R$ 1,74 mi, 83% da base, e dois
+  kits (KIT1556 e KIT2524, ~4.900 e ~3.300 un.) valiam 75% do total. O kit montado
+  que vai pronto para o FULL é cadastrado como produto normal (`produto_kit = 0`) e
+  continua na curva.
+- **Custo de formação quando o médio é zero.** Valor = saldo × `custo_medio`; se o
+  médio é nulo ou 0, usa `custo_formacao`; se também é 0, o valor é 0 e o produto
+  cai em C. O FP12X (9.561 un., `custo_medio = 0`, formação R$ 80,44) valia R$ 0
+  e passou a valer ~R$ 769 mil (52% do total → A). A coluna **Custo** (Médio /
+  Formação / Sem custo) mostra de onde veio cada valor, e a tela avisa quantas
+  linhas estão em Formação e quantas **sem custo** (valor 0 → C). Custo sem
+  cadastro em nenhum dos dois é problema do cadastro no SysEmp, não da curva.
+- Resultado na produção (todas as empresas): antes, A=1 / B=101 / C=2.817; depois,
+  A=5 / B=193 / C=2.472. Continua concentrada (FP12X e FP12X50 somam ~66% do valor),
+  então poucos itens A é consequência do dado, não de erro.
+- Cada linha é produto × empresa (o FP12X aparece uma vez por empresa, cada uma com
+  sua classe). `A70`/`B20`/`C10` pelo acumulado ≤ 70% / ≤ 90% / resto, ordenado por
+  valor decrescente.
+
 ## 2. Consulta de Saldo de Estoque
 
 **Rota:** `/estoque/saldos` · **API:** `/api/estoque/saldos` ·

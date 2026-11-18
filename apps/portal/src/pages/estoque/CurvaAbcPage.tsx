@@ -8,13 +8,25 @@ interface LinhaCurvaAbc {
   cd_produto: string | null;
   dc_produto: string;
   marca: string | null;
-  kit: number;
+  origem_custo: 'MEDIO' | 'FORMACAO' | 'SEM_CUSTO';
   vt_custo_geral: number;
   per_valor: number;
   classe_valor: 'A70' | 'B20' | 'C10';
   qtde: number;
   vt_custo: number;
 }
+
+interface ResumoCusto {
+  comCustoFormacao: number;
+  semCusto: number;
+  unidadesSemCusto: number;
+}
+
+const ORIGEM_CUSTO: Record<LinhaCurvaAbc['origem_custo'], { texto: string; classe: string }> = {
+  MEDIO: { texto: 'Médio', classe: 'text-slate-500' },
+  FORMACAO: { texto: 'Formação', classe: 'text-amber-700' },
+  SEM_CUSTO: { texto: 'Sem custo', classe: 'font-medium text-red-700' },
+};
 
 interface OpcaoFiltro {
   valor: string;
@@ -46,6 +58,7 @@ export function CurvaAbcPage() {
   const [marcasSel, setMarcasSel] = useState<string[]>([]);
   const [linhas, setLinhas] = useState<LinhaCurvaAbc[]>([]);
   const [total, setTotal] = useState(0);
+  const [resumo, setResumo] = useState<ResumoCusto>({ comCustoFormacao: 0, semCusto: 0, unidadesSemCusto: 0 });
   const [pagina, setPagina] = useState(1);
   const [carregando, setCarregando] = useState(false);
   const [exportando, setExportando] = useState(false);
@@ -67,9 +80,12 @@ export function CurvaAbcPage() {
       const params = queryFiltros();
       params.set('pagina', String(paginaAtual));
       params.set('tamanhoPagina', String(TAMANHO_PAGINA));
-      const dados = await api<{ linhas: LinhaCurvaAbc[]; total: number }>(`/estoque/curva-abc?${params.toString()}`);
+      const dados = await api<{ linhas: LinhaCurvaAbc[]; total: number; resumo: ResumoCusto }>(
+        `/estoque/curva-abc?${params.toString()}`,
+      );
       setLinhas(dados.linhas);
       setTotal(dados.total);
+      setResumo(dados.resumo);
       setPagina(paginaAtual);
     } finally {
       setCarregando(false);
@@ -98,7 +114,8 @@ export function CurvaAbcPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Curva ABC de Estoque</h1>
           <p className="text-sm text-slate-500">
-            Classificação 70/20/10 por valor de estoque (saldo × custo médio), sumarizado por produto.
+            Classificação 70/20/10 por valor de estoque (saldo × custo médio; custo de formação quando o médio é
+            zero), sumarizado por produto. Kits cadastrados como kit ficam fora: o saldo deles não é físico.
           </p>
         </div>
         <button
@@ -144,6 +161,24 @@ export function CurvaAbcPage() {
         </div>
       </div>
 
+      {(resumo.semCusto > 0 || resumo.comCustoFormacao > 0) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {resumo.semCusto > 0 && (
+            <p>
+              <strong>{resumo.semCusto}</strong> produto(s) sem custo cadastrado ({fmtNumero(resumo.unidadesSemCusto)}{' '}
+              unidades) entram com valor zero e ficam na classe C. O custo precisa ser corrigido no SysEmp para a
+              classificação ficar completa.
+            </p>
+          )}
+          {resumo.comCustoFormacao > 0 && (
+            <p>
+              <strong>{resumo.comCustoFormacao}</strong> produto(s) estão valorizados pelo custo de formação, porque o
+              custo médio está zerado (coluna Custo = Formação).
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
@@ -153,7 +188,7 @@ export function CurvaAbcPage() {
               <th className="p-3">CD PRODUTO</th>
               <th className="p-3">DC PRODUTO</th>
               <th className="p-3">MARCA</th>
-              <th className="p-3">KIT</th>
+              <th className="p-3">CUSTO</th>
               <th className="p-3 text-right">VT CUSTO GERAL</th>
               <th className="p-3 text-right">PER VALOR</th>
               <th className="p-3">CLASSE VALOR</th>
@@ -169,7 +204,7 @@ export function CurvaAbcPage() {
                 <td className="p-3 text-slate-500">{l.cd_produto ?? '—'}</td>
                 <td className="p-3">{l.dc_produto}</td>
                 <td className="p-3 text-slate-500">{l.marca ?? '—'}</td>
-                <td className="p-3 text-slate-500">{l.kit ? 'Sim' : 'Não'}</td>
+                <td className={`p-3 ${ORIGEM_CUSTO[l.origem_custo].classe}`}>{ORIGEM_CUSTO[l.origem_custo].texto}</td>
                 <td className="p-3 text-right text-slate-500">{fmtNumero(l.vt_custo_geral)}</td>
                 <td className="p-3 text-right text-slate-500">{fmtNumero(l.per_valor)}%</td>
                 <td className="p-3">

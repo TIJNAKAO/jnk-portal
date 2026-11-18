@@ -17,6 +17,8 @@ const ROTA = '/estoque/curva-abc';
 
 estoqueCurvaAbcRouter.use(authTenant);
 
+const ROTULO_ORIGEM_CUSTO = { MEDIO: 'Médio', FORMACAO: 'Formação', SEM_CUSTO: 'Sem custo' } as const;
+
 function extrairFiltros(query: Record<string, string | undefined>): FiltroCurvaAbc {
   return {
     empresas: query.empresas ? query.empresas.split(',').map(Number).filter((n) => !Number.isNaN(n)) : undefined,
@@ -34,8 +36,8 @@ estoqueCurvaAbcRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (
   const tamanhoPagina = Math.min(200, Math.max(1, Number(req.query.tamanhoPagina) || 50));
 
   const escopo = await buscarEmpresasPermitidas(req.usuario!.id);
-  const { linhas, total } = await buscarCurvaAbcPaginada(filtros, escopo, pagina, tamanhoPagina);
-  res.json({ linhas, total, pagina, tamanhoPagina });
+  const { linhas, total, resumo } = await buscarCurvaAbcPaginada(filtros, escopo, pagina, tamanhoPagina);
+  res.json({ linhas, total, resumo, pagina, tamanhoPagina });
 });
 
 estoqueCurvaAbcRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
@@ -50,7 +52,7 @@ estoqueCurvaAbcRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'),
     { header: 'CD PRODUTO', key: 'cd_produto', width: 14 },
     { header: 'DC PRODUTO', key: 'dc_produto', width: 45 },
     { header: 'MARCA', key: 'marca', width: 14 },
-    { header: 'KIT', key: 'kit', width: 8 },
+    { header: 'ORIGEM DO CUSTO', key: 'origem_custo', width: 16 },
     { header: 'VT CUSTO GERAL', key: 'vt_custo_geral', width: 16, style: { numFmt: '#,##0.00' } },
     { header: 'PER VALOR', key: 'per_valor', width: 12, style: { numFmt: '0.00' } },
     { header: 'CLASSE VALOR', key: 'classe_valor', width: 12 },
@@ -61,7 +63,7 @@ estoqueCurvaAbcRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'),
   sheet.addRows(
     linhas.map((l) => ({
       ...l,
-      kit: l.kit ? 'Sim' : 'Não',
+      origem_custo: ROTULO_ORIGEM_CUSTO[l.origem_custo],
       // DECIMAL do mysql2 chega como string — sem isso o Excel grava
       // texto, não número (ver numeroXlsx.ts).
       vt_custo_geral: numeroXlsx(l.vt_custo_geral),

@@ -13,7 +13,8 @@ export interface LinhaCurvaAbc extends RowDataPacket {
   cd_produto: string | null;
   dc_produto: string;
   marca: string | null;
-  kit: number;
+  /** De onde veio o custo unitário: média, formação (quando a média é zero) ou nenhum (valor 0). */
+  origem_custo: 'MEDIO' | 'FORMACAO' | 'SEM_CUSTO';
   vt_custo_geral: number;
   per_valor: number;
   classe_valor: 'A70' | 'B20' | 'C10';
@@ -21,8 +22,18 @@ export interface LinhaCurvaAbc extends RowDataPacket {
   vt_custo: number;
 }
 
+/** Quantas linhas do resultado não têm custo médio (custo de formação ou valor zero → classe C). */
+export interface ResumoCusto {
+  comCustoFormacao: number;
+  semCusto: number;
+  unidadesSemCusto: number;
+}
+
 function montarFiltro(filtros: FiltroCurvaAbc, escopo: EmpresaPermitida[]): { where: string; params: unknown[] } {
-  const condicoes: string[] = ['ef.deleted = FALSE', 'ef.saldo_disponivel > 0'];
+  // Kit (produto_kit = 1) fica FORA: o saldo dele não é físico (o estoque mora nos
+  // componentes, que já entram na curva) e inflava a base em 83%. O kit montado
+  // que vai pronto para o FULL é cadastrado como produto normal e continua dentro.
+  const condicoes: string[] = ['ef.deleted = FALSE', 'ef.saldo_disponivel > 0', 'p.produto_kit = 0'];
   const params: unknown[] = [];
 
   // Escopo do usuário primeiro, sempre: a escolha da tela é aplicada dentro
@@ -59,9 +70,17 @@ function montarCte(filtros: FiltroCurvaAbc, escopo: EmpresaPermitida[]): { sql: 
         p.codigo_auxiliar AS cd_produto,
         p.nome_produto AS dc_produto,
         p.descricao_marca AS marca,
-        p.produto_kit AS kit,
+        CASE
+          WHEN COALESCE(ef.custo_medio, 0) > 0 THEN 'MEDIO'
+          WHEN COALESCE(ef.custo_formacao, 0) > 0 THEN 'FORMACAO'
+          ELSE 'SEM_CUSTO'
+        END AS origem_custo,
         ef.saldo_disponivel AS qtde,
-        (ef.saldo_disponivel * COALESCE(ef.custo_medio, 0)) AS vt_custo
+        (ef.saldo_disponivel * CASE
+          WHEN COALESCE(ef.custo_medio, 0) > 0 THEN ef.custo_medio
+          WHEN COALESCE(ef.custo_formacao, 0) > 0 THEN ef.custo_formacao
+          ELSE 0
+        END) AS vt_custo
       FROM sysemp_estoque_fisico ef
       JOIN sysemp_produto p ON p.id_produto = ef.id_produto
       JOIN sysemp_empresa e ON e.id_empresa = ef.id_empresa
@@ -79,7 +98,7 @@ function montarCte(filtros: FiltroCurvaAbc, escopo: EmpresaPermitida[]): { sql: 
       FROM base, totais
     )
     SELECT
-      ordem, dc_filial, cd_produto, dc_produto, marca, kit,
+      ordem, dc_filial, cd_produto, dc_produto, marca, origem_custo,
       vt_custo_geral,
       CASE WHEN vt_custo_geral = 0 THEN 0 ELSE ROUND(vt_custo / vt_custo_geral * 100, 2) END AS per_valor,
       CASE
@@ -99,11 +118,25 @@ export async function buscarCurvaAbcPaginada(
   escopo: EmpresaPermitida[],
   pagina: number,
   tamanhoPagina: number,
-): Promise<{ linhas: LinhaCurvaAbc[]; total: number }> {
+): Promise<{ linhas: LinhaCurvaAbc[]; total: number; resumo: ResumoCusto }> {
   const { sql, params } = montarCte(filtros, escopo);
 
-  const [totalRows] = await pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM (${sql}) contagem`, params);
-  const total = totalRows[0]?.total ?? 0;
+  // Uma consulta só para o total e para o resumo de custo: a curva é calculada
+  // uma vez por chamada, então não vale rodar a CTE duas vezes.
+  const [totalRows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total,
+            COALESCE(SUM(origem_custo = 'FORMACAO'), 0) AS com_custo_formacao,
+            COALESCE(SUM(origem_custo = 'SEM_CUSTO'), 0) AS sem_custo,
+            COALESCE(SUM(CASE WHEN origem_custo = 'SEM_CUSTO' THEN qtde ELSE 0 END), 0) AS unidades_sem_custo
+       FROM (${sql}) contagem`,
+    params,
+  );
+  const total = Number(totalRows[0]?.total ?? 0);
+  const resumo: ResumoCusto = {
+    comCustoFormacao: Number(totalRows[0]?.com_custo_formacao ?? 0),
+    semCusto: Number(totalRows[0]?.sem_custo ?? 0),
+    unidadesSemCusto: Number(totalRows[0]?.unidades_sem_custo ?? 0),
+  };
 
   const offset = (pagina - 1) * tamanhoPagina;
   const [linhas] = await pool.query<LinhaCurvaAbc[]>(`${sql} ORDER BY ordem LIMIT ? OFFSET ?`, [
@@ -112,7 +145,7 @@ export async function buscarCurvaAbcPaginada(
     offset,
   ]);
 
-  return { linhas, total };
+  return { linhas, total, resumo };
 }
 
 export async function buscarCurvaAbcCompleta(
