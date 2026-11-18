@@ -440,10 +440,13 @@ Não tem relação com o Fechamento (seção 3): aqui o saldo vem da API do ML a
 - **Chave:** `(empresa, SKU)`. SKU do anúncio ML = `sysemp_produto.codigo_auxiliar`,
   comparado com `trim` e maiúsculas. A empresa vem do vínculo conta ML → empresa
   (`ml_conta_empresa`); só empresas com conta vinculada entram.
-- **Quantidades:** ML = `available_quantity` (disponível para venda); SysEmp =
+- **Quantidades:** a comparação usa o **ML total** (disponível + não disponível,
+  inclui o que está em transferência entre centros do Full) contra o SysEmp
   `sysemp_estoque_fisico.saldo_disponivel` (`deleted = FALSE`, nulo conta 0).
-  `diferenca = ML − SysEmp`. Total e não disponível do ML aparecem como colunas
-  informativas e não entram na diferença.
+  `diferenca = ML total − SysEmp`. Decisão do Ricardo em 18/11/2026: comparar só
+  o disponível gerava divergência falsa (ex.: J9918, 1 disponível + 32 não
+  disponíveis = 33 no total, igual ao SysEmp). Colunas na ordem: ML disponível,
+  ML não disponível, ML total, SysEmp, diferença.
 - **Situações:** `OK` (iguais), `DIVERGENTE`, `SO_ML` (SKU sem produto na empresa,
   inclusive SKU vazio — uma linha por anúncio, nunca descartado) e `SO_SYSEMP`
   (produto com saldo > 0 e sem anúncio no FULL; saldo 0 ou negativo não gera linha — negativo é baixa de kit sem entrada, não mercadoria).

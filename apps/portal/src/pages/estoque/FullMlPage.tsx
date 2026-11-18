@@ -122,7 +122,7 @@ export function FullMlPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Estoque FULL ML x SysEmp</h1>
           <p className="text-sm text-slate-500">
-            Saldo disponível do FULL do Mercado Livre contra o saldo disponível da SysEmp (SKU = código auxiliar).
+            Estoque do FULL do Mercado Livre contra o saldo disponível da SysEmp (SKU = código auxiliar). A diferença é ML total − SysEmp.
             {dataRef && ` Foto de ${dataBr(dataRef)}`}
             {atualizadoEm && `, atualizada em ${dataHora(atualizadoEm)}`}
             {dataRef && '.'}
@@ -185,8 +185,8 @@ export function FullMlPage() {
               <th className="p-3">Descrição</th>
               <th className="p-3">Marca</th>
               <th className="p-3 text-right">ML disponível</th>
-              <th className="p-3 text-right">ML total</th>
               <th className="p-3 text-right">ML não disp.</th>
+              <th className="p-3 text-right">ML total</th>
               <th className="p-3 text-right">SysEmp</th>
               <th className="p-3 text-right">Diferença</th>
               <th className="p-3">Situação</th>
@@ -200,8 +200,8 @@ export function FullMlPage() {
                 <td className="p-3">{l.descricao}</td>
                 <td className="p-3 text-slate-500">{l.marca ?? '—'}</td>
                 <td className="p-3 text-right tabular-nums">{num(l.qtdeMl)}</td>
-                <td className="p-3 text-right tabular-nums text-slate-500">{num(l.totalMl)}</td>
                 <td className="p-3 text-right tabular-nums text-slate-500">{num(l.naoDisponivelMl)}</td>
+                <td className="p-3 text-right tabular-nums">{num(l.totalMl)}</td>
                 <td className="p-3 text-right tabular-nums">{num(l.qtdeSysemp)}</td>
                 <td className={`p-3 text-right tabular-nums ${l.diferenca !== 0 ? 'font-medium text-red-700' : ''}`}>{num(l.diferenca)}</td>
                 <td className="p-3">

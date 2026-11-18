@@ -119,7 +119,7 @@ export function compararSaldosFull(
   const linhas: LinhaComparativoFull[] = [];
   for (const a of mapa.values()) {
     let situacao: SituacaoFull;
-    if (a.temMl && a.temSys) situacao = a.qtdeMl === a.qtdeSys ? 'OK' : 'DIVERGENTE';
+    if (a.temMl && a.temSys) situacao = a.totalMl === a.qtdeSys ? 'OK' : 'DIVERGENTE';
     else if (a.temMl) situacao = 'SO_ML';
     // Só saldo POSITIVO conta como estoque sem anúncio: saldo negativo no
     // SysEmp é venda/baixa de kit sem entrada, não mercadoria (na empresa
@@ -138,7 +138,7 @@ export function compararSaldosFull(
       totalMl: a.totalMl,
       naoDisponivelMl: a.naoDisponivelMl,
       qtdeSysemp: a.qtdeSys,
-      diferenca: a.qtdeMl - a.qtdeSys,
+      diferenca: a.totalMl - a.qtdeSys,
       situacao,
     });
   }

@@ -34,6 +34,23 @@ describe('compararSaldosFull', () => {
     expect(r[0]?.situacao).toBe('OK');
   });
 
+  test('a comparação usa o ML total, não o disponível', () => {
+    // J9918 real: 1 disponível + 32 não disponíveis (30 em transferência) = 33 no total.
+    const [l] = compararSaldosFull(
+      [ml({ sku: 'A', disponivel: 1, total: 33, naoDisponivel: 32 })],
+      [sys({ codigoAuxiliar: 'A', saldo: 33 })],
+      NOMES,
+    );
+    expect(l).toMatchObject({ situacao: 'OK', qtdeMl: 1, totalMl: 33, qtdeSysemp: 33, diferenca: 0 });
+
+    const [d] = compararSaldosFull(
+      [ml({ sku: 'B', disponivel: 13, total: 14, naoDisponivel: 1 })],
+      [sys({ codigoAuxiliar: 'B', saldo: 44 })],
+      NOMES,
+    );
+    expect(d).toMatchObject({ situacao: 'DIVERGENTE', diferenca: -30 });
+  });
+
   test('SKU só no ML vira SO_ML', () => {
     const [l] = compararSaldosFull([ml({ sku: 'A', disponivel: 3 })], [], NOMES);
     expect(l).toMatchObject({ situacao: 'SO_ML', qtdeSysemp: 0, qtdeMl: 3, diferenca: 3 });
