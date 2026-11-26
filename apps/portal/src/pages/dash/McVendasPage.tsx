@@ -1,11 +1,11 @@
 import { AlertTriangle } from 'lucide-react';
-import type { ChangeEvent } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CampoBusca } from '../../components/CampoBusca';
 import { ThOrdenavel } from '../../components/ThOrdenavel';
 import { SERIE_1 } from '../../lib/paletaViz';
 import type { DirecaoOrdenacao } from '../../lib/tabela';
 import { useApi, useApiDownload } from '../../lib/useApi';
+import { FiltroMultiplo } from './FiltroMultiplo';
 
 /**
  * MC Vendas: margem de contribuição venda a venda, para empresa de lucro
@@ -159,10 +159,6 @@ function corMc(perc: number | null): string {
   return 'text-slate-900';
 }
 
-function selecionadas(e: ChangeEvent<HTMLSelectElement>): string[] {
-  return Array.from(e.target.selectedOptions).map((o) => o.value);
-}
-
 function Pilula({ ativa, onClick, children }: { ativa: boolean; onClick: () => void; children: string }) {
   return (
     <button
@@ -201,9 +197,9 @@ export function McVendasPage() {
   });
 
   const [aba, setAba] = useState<'vendas' | 'ranking'>('vendas');
-  const [empresas, setEmpresas] = useState<string[]>([]);
-  const [marcas, setMarcas] = useState<string[]>([]);
-  const [canais, setCanais] = useState<string[]>([]);
+  const [empresas, setEmpresas] = useState<string[] | null>(null);
+  const [marcas, setMarcas] = useState<string[] | null>(null);
+  const [canais, setCanais] = useState<string[] | null>(null);
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [busca, setBusca] = useState('');
@@ -241,9 +237,11 @@ export function McVendasPage() {
   /** Filtros comuns às três consultas. Faixa e ordenação são só da tabela. */
   const queryBase = useCallback(() => {
     const params = new URLSearchParams();
-    if (empresas.length) params.set('empresas', empresas.join(','));
-    if (marcas.length) params.set('marcas', marcas.join(','));
-    if (canais.length) params.set('canais', canais.join(','));
+    // `null` é "todas": não manda a lista, e o servidor não restringe. Lista vazia também
+    // não restringe, senão desmarcar tudo esvaziaria a tela no meio da escolha.
+    if (empresas?.length) params.set('empresas', empresas.join(','));
+    if (marcas?.length) params.set('marcas', marcas.join(','));
+    if (canais?.length) params.set('canais', canais.join(','));
     if (dataInicio) params.set('dataInicio', dataInicio);
     if (dataFim) params.set('dataFim', dataFim);
     if (busca.trim()) params.set('busca', busca.trim());
@@ -447,60 +445,9 @@ export function McVendasPage() {
             className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm"
           />
         </div>
-        <div>
-          <label htmlFor="mc-empresa" className="mb-1 block text-xs font-medium text-slate-500">
-            Empresa
-          </label>
-          <select
-            id="mc-empresa"
-            multiple
-            value={empresas}
-            onChange={(e) => setEmpresas(selecionadas(e))}
-            className="min-h-[84px] min-w-[220px] rounded-lg border border-slate-300 p-2 text-sm"
-          >
-            {opcoes.empresas.map((o) => (
-              <option key={o.valor} value={o.valor}>
-                {o.rotulo}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="mc-canal" className="mb-1 block text-xs font-medium text-slate-500">
-            Canal
-          </label>
-          <select
-            id="mc-canal"
-            multiple
-            value={canais}
-            onChange={(e) => setCanais(selecionadas(e))}
-            className="min-h-[84px] min-w-[220px] rounded-lg border border-slate-300 p-2 text-sm"
-          >
-            {opcoes.canais.map((o) => (
-              <option key={o.valor} value={o.valor}>
-                {o.rotulo}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="mc-marca" className="mb-1 block text-xs font-medium text-slate-500">
-            Marca
-          </label>
-          <select
-            id="mc-marca"
-            multiple
-            value={marcas}
-            onChange={(e) => setMarcas(selecionadas(e))}
-            className="min-h-[84px] min-w-[180px] rounded-lg border border-slate-300 p-2 text-sm"
-          >
-            {opcoes.marcas.map((o) => (
-              <option key={o.valor} value={o.valor}>
-                {o.rotulo}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FiltroMultiplo rotulo="Empresa" opcoes={opcoes.empresas} selecionadas={empresas} onChange={setEmpresas} />
+        <FiltroMultiplo rotulo="Canal" opcoes={opcoes.canais} selecionadas={canais} onChange={setCanais} />
+        <FiltroMultiplo rotulo="Marca" opcoes={opcoes.marcas} selecionadas={marcas} onChange={setMarcas} />
         <CampoBusca valor={busca} onChange={setBusca} placeholder="NF, cliente ou produto..." />
       </div>
 
