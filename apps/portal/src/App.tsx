@@ -25,6 +25,7 @@ import { ImportarEstoqueFullPage } from './pages/estoque/fechamento/ImportarEsto
 import { ImportarFechamentoPage } from './pages/estoque/fechamento/ImportarFechamentoPage';
 import { ImportarInventarioPage } from './pages/estoque/fechamento/ImportarInventarioPage';
 import { LogsImportacaoPage } from './pages/estoque/fechamento/LogsImportacaoPage';
+import { McVendasPage } from './pages/faturamento/McVendasPage';
 import { NotasFiscaisPage } from './pages/faturamento/NotasFiscaisPage';
 import { PrecosPage } from './pages/faturamento/PrecosPage';
 import { ExecucaoDetalhePage } from './pages/integracao/ExecucaoDetalhePage';
@@ -118,6 +119,7 @@ export function App() {
             />
             <Route path="/faturamento/notas-fiscais" element={<NotasFiscaisPage />} />
             <Route path="/faturamento/precos" element={<PrecosPage />} />
+            <Route path="/faturamento/mc-vendas" element={<McVendasPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/modules" replace />} />

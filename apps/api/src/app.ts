@@ -16,6 +16,7 @@ import { estoqueImportacaoLogsRouter } from './routes/estoqueImportacaoLogs.js';
 import { estoqueFullMlRouter } from './routes/estoqueFullMl.js';
 import { estoqueSaldosRouter } from './routes/estoqueSaldos.js';
 import { faturamentoDashboardRouter } from './routes/faturamentoDashboard.js';
+import { faturamentoMcVendasRouter } from './routes/faturamentoMcVendas.js';
 import { faturamentoNotasFiscaisRouter } from './routes/faturamentoNotasFiscais.js';
 import { faturamentoPrecosRouter } from './routes/faturamentoPrecos.js';
 import { filiaisRouter } from './routes/filiais.js';
@@ -97,6 +98,7 @@ app.use('/api/estoque/fechamento/logs', estoqueImportacaoLogsRouter);
 app.use('/api/faturamento/notas-fiscais', faturamentoNotasFiscaisRouter);
 app.use('/api/faturamento/dashboard', faturamentoDashboardRouter);
 app.use('/api/faturamento/precos', faturamentoPrecosRouter);
+app.use('/api/faturamento/mc-vendas', faturamentoMcVendasRouter);
 
 app.use((req, res) => {
   res.status(404).json({ erro: `Rota não encontrada: ${req.method} ${req.path}` });
