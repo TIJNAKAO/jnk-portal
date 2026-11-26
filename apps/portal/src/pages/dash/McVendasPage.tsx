@@ -98,6 +98,11 @@ interface FiltrosDisponiveis {
 
 const TAMANHO_PAGINA = 50;
 
+/** Células da tabela venda a venda: respiro mínimo, para as 16 colunas caberem sem rolagem lateral. */
+const TH = 'px-1.5 py-2';
+const TD = 'px-1.5 py-1.5';
+const NUM = `${TD} whitespace-nowrap text-right tabular-nums`;
+
 const FAIXAS: { id: FaixaMc | ''; rotulo: string }[] = [
   { id: '', rotulo: 'Todas' },
   { id: 'lt10', rotulo: 'Abaixo de 10%' },
@@ -314,7 +319,7 @@ export function McVendasPage() {
     } else {
       setOrdenarPor(campo);
       // Número abre do maior para o menor: é o que se procura numa coluna de valor.
-      setDirecao(['canal', 'nf', 'uf', 'produto'].includes(campo) ? 'asc' : 'desc');
+      setDirecao(['canal', 'produto'].includes(campo) ? 'asc' : 'desc');
     }
   }
 
@@ -581,116 +586,107 @@ export function McVendasPage() {
             ))}
           </div>
 
+          {/* Tabela compacta: 16 colunas precisam caber numa tela de notebook sem rolagem
+              lateral. Por isso letra menor, pouco respiro, data+NF+UF e canal+empresa
+              empilhados numa célula só, e produto com quebra de linha. O overflow fica
+              como rede de segurança para telas estreitas. */}
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 text-slate-500">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 align-bottom text-slate-500">
                 <tr>
-                  <ThOrdenavel campo="data" {...props}>
-                    DATA
+                  <ThOrdenavel campo="data" className={TH} {...props}>
+                    DATA / NF
                   </ThOrdenavel>
-                  <ThOrdenavel campo="canal" {...props}>
+                  <ThOrdenavel campo="canal" className={TH} {...props}>
                     CANAL
                   </ThOrdenavel>
-                  <ThOrdenavel campo="nf" {...props}>
-                    NF
-                  </ThOrdenavel>
-                  <ThOrdenavel campo="uf" {...props}>
-                    UF
-                  </ThOrdenavel>
-                  <ThOrdenavel campo="produto" {...props}>
+                  <ThOrdenavel campo="produto" className={TH} {...props}>
                     PRODUTO
                   </ThOrdenavel>
-                  <ThOrdenavel campo="qtde" alinharDireita {...props}>
-                    QTDE
+                  <ThOrdenavel campo="qtde" alinharDireita className={TH} {...props}>
+                    QTD
                   </ThOrdenavel>
-                  <ThOrdenavel campo="vendas" alinharDireita {...props}>
+                  <ThOrdenavel campo="vendas" alinharDireita className={TH} {...props}>
                     VALOR
                   </ThOrdenavel>
-                  <ThOrdenavel campo="custoLiquido" alinharDireita {...props}>
-                    CUSTO LÍQUIDO
+                  <ThOrdenavel campo="custoLiquido" alinharDireita className={TH} {...props}>
+                    CUSTO LÍQ.
                   </ThOrdenavel>
-                  <ThOrdenavel campo="icms" alinharDireita className="border-l border-slate-200 p-3" {...props}>
+                  <ThOrdenavel campo="icms" alinharDireita className={`${TH} border-l border-slate-200`} {...props}>
                     ICMS R$
                   </ThOrdenavel>
-                  <th className="whitespace-nowrap p-3 text-right font-medium">ICMS %</th>
-                  <ThOrdenavel campo="pisCofins" alinharDireita {...props}>
-                    PIS/COFINS R$
+                  <th className={`${TH} text-right font-medium`}>ICMS %</th>
+                  <ThOrdenavel campo="pisCofins" alinharDireita className={TH} {...props}>
+                    PIS/COF R$
                   </ThOrdenavel>
-                  <th className="whitespace-nowrap p-3 text-right font-medium">PIS/COFINS %</th>
-                  <ThOrdenavel campo="difal" alinharDireita {...props}>
+                  <th className={`${TH} text-right font-medium`}>PIS/COF %</th>
+                  <ThOrdenavel campo="difal" alinharDireita className={TH} {...props}>
                     DIFAL R$
                   </ThOrdenavel>
-                  <th className="whitespace-nowrap border-r border-slate-200 p-3 text-right font-medium">DIFAL %</th>
-                  <ThOrdenavel campo="tarifa" alinharDireita {...props}>
+                  <th className={`${TH} border-r border-slate-200 text-right font-medium`}>DIFAL %</th>
+                  <ThOrdenavel campo="tarifa" alinharDireita className={TH} {...props}>
                     TARIFA
                   </ThOrdenavel>
-                  <ThOrdenavel campo="frete" alinharDireita {...props}>
+                  <ThOrdenavel campo="frete" alinharDireita className={TH} {...props}>
                     FRETE
                   </ThOrdenavel>
-                  <ThOrdenavel campo="mc" alinharDireita {...props}>
+                  <ThOrdenavel campo="mc" alinharDireita className={TH} {...props}>
                     MC R$
                   </ThOrdenavel>
-                  <ThOrdenavel campo="percMc" alinharDireita {...props}>
+                  <ThOrdenavel campo="percMc" alinharDireita className={TH} {...props}>
                     MC %
                   </ThOrdenavel>
                 </tr>
               </thead>
               <tbody>
                 {linhas.map((l) => (
-                  <tr key={l.recno} className="border-b border-slate-100 last:border-0">
-                    <td className="whitespace-nowrap p-3 text-slate-600">{dataBr(l.data)}</td>
-                    <td className="p-3">
-                      <div className="whitespace-nowrap text-slate-900">{l.canal || '—'}</div>
-                      <div className="whitespace-nowrap text-xs text-slate-500">{l.empresa}</div>
+                  <tr key={l.recno} className="border-b border-slate-100 align-top last:border-0">
+                    <td className={`${TD} whitespace-nowrap`}>
+                      <div className="text-slate-900">{dataBr(l.data).slice(0, 5)}</div>
+                      <div className="text-slate-500">
+                        {l.nf}
+                        {l.uf ? ` · ${l.uf}` : ''}
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap p-3 text-slate-600">
-                      {l.nf}
-                      {l.serie ? `-${l.serie}` : ''}
+                    <td className={`${TD} max-w-[9rem]`}>
+                      <div className="truncate text-slate-900" title={l.canal}>
+                        {l.canal || '—'}
+                      </div>
+                      <div className="truncate text-slate-500" title={l.empresa}>
+                        {l.empresa}
+                      </div>
                     </td>
-                    <td className="p-3 text-slate-600">{l.uf || '—'}</td>
-                    <td className="min-w-[240px] p-3">
+                    <td className={`${TD} min-w-[9rem]`}>
                       <div className="text-slate-900">{l.produto || '—'}</div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-slate-500">
                         {l.cdProduto}
                         {l.marca ? ` · ${l.marca}` : ''}
                       </div>
                     </td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums">{l.qtde.toLocaleString('pt-BR')}</td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums">{numero(l.vendas)}</td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                    <td className={NUM}>{l.qtde.toLocaleString('pt-BR')}</td>
+                    <td className={NUM}>{numero(l.vendas)}</td>
+                    <td className={NUM}>
                       {l.custoLiquido === null ? (
                         <span className="font-semibold text-amber-800">Sem custo</span>
                       ) : (
                         numero(l.custoLiquido)
                       )}
                     </td>
-                    <td className="whitespace-nowrap border-l border-slate-100 p-3 text-right tabular-nums text-slate-700">
-                      {numero(l.icms)}
-                    </td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-600">{pct(l.percIcms)}</td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-700">
-                      {numero(l.pisCofins)}
-                    </td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-600">
-                      {pct(l.percPisCofins)}
-                    </td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-700">{numero(l.difal)}</td>
-                    <td className="whitespace-nowrap border-r border-slate-100 p-3 text-right tabular-nums text-slate-600">
-                      {pct(l.percDifal)}
-                    </td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-700">{numero(l.tarifa)}</td>
-                    <td className="whitespace-nowrap p-3 text-right tabular-nums text-slate-700">{numero(l.frete)}</td>
-                    <td className={`whitespace-nowrap p-3 text-right font-semibold tabular-nums ${corMc(l.percMc)}`}>
-                      {numero(l.mc)}
-                    </td>
-                    <td className={`whitespace-nowrap p-3 text-right font-semibold tabular-nums ${corMc(l.percMc)}`}>
-                      {pct(l.percMc)}
-                    </td>
+                    <td className={`${NUM} border-l border-slate-100 text-slate-700`}>{numero(l.icms)}</td>
+                    <td className={`${NUM} text-slate-600`}>{pct(l.percIcms)}</td>
+                    <td className={`${NUM} text-slate-700`}>{numero(l.pisCofins)}</td>
+                    <td className={`${NUM} text-slate-600`}>{pct(l.percPisCofins)}</td>
+                    <td className={`${NUM} text-slate-700`}>{numero(l.difal)}</td>
+                    <td className={`${NUM} border-r border-slate-100 text-slate-600`}>{pct(l.percDifal)}</td>
+                    <td className={`${NUM} text-slate-700`}>{numero(l.tarifa)}</td>
+                    <td className={`${NUM} text-slate-700`}>{numero(l.frete)}</td>
+                    <td className={`${NUM} font-semibold ${corMc(l.percMc)}`}>{numero(l.mc)}</td>
+                    <td className={`${NUM} font-semibold ${corMc(l.percMc)}`}>{pct(l.percMc)}</td>
                   </tr>
                 ))}
                 {linhas.length === 0 && !carregando && (
                   <tr>
-                    <td colSpan={18} className="p-6 text-center text-slate-500">
+                    <td colSpan={16} className="p-6 text-center text-sm text-slate-500">
                       Nenhuma venda encontrada para estes filtros.
                     </td>
                   </tr>
