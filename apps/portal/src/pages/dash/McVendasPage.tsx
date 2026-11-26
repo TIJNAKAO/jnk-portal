@@ -9,7 +9,7 @@ import { useApi, useApiDownload } from '../../lib/useApi';
 
 /**
  * MC Vendas: margem de contribuição venda a venda, para empresa de lucro
- * real. Ver Specs/spec_modulo_faturamento.md, seção 12.
+ * real. Ver Specs/spec_modulo_dash.md, seção 2.
  *
  * Todo número vem calculado da API (`services/mcVendasCalculos.ts`). A tela
  * só formata: nenhuma fórmula de margem mora aqui.
@@ -223,7 +223,7 @@ export function McVendasPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    api<FiltrosDisponiveis>('/faturamento/mc-vendas/filtros')
+    api<FiltrosDisponiveis>('/dash/mc-vendas/filtros')
       .then((dados) => {
         setOpcoes(dados);
         // Abre no mês da última venda disponível, não no histórico inteiro:
@@ -267,8 +267,8 @@ export function McVendasPage() {
     const timer = setTimeout(() => {
       const params = queryBase().toString();
       Promise.all([
-        api<Resumo>(`/faturamento/mc-vendas/resumo?${params}`),
-        api<{ itens: ItemRanking[] }>(`/faturamento/mc-vendas/ranking?${params}`),
+        api<Resumo>(`/dash/mc-vendas/resumo?${params}`),
+        api<{ itens: ItemRanking[] }>(`/dash/mc-vendas/ranking?${params}`),
       ])
         .then(([dadosResumo, dadosRanking]) => {
           setResumo(dadosResumo);
@@ -287,7 +287,7 @@ export function McVendasPage() {
         const params = queryTabela();
         params.set('pagina', String(paginaAtual));
         params.set('tamanhoPagina', String(TAMANHO_PAGINA));
-        const dados = await api<{ linhas: LinhaMc[]; total: number }>(`/faturamento/mc-vendas?${params.toString()}`);
+        const dados = await api<{ linhas: LinhaMc[]; total: number }>(`/dash/mc-vendas?${params.toString()}`);
         setLinhas(dados.linhas);
         setTotal(dados.total);
         setPagina(paginaAtual);
@@ -343,7 +343,7 @@ export function McVendasPage() {
     setExportando(true);
     setErro(null);
     try {
-      await baixar(`/faturamento/mc-vendas/exportar?${queryTabela().toString()}`, { nomeArquivo: 'mc-vendas.xlsx' });
+      await baixar(`/dash/mc-vendas/exportar?${queryTabela().toString()}`, { nomeArquivo: 'mc-vendas.xlsx' });
     } catch (e) {
       setErro((e as Error).message);
     } finally {

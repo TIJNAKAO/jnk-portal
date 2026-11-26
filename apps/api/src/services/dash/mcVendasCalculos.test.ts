@@ -9,7 +9,7 @@ import {
 } from './mcVendasCalculos.js';
 
 /**
- * Fórmulas da MC Vendas (Specs/spec_modulo_faturamento.md, seção 12).
+ * Fórmulas da MC Vendas (Specs/spec_modulo_dash.md, seção 2).
  * Margem errada não gera erro em log: chega errada na decisão de preço.
  */
 

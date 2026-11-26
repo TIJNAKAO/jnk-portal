@@ -8,6 +8,7 @@ import { authRouter } from './routes/auth.js';
 import { avisosRouter } from './routes/avisos.js';
 import { comprasCustoUltimaEntradaRouter } from './routes/comprasCustoUltimaEntrada.js';
 import { comprasPedidosRouter } from './routes/comprasPedidos.js';
+import { dashMcVendasRouter } from './routes/dash/mcVendas.js';
 import { estoqueCurvaAbcRouter } from './routes/estoqueCurvaAbc.js';
 import { estoqueFechamentoComparativoRouter } from './routes/estoqueFechamentoComparativo.js';
 import { estoqueFechamentoCustoRouter } from './routes/estoqueFechamentoCusto.js';
@@ -16,7 +17,6 @@ import { estoqueImportacaoLogsRouter } from './routes/estoqueImportacaoLogs.js';
 import { estoqueFullMlRouter } from './routes/estoqueFullMl.js';
 import { estoqueSaldosRouter } from './routes/estoqueSaldos.js';
 import { faturamentoDashboardRouter } from './routes/faturamentoDashboard.js';
-import { faturamentoMcVendasRouter } from './routes/faturamentoMcVendas.js';
 import { faturamentoNotasFiscaisRouter } from './routes/faturamentoNotasFiscais.js';
 import { faturamentoPrecosRouter } from './routes/faturamentoPrecos.js';
 import { filiaisRouter } from './routes/filiais.js';
@@ -98,7 +98,10 @@ app.use('/api/estoque/fechamento/logs', estoqueImportacaoLogsRouter);
 app.use('/api/faturamento/notas-fiscais', faturamentoNotasFiscaisRouter);
 app.use('/api/faturamento/dashboard', faturamentoDashboardRouter);
 app.use('/api/faturamento/precos', faturamentoPrecosRouter);
-app.use('/api/faturamento/mc-vendas', faturamentoMcVendasRouter);
+
+// DASH JULINHO: visoes gerenciais novas, isoladas dos modulos acima.
+// Ver Specs/spec_modulo_dash.md.
+app.use('/api/dash/mc-vendas', dashMcVendasRouter);
 
 app.use((req, res) => {
   res.status(404).json({ erro: `Rota não encontrada: ${req.method} ${req.path}` });

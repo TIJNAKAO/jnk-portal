@@ -1,10 +1,10 @@
 /**
  * Fórmulas da MC Vendas (margem de contribuição venda a venda).
- * Ver Specs/spec_modulo_faturamento.md, seção 12.
+ * Ver Specs/spec_modulo_dash.md, seção 2.
  *
  * Empresa de **lucro real**: a conta compara a receita, já sem os tributos
  * destacados na NF de saída, com o **custo líquido** — o custo de entrada sem
- * os créditos de ICMS, PIS e COFINS. É a resposta à pendência 6 da seção 9,
+ * os créditos de ICMS, PIS e COFINS. É a resposta à pendência 6 do spec de Faturamento (seção 9),
  * que media a margem contra custo bruto.
  *
  * Vivem aqui, e só aqui, pelo mesmo motivo de `faturamentoCalculos.ts`: são

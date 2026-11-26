@@ -1,9 +1,9 @@
 import ExcelJS from 'exceljs';
 import { Router } from 'express';
-import { authTenant } from '../middlewares/authTenant.js';
-import { requirePermissao } from '../middlewares/requirePermissao.js';
-import { buscarEmpresasPermitidas } from '../services/escopoEmpresas.js';
-import { buscarFiltrosDisponiveis } from '../services/faturamento.js';
+import { authTenant } from '../../middlewares/authTenant.js';
+import { requirePermissao } from '../../middlewares/requirePermissao.js';
+import { buscarEmpresasPermitidas } from '../../services/escopoEmpresas.js';
+import { buscarFiltrosDisponiveis } from '../../services/faturamento.js';
 import {
   buscarLinhasCompletas,
   buscarLinhasPaginadas,
@@ -14,16 +14,16 @@ import {
   type FiltroMcVendas,
   type LinhaMcVendas,
   type OrdenacaoMc,
-} from '../services/mcVendas.js';
+} from '../../services/dash/mcVendas.js';
 
-export const faturamentoMcVendasRouter = Router();
+export const dashMcVendasRouter = Router();
 
-const ROTA = '/faturamento/mc-vendas';
+const ROTA = '/dash/mc-vendas';
 
 /** Mesmo teto do Relatório de Notas Fiscais: acima disto o Excel não cabe numa request. */
 const LIMITE_EXPORTACAO = 100_000;
 
-faturamentoMcVendasRouter.use(authTenant);
+dashMcVendasRouter.use(authTenant);
 
 function lista(valor: string | undefined): string[] | undefined {
   const itens = valor?.split(',').filter(Boolean);
@@ -50,22 +50,22 @@ function extrairOrdenacao(query: Record<string, string | undefined>): OrdenacaoM
   return { coluna: query.ordenarPor, direcao: query.direcao === 'asc' ? 'asc' : 'desc' };
 }
 
-faturamentoMcVendasRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+dashMcVendasRouter.get('/filtros', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   res.json(await buscarFiltrosDisponiveis(await buscarEmpresasPermitidas(req.usuario!.id)));
 });
 
 /** Cards, vendas por canal e top produtos: três recortes do mesmo filtro, numa ida só. */
-faturamentoMcVendasRouter.get('/resumo', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+dashMcVendasRouter.get('/resumo', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const filtros = extrairFiltros(req.query as Record<string, string | undefined>);
   res.json(await buscarResumo(filtros, await buscarEmpresasPermitidas(req.usuario!.id)));
 });
 
-faturamentoMcVendasRouter.get('/ranking', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+dashMcVendasRouter.get('/ranking', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const filtros = extrairFiltros(req.query as Record<string, string | undefined>);
   res.json({ itens: await buscarRanking(filtros, await buscarEmpresasPermitidas(req.usuario!.id)) });
 });
 
-faturamentoMcVendasRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+dashMcVendasRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const query = req.query as Record<string, string | undefined>;
   const pagina = Math.max(1, Number(query.pagina) || 1);
   const tamanhoPagina = Math.min(200, Math.max(1, Number(query.tamanhoPagina) || 50));
@@ -121,7 +121,7 @@ function linhaParaExcel(l: LinhaMcVendas) {
   return { ...l, data: dataBr(l.data) };
 }
 
-faturamentoMcVendasRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+dashMcVendasRouter.get('/exportar', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const query = req.query as Record<string, string | undefined>;
   const filtros = extrairFiltros(query);
   const escopo = await buscarEmpresasPermitidas(req.usuario!.id);

@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2';
-import { pool } from '../config/database.js';
-import type { EmpresaPermitida } from './escopoEmpresas.js';
-import { montarFiltroComEscopo, type FiltroFaturamento } from './faturamentoFiltros.js';
+import { pool } from '../../config/database.js';
+import type { EmpresaPermitida } from '../escopoEmpresas.js';
+import { montarFiltroComEscopo, type FiltroFaturamento } from '../faturamentoFiltros.js';
 import {
   FAIXAS_MC,
   calcularMc,
@@ -16,7 +16,7 @@ import {
 
 /**
  * Consultas da MC Vendas: margem de contribuição venda a venda.
- * Ver Specs/spec_modulo_faturamento.md, seção 12.
+ * Ver Specs/spec_modulo_dash.md, seção 2.
  *
  * Duas fontes, as duas já existentes no portal:
  * - `etl_fatcom`: uma linha por item de NF de saída, com ICMS, PIS, COFINS,
