@@ -4,6 +4,7 @@ import { authTenant } from '../../middlewares/authTenant.js';
 import { requirePermissao } from '../../middlewares/requirePermissao.js';
 import { buscarEmpresasPermitidas } from '../../services/escopoEmpresas.js';
 import { buscarFiltrosDisponiveis } from '../../services/faturamento.js';
+import { buscarLinhasAuditoria, buscarResumoAuditoria, regraValida } from '../../services/dash/auditoriaFiscal.js';
 import {
   buscarLinhasCompletas,
   buscarLinhasPaginadas,
@@ -65,6 +66,23 @@ dashMcVendasRouter.get('/ranking', requirePermissao(ROTA, 'podeVisualizar'), asy
   res.json({ itens: await buscarRanking(filtros, await buscarEmpresasPermitidas(req.usuario!.id)) });
 });
 
+/** Auditoria fiscal: quantos itens caem em cada regra, no mesmo filtro da tela. */
+dashMcVendasRouter.get('/auditoria', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+  const { faixa: _faixa, ...filtros } = extrairFiltros(req.query as Record<string, string | undefined>);
+  res.json(await buscarResumoAuditoria(filtros, await buscarEmpresasPermitidas(req.usuario!.id)));
+});
+
+dashMcVendasRouter.get('/auditoria/linhas', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
+  const query = req.query as Record<string, string | undefined>;
+  const regra = regraValida(query.regra);
+  if (!regra) {
+    res.status(400).json({ erro: 'Regra de auditoria desconhecida.' });
+    return;
+  }
+  const { faixa: _faixa, ...filtros } = extrairFiltros(query);
+  res.json({ linhas: await buscarLinhasAuditoria(filtros, await buscarEmpresasPermitidas(req.usuario!.id), regra) });
+});
+
 dashMcVendasRouter.get('/', requirePermissao(ROTA, 'podeVisualizar'), async (req, res) => {
   const query = req.query as Record<string, string | undefined>;
   const pagina = Math.max(1, Number(query.pagina) || 1);
@@ -99,11 +117,14 @@ const COLUNAS_EXCEL: Partial<ExcelJS.Column>[] = [
   { header: 'CUSTO LÍQUIDO UNIT.', key: 'custoLiquidoUnitario', width: 20, style: { numFmt: MOEDA } },
   { header: 'CUSTO LÍQUIDO', key: 'custoLiquido', width: 16, style: { numFmt: MOEDA } },
   { header: 'ICMS VALOR', key: 'icms', width: 14, style: { numFmt: MOEDA } },
-  { header: 'ICMS %', key: 'percIcms', width: 10, style: { numFmt: PERCENTUAL } },
+  { header: 'ICMS ALÍQ. %', key: 'aliqIcms', width: 13, style: { numFmt: PERCENTUAL } },
+  { header: 'ICMS % S/ VENDA', key: 'percIcms', width: 16, style: { numFmt: PERCENTUAL } },
   { header: 'PIS/COFINS VALOR', key: 'pisCofins', width: 18, style: { numFmt: MOEDA } },
-  { header: 'PIS/COFINS %', key: 'percPisCofins', width: 14, style: { numFmt: PERCENTUAL } },
+  { header: 'PIS/COFINS ALÍQ. %', key: 'aliqPisCofins', width: 19, style: { numFmt: PERCENTUAL } },
+  { header: 'PIS/COFINS % S/ VENDA', key: 'percPisCofins', width: 22, style: { numFmt: PERCENTUAL } },
   { header: 'DIFAL VALOR', key: 'difal', width: 14, style: { numFmt: MOEDA } },
-  { header: 'DIFAL %', key: 'percDifal', width: 10, style: { numFmt: PERCENTUAL } },
+  { header: 'DIFAL % S/ BASE ICMS', key: 'aliqDifal', width: 21, style: { numFmt: PERCENTUAL } },
+  { header: 'DIFAL % S/ VENDA', key: 'percDifal', width: 17, style: { numFmt: PERCENTUAL } },
   { header: 'TARIFA CANAL', key: 'tarifa', width: 15, style: { numFmt: MOEDA } },
   { header: 'FRETE VENDEDOR', key: 'frete', width: 16, style: { numFmt: MOEDA } },
   { header: 'MC R$', key: 'mc', width: 14, style: { numFmt: MOEDA } },

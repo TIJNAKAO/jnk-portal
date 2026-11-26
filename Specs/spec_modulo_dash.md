@@ -138,8 +138,14 @@ no histórico inteiro. Só saídas: devolução não é venda.
 - **Vendas por canal** e **Top 5 produtos**, com a MC % de cada um.
 - **Venda a venda:** data, canal e empresa, NF, UF, produto, quantidade,
   valor, custo líquido, **ICMS R$ e %, PIS/COFINS R$ e %, DIFAL R$ e %**,
-  tarifa, frete, MC R$ e %. Os percentuais de imposto são o valor sobre o
-  preço de venda (alíquota efetiva), não a alíquota nominal da NF. Filtro
+  tarifa, frete, MC R$ e %. **ICMS % e PIS/COFINS % são as alíquotas da
+  própria nota** (`aliq_icms`, `aliq_pis` + `aliq_cofins`); DIFAL % é
+  DIFAL + FECP sobre a base de cálculo do ICMS, porque a nota não traz a
+  alíquota do DIFAL por item. Não é o peso do imposto sobre a venda: a
+  primeira versão mostrava valor ÷ mercadoria e produzia números como 8,6%
+  de ICMS (7% sobre mercadoria + frete) e 7,1% de PIS/COFINS (9,25% sobre a
+  base sem ICMS), que parecem erro fiscal e não são. O peso sobre a venda
+  continua nos cards e sai no Excel em coluna própria. Filtro
   por faixa de MC % (abaixo de 10, 10 a 15, 15 a 20, 20 a 25, 25 ou mais,
   sem custo), ordenação no servidor, 50 por página, exportação para Excel
   pelo mesmo caminho da consulta.
@@ -147,6 +153,22 @@ no histórico inteiro. Só saídas: devolução não é venda.
   mais faturam, mais unidades) e curva ABC sobre a MC acumulada (A até 80%,
   B até 95%, C o restante). Produto de MC negativa é C; sem custo não é
   classificado.
+
+**Link da venda e DANFE.** O título do produto vira link para a venda no
+painel do vendedor do canal (Mercado Livre, Shopee, Amazon), e cada linha
+tem um botão DANFE. Os dois saem de `sysemp_nota_fiscal` (número do pedido
+no marketplace e chave de acesso), buscados numa segunda consulta restrita
+às notas da página: `etl_fatcom` não carrega esses campos, e incluí-los
+seria mexer no ETL do Faturamento.
+
+- O link só é montado quando o canal é reconhecido pelo nome **e** o número
+  tem o formato daquele canal (`services/dash/linkVenda.ts`). Abrir exige
+  estar logado no painel do canal, na conta que vendeu.
+- O portal não guarda PDF nem XML da nota. O botão DANFE copia a chave de
+  acesso e abre a consulta pública da SEFAZ, que pede captcha e não aceita
+  a chave pela URL.
+- Nota cujo número foi recuperado da chave (spec de Faturamento, seção 3.4)
+  não casa na busca e fica sem link e sem botão.
 
 **A MC dos totais é calculada só sobre as vendas com custo**, e o
 percentual é sobre essas vendas, não sobre o total. Misturar venda sem
@@ -170,7 +192,12 @@ Perfis (seção 1.2).
    em hora), não o pedido no instante da venda. Venda do dia aparece depois
    de faturada.
 2. **Tarifa e frete reais do Mercado Livre por pedido.** Hoje vêm da NF
-   (`valor_comissao_ml`, `frete_seller`). `ml_pedido_item.taxa_venda` já
+   (`valor_comissao_ml`, `frete_seller`). **Em produção a coluna Frete
+   vem zerada**: a SysEmp não preenche `frete_seller`, e a tarifa chega a
+   mais de 30% da venda em itens acima de R$ 79, o que indica comissão,
+   taxa fixa e frete grátis somados em `valor_comissao_ml`. A MC não muda
+   (o total deduzido é o mesmo), mas a separação entre tarifa e frete só
+   sai da API do canal. `ml_pedido_item.taxa_venda` já
    existe; o frete do vendedor exige `/shipments/{id}/costs`, ainda não
    sincronizado (spec de Integração, seção 4.3).
 3. **Canceladas e devoluções do período** como indicadores.
@@ -194,3 +221,59 @@ primeiro uso:
 - o tempo de resposta: cada consulta materializa o custo vigente de todo o
   fechamento. Se pesar no banco de 1 vCPU, o caminho é materializar o custo
   vigente numa tabela própria, atualizada a cada cálculo de fechamento.
+
+---
+
+## 3. Auditoria fiscal
+
+Aba da MC Vendas (`/api/dash/mc-vendas/auditoria`). Confere a aritmética e
+a coerência dos impostos destacados em cada item de NF de saída do período
+filtrado. Nasceu de uma suspeita de imposto errado na venda a venda que era,
+na verdade, diferença entre alíquota e peso sobre a venda (seção 2.4): a
+aba existe para que a próxima suspeita seja respondida com a conta da nota
+à vista.
+
+### 3.1. O que ela é e o que não é
+
+As regras usam só o que está em `etl_fatcom`: base, alíquota, valor, frete,
+desconto. Apontam o item cuja conta não fecha ou cuja alíquota foge do
+regime. **Não dizem qual é o imposto certo**: isso depende de NCM, benefício
+fiscal e destinatário, e é decisão da contabilidade. Cada alerta é um item
+para conferir, não um erro provado.
+
+Tolerância de R$ 0,05 por item, para arredondamento.
+
+### 3.2. Regras
+
+Definidas em `services/dash/auditoriaFiscal.ts` (`REGRAS`), cada uma com
+uma condição SQL e, quando dá para pôr número, uma estimativa do imposto
+possivelmente pago a mais.
+
+| Regra | Alerta quando |
+|---|---|
+| PIS/COFINS com o ICMS na base | base de PIS > mercadoria + frete − desconto − ICMS. Estima o excesso: diferença de base × (alíq. PIS + alíq. COFINS) |
+| Alíquota de PIS ou COFINS fora do lucro real | PIS ≠ 1,65% ou COFINS ≠ 7,6% |
+| PIS ou COFINS não bate com base × alíquota | valor destacado ≠ base × alíquota do item |
+| ICMS não bate com base × alíquota | idem, para o ICMS |
+| Alíquota de ICMS fora das usuais | diferente de 4, 7, 12 e das internas de 17 a 23% |
+| Venda sem PIS/COFINS | item com mercadoria e PIS + COFINS zerados |
+| Venda sem ICMS e sem ICMS-ST | item com mercadoria e os dois zerados |
+
+As duas últimas são esperadas em produto monofásico e em ICMS já retido por
+substituição; a regra não distingue esses casos.
+
+### 3.3. Fora desta entrega
+
+- Regras que dependem de dado que o fato não tem: UF do emitente (para
+  validar alíquota interestadual por destino), se o destinatário é
+  contribuinte (para validar a presença do DIFAL), tabela de NCM
+  monofásico e de alíquotas internas por UF.
+- Auditoria das notas de **entrada** (crédito aproveitado).
+- Comparação com o XML da NF-e ou com a apuração da contabilidade.
+
+### 3.4. A validar com dado real
+
+Sem acesso ao banco no desenvolvimento, as regras não foram calibradas. É
+esperado que alguma gere ruído na primeira execução (por exemplo, base de
+PIS/COFINS que já desconta o DIFAL além do ICMS, como aparece nas notas
+interestaduais). Ajustar a condição da regra, não a tolerância.

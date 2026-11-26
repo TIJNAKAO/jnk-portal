@@ -2,8 +2,10 @@ import type { RowDataPacket } from 'mysql2';
 import { pool } from '../../config/database.js';
 import type { EmpresaPermitida } from '../escopoEmpresas.js';
 import { montarFiltroComEscopo, type FiltroFaturamento } from '../faturamentoFiltros.js';
+import { montarLinkVenda, primeiroPedido } from './linkVenda.js';
 import {
   FAIXAS_MC,
+  aliquotaDaNota,
   calcularMc,
   classificarAbc,
   classificarFaixa,
@@ -110,6 +112,8 @@ export function montarConsulta(filtros: FiltroMcVendas, escopo: EmpresaPermitida
 
 interface LinhaBanco extends RowDataPacket {
   recno: number;
+  origem_dados: string;
+  cd_filial: number;
   dc_filial: string;
   dt_movto: string;
   nf: string;
@@ -129,6 +133,11 @@ interface LinhaBanco extends RowDataPacket {
   vt_fecp: number;
   vt_tx_fatur: number;
   vt_add_frete: number;
+  vb_icms: number;
+  aliq_icms: number;
+  aliq_pis: number;
+  aliq_cofins: number;
+  vb_pis: number;
   vu_custo_liq: string | number | null;
 }
 
@@ -150,23 +159,37 @@ export interface LinhaMcVendas {
   custoLiquidoUnitario: number | null;
   custoLiquido: number | null;
   icms: number;
+  /** Alíquota de ICMS como está na nota. */
+  aliqIcms: number | null;
+  /** Peso do ICMS sobre o valor da venda. Difere da alíquota quando a base não é a mercadoria. */
   percIcms: number | null;
   pisCofins: number;
+  /** Alíquotas de PIS e COFINS da nota, somadas (9,25% no lucro real). */
+  aliqPisCofins: number | null;
   percPisCofins: number | null;
   difal: number;
+  /** DIFAL + FECP sobre a base de cálculo do ICMS do item. */
+  aliqDifal: number | null;
   percDifal: number | null;
   tarifa: number;
   frete: number;
   mc: number | null;
   percMc: number | null;
   faixa: FaixaMc | null;
+  /** Número do pedido no canal de venda, quando a nota tem. Só a consulta paginada preenche. */
+  pedidoMarketplace: string | null;
+  /** Link da venda no painel do vendedor do canal. `null` quando não dá para montar. */
+  linkVenda: string | null;
+  /** Chave de acesso da NF-e (44 dígitos), para consultar a DANFE. Só a consulta paginada preenche. */
+  chaveNfe: string | null;
 }
 
 const SELECT_LINHA = `
-  SELECT f.recno, f.dc_filial, DATE_FORMAT(f.dt_movto, '%Y-%m-%d') AS dt_movto, f.nf, f.serie, f.uf,
+  SELECT f.recno, f.origem_dados, f.cd_filial, f.dc_filial, DATE_FORMAT(f.dt_movto, '%Y-%m-%d') AS dt_movto, f.nf, f.serie, f.uf,
          f.cd_produto, f.dc_produto, f.marca, f.canal,
          f.qtde, f.vu_merc, f.vt_merc, f.vt_icms, f.vt_pis, f.vt_cofins, f.vt_icms_difal, f.vt_fecp,
-         f.vt_tx_fatur, f.vt_add_frete, cst.vu_custo_liq,
+         f.vt_tx_fatur, f.vt_add_frete, f.vb_icms, f.aliq_icms, f.aliq_pis, f.aliq_cofins, f.vb_pis,
+         cst.vu_custo_liq,
          ${MC_SQL} AS mc_ord, ${PERC_MC_SQL} AS perc_mc_ord`;
 
 /**
@@ -239,16 +262,23 @@ export function montarLinha(l: LinhaBanco): LinhaMcVendas {
     custoLiquidoUnitario: custoUnitario,
     custoLiquido: c.custoLiquido,
     icms: c.icms,
+    aliqIcms: aliquotaDaNota(Number(l.aliq_icms), c.icms, Number(l.vb_icms)),
     percIcms: percentualSobre(c.icms, c.vendas),
     pisCofins: c.pisCofins,
+    aliqPisCofins: aliquotaDaNota(Number(l.aliq_pis) + Number(l.aliq_cofins), c.pisCofins, Number(l.vb_pis)),
     percPisCofins: percentualSobre(c.pisCofins, c.vendas),
     difal: c.difal,
+    // A nota não traz a alíquota do DIFAL por item; sai de valor sobre a base do ICMS.
+    aliqDifal: aliquotaDaNota(0, c.difal, Number(l.vb_icms)),
     percDifal: percentualSobre(c.difal, c.vendas),
     tarifa: c.tarifa,
     frete: c.frete,
     mc,
     percMc,
     faixa: classificarFaixa(percMc, custoUnitario !== null),
+    pedidoMarketplace: null,
+    linkVenda: null,
+    chaveNfe: null,
   };
 }
 
@@ -269,7 +299,70 @@ export async function buscarLinhasPaginadas(
     [...params, tamanhoPagina, (pagina - 1) * tamanhoPagina],
   );
 
-  return { linhas: linhas.map(montarLinha), total };
+  const pedidos = await buscarPedidosMarketplace(linhas);
+  const montadas = linhas.map((l) => {
+    const nota = pedidos.get(chaveNota(l.cd_filial, l.nf));
+    const candidatos = nota?.pedidos ?? [];
+    return {
+      ...montarLinha(l),
+      pedidoMarketplace: primeiroPedido(candidatos),
+      linkVenda: montarLinkVenda(l.canal, candidatos),
+      chaveNfe: nota?.chave ?? null,
+    };
+  });
+
+  return { linhas: montadas, total };
+}
+
+function chaveNota(idEmpresa: number, numero: string): string {
+  return `${idEmpresa}|${numero}`;
+}
+
+/**
+ * Número do pedido no canal de venda e chave de acesso, das notas de UMA página.
+ *
+ * Vem de `sysemp_nota_fiscal`, não de `etl_fatcom`: o fato não carrega o
+ * pedido, e acrescentar coluna nele seria mexer no ETL de outro módulo. Por
+ * isso é uma segunda consulta, restrita às notas da página (no máximo 200),
+ * e não um JOIN na consulta principal — a tabela não tem índice por número
+ * de nota, e cruzar o período inteiro por ele pesaria no banco.
+ *
+ * Só origem SYSEMP: o KPL não tem essa tabela. A nota cujo número foi
+ * recuperado da chave de acesso (spec de Faturamento, seção 3.4) não casa
+ * aqui e fica sem link.
+ */
+interface DadosNota {
+  pedidos: (string | null)[];
+  chave: string | null;
+}
+
+async function buscarPedidosMarketplace(linhas: LinhaBanco[]): Promise<Map<string, DadosNota>> {
+  const mapa = new Map<string, DadosNota>();
+  const sysemp = linhas.filter((l) => l.origem_dados === 'SYSEMP' && l.nf);
+  if (sysemp.length === 0) return mapa;
+
+  const empresas = [...new Set(sysemp.map((l) => l.cd_filial))];
+  const numeros = [...new Set(sysemp.map((l) => l.nf))];
+
+  const [notas] = await pool.query<RowDataPacket[]>(
+    `SELECT id_empresa, nota_numero, numero_pedido_marketplace, marketplace_pedido, chave_nfe
+       FROM sysemp_nota_fiscal
+      WHERE id_empresa IN (${empresas.map(() => '?').join(',')})
+        AND nota_numero IN (${numeros.map(() => '?').join(',')})
+        AND COALESCE(entrada_saida, 'S') = 'S'
+        AND deleted = FALSE`,
+    [...empresas, ...numeros],
+  );
+
+  for (const n of notas) {
+    const chave = String(n.chave_nfe ?? '').replace(/\D/g, '');
+    mapa.set(chaveNota(Number(n.id_empresa), String(n.nota_numero)), {
+      pedidos: [n.numero_pedido_marketplace as string | null, n.marketplace_pedido as string | null],
+      // Só chave completa serve para consulta; pedaço de chave levaria a nota nenhuma.
+      chave: chave.length === 44 ? chave : null,
+    });
+  }
+  return mapa;
 }
 
 export async function contarLinhas(filtros: FiltroMcVendas, escopo: EmpresaPermitida[]): Promise<number> {

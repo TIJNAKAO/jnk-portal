@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  aliquotaDaNota,
   calcularMc,
   classificarAbc,
   classificarFaixa,
@@ -96,6 +97,21 @@ describe('percentualSobre', () => {
   test('sem base ou sem valor, é nulo', () => {
     expect(percentualSobre(120, 0)).toBeNull();
     expect(percentualSobre(null, 1000)).toBeNull();
+  });
+});
+
+describe('aliquotaDaNota', () => {
+  test('usa a alíquota informada no item', () => {
+    expect(aliquotaDaNota(7, 1.84, 26.29)).toBe(7);
+  });
+
+  test('sem alíquota informada, recupera por valor sobre base', () => {
+    expect(aliquotaDaNota(0, 12, 100)).toBe(12);
+  });
+
+  test('sem imposto ou sem base, não há alíquota', () => {
+    expect(aliquotaDaNota(12, 0, 100)).toBeNull();
+    expect(aliquotaDaNota(0, 5, 0)).toBeNull();
   });
 });
 

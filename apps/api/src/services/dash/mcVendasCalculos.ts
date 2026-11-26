@@ -75,6 +75,23 @@ export function percentualSobre(valor: number | null, base: number): number | nu
   return (valor / base) * 100;
 }
 
+/**
+ * Alíquota de um imposto como está na nota. Usa a alíquota informada no
+ * item; quando ela não vem (zero) mas há valor e base, recupera por
+ * valor ÷ base. `null` quando não há imposto ou não há base.
+ *
+ * Não confundir com `percentualSobre(valor, vendas)`, que é o peso do
+ * imposto sobre o preço de venda. Os dois diferem sempre que a base não é o
+ * valor da mercadoria: ICMS de 7% sobre mercadoria + frete pesa mais de 7%
+ * da mercadoria; PIS/COFINS de 9,25% sobre a base sem ICMS pesa menos.
+ */
+export function aliquotaDaNota(aliquotaInformada: number, valor: number, base: number): number | null {
+  if (valor === 0) return null;
+  if (aliquotaInformada > 0) return aliquotaInformada;
+  if (base > 0) return (valor / base) * 100;
+  return null;
+}
+
 export const FAIXAS_MC = ['lt10', 'f1015', 'f1520', 'f2025', 'ge25', 'semcusto'] as const;
 export type FaixaMc = (typeof FAIXAS_MC)[number];
 

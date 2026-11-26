@@ -87,6 +87,11 @@ describe('montarLinha', () => {
     vt_fecp: 10,
     vt_tx_fatur: 120,
     vt_add_frete: 30,
+    vb_icms: 1000,
+    aliq_icms: 12,
+    aliq_pis: 1.65,
+    aliq_cofins: 7.6,
+    vb_pis: 880,
   };
 
   test('custo líquido chega como texto do banco e vira número', () => {
@@ -106,6 +111,15 @@ describe('montarLinha', () => {
     expect(l.percPisCofins).toBeCloseTo(8.14, 6);
     expect(l.difal).toBe(60);
     expect(l.percDifal).toBe(6);
+  });
+
+  test('alíquota da nota e peso sobre a venda são números diferentes', () => {
+    const l = montarLinha({ ...base, vu_custo_liq: '250.0000' } as never);
+    expect(l.aliqIcms).toBe(12);
+    expect(l.aliqPisCofins).toBeCloseTo(9.25, 6);
+    // 81,40 de PIS/COFINS sobre 1.000 de venda pesa 8,14%, embora a alíquota seja 9,25%.
+    expect(l.percPisCofins).toBeCloseTo(8.14, 6);
+    expect(l.aliqDifal).toBe(6);
   });
 
   test('sem custo, custo e MC ficam nulos e a faixa é "sem custo"', () => {

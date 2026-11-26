@@ -34,15 +34,18 @@ interface LinhaMc {
   custoLiquidoUnitario: number | null;
   custoLiquido: number | null;
   icms: number;
-  percIcms: number | null;
+  aliqIcms: number | null;
   pisCofins: number;
-  percPisCofins: number | null;
+  aliqPisCofins: number | null;
   difal: number;
-  percDifal: number | null;
+  aliqDifal: number | null;
   tarifa: number;
   frete: number;
   mc: number | null;
   percMc: number | null;
+  pedidoMarketplace: string | null;
+  linkVenda: string | null;
+  chaveNfe: string | null;
 }
 
 interface ComponentesComCusto {
@@ -82,6 +85,49 @@ interface ItemRanking extends Grupo {
   produto: string;
   marca: string;
   abc: 'A' | 'B' | 'C' | null;
+}
+
+interface RegraAuditoria {
+  id: string;
+  titulo: string;
+  explicacao: string;
+  itens: number;
+  vendas: number;
+  estimativa: number | null;
+}
+
+interface ResumoAuditoria {
+  itensAnalisados: number;
+  regras: RegraAuditoria[];
+}
+
+interface LinhaAuditoria {
+  recno: number;
+  empresa: string;
+  data: string;
+  nf: string;
+  serie: string;
+  uf: string;
+  canal: string;
+  cdProduto: string;
+  produto: string;
+  ncm: string;
+  cfop: string;
+  cst: string;
+  vendas: number;
+  frete: number;
+  desconto: number;
+  baseIcms: number;
+  aliqIcms: number;
+  icms: number;
+  difal: number;
+  basePis: number;
+  aliqPis: number;
+  pis: number;
+  baseCofins: number;
+  aliqCofins: number;
+  cofins: number;
+  estimativa: number | null;
 }
 
 interface OpcaoFiltro {
@@ -140,6 +186,25 @@ function numero(v: number | null | undefined): string {
 function pct(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—';
   return `${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+}
+
+/** Alíquota: até duas casas, sem zeros sobrando. 9,25% não pode virar 9,3%. */
+function aliq(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—';
+  return `${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
+}
+
+/**
+ * Consulta pública da NF-e no portal nacional. O portal não guarda o PDF nem
+ * o XML da nota, e a consulta da SEFAZ pede captcha e não aceita a chave
+ * pela URL: por isso a chave vai para a área de transferência, para colar.
+ */
+const CONSULTA_NFE = 'https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&tipoConteudo=7PhJ+gAVw2g=';
+
+function abrirDanfe(chave: string) {
+  // Sem permissão de área de transferência a consulta abre do mesmo jeito; a chave está no title do botão.
+  navigator.clipboard?.writeText(chave).catch(() => undefined);
+  window.open(CONSULTA_NFE, '_blank', 'noopener,noreferrer');
 }
 
 /** `2026-11-26` → `26/11/2026`, sem passar por `Date`: data de NF não tem hora nem fuso. */
@@ -201,7 +266,7 @@ export function McVendasPage() {
     periodo: { minimo: null, maximo: null },
   });
 
-  const [aba, setAba] = useState<'vendas' | 'ranking'>('vendas');
+  const [aba, setAba] = useState<'vendas' | 'ranking' | 'auditoria'>('vendas');
   const [empresas, setEmpresas] = useState<string[] | null>(null);
   const [marcas, setMarcas] = useState<string[] | null>(null);
   const [canais, setCanais] = useState<string[] | null>(null);
@@ -218,6 +283,10 @@ export function McVendasPage() {
   const [direcao, setDirecao] = useState<DirecaoOrdenacao>('desc');
   const [ranking, setRanking] = useState<ItemRanking[]>([]);
   const [visao, setVisao] = useState<VisaoRanking>('mc');
+
+  const [auditoria, setAuditoria] = useState<ResumoAuditoria | null>(null);
+  const [regraAberta, setRegraAberta] = useState<string | null>(null);
+  const [linhasAuditoria, setLinhasAuditoria] = useState<LinhaAuditoria[]>([]);
 
   const [carregando, setCarregando] = useState(false);
   const [exportando, setExportando] = useState(false);
@@ -281,6 +350,33 @@ export function McVendasPage() {
     }, 250);
     return () => clearTimeout(timer);
   }, [api, queryBase, periodoPronto]);
+
+  // A auditoria varre todos os itens do período: só roda quando a aba é aberta.
+  useEffect(() => {
+    if (!periodoPronto || aba !== 'auditoria') return;
+    const timer = setTimeout(() => {
+      setRegraAberta(null);
+      setLinhasAuditoria([]);
+      api<ResumoAuditoria>(`/dash/mc-vendas/auditoria?${queryBase().toString()}`)
+        .then(setAuditoria)
+        .catch((e: Error) => setErro(e.message));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [api, queryBase, periodoPronto, aba]);
+
+  function abrirRegra(id: string) {
+    if (regraAberta === id) {
+      setRegraAberta(null);
+      return;
+    }
+    setRegraAberta(id);
+    setLinhasAuditoria([]);
+    const params = queryBase();
+    params.set('regra', id);
+    api<{ linhas: LinhaAuditoria[] }>(`/dash/mc-vendas/auditoria/linhas?${params.toString()}`)
+      .then((dados) => setLinhasAuditoria(dados.linhas))
+      .catch((e: Error) => setErro(e.message));
+  }
 
   const carregarTabela = useCallback(
     async (paginaAtual: number) => {
@@ -502,6 +598,7 @@ export function McVendasPage() {
           [
             { id: 'vendas', rotulo: 'Venda a venda' },
             { id: 'ranking', rotulo: 'Ranking de produtos' },
+            { id: 'auditoria', rotulo: 'Auditoria fiscal' },
           ] as const
         ).map((a) => (
           <button
@@ -647,6 +744,16 @@ export function McVendasPage() {
                         {l.nf}
                         {l.uf ? ` · ${l.uf}` : ''}
                       </div>
+                      {l.chaveNfe && (
+                        <button
+                          type="button"
+                          onClick={() => abrirDanfe(l.chaveNfe as string)}
+                          title={`Copia a chave e abre a consulta da NF-e na SEFAZ. Chave: ${l.chaveNfe}`}
+                          className="mt-0.5 rounded border border-slate-300 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          DANFE
+                        </button>
+                      )}
                     </td>
                     <td className={`${TD} max-w-[9rem]`}>
                       <div className="truncate text-slate-900" title={l.canal}>
@@ -657,10 +764,23 @@ export function McVendasPage() {
                       </div>
                     </td>
                     <td className={`${TD} min-w-[9rem]`}>
-                      <div className="text-slate-900">{l.produto || '—'}</div>
+                      {l.linkVenda ? (
+                        <a
+                          href={l.linkVenda}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Abrir a venda no painel do canal (precisa estar logado na conta que vendeu)"
+                          className="text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900"
+                        >
+                          {l.produto || '—'}
+                        </a>
+                      ) : (
+                        <div className="text-slate-900">{l.produto || '—'}</div>
+                      )}
                       <div className="text-slate-500">
                         {l.cdProduto}
                         {l.marca ? ` · ${l.marca}` : ''}
+                        {l.pedidoMarketplace ? ` · pedido ${l.pedidoMarketplace}` : ''}
                       </div>
                     </td>
                     <td className={NUM}>{l.qtde.toLocaleString('pt-BR')}</td>
@@ -673,11 +793,11 @@ export function McVendasPage() {
                       )}
                     </td>
                     <td className={`${NUM} border-l border-slate-100 text-slate-700`}>{numero(l.icms)}</td>
-                    <td className={`${NUM} text-slate-600`}>{pct(l.percIcms)}</td>
+                    <td className={`${NUM} text-slate-600`}>{aliq(l.aliqIcms)}</td>
                     <td className={`${NUM} text-slate-700`}>{numero(l.pisCofins)}</td>
-                    <td className={`${NUM} text-slate-600`}>{pct(l.percPisCofins)}</td>
+                    <td className={`${NUM} text-slate-600`}>{aliq(l.aliqPisCofins)}</td>
                     <td className={`${NUM} text-slate-700`}>{numero(l.difal)}</td>
-                    <td className={`${NUM} border-r border-slate-100 text-slate-600`}>{pct(l.percDifal)}</td>
+                    <td className={`${NUM} border-r border-slate-100 text-slate-600`}>{aliq(l.aliqDifal)}</td>
                     <td className={`${NUM} text-slate-700`}>{numero(l.tarifa)}</td>
                     <td className={`${NUM} text-slate-700`}>{numero(l.frete)}</td>
                     <td className={`${NUM} font-semibold ${corMc(l.percMc)}`}>{numero(l.mc)}</td>
@@ -718,6 +838,130 @@ export function McVendasPage() {
                 Próxima
               </button>
             </div>
+          </div>
+        </>
+      )}
+
+      {aba === 'auditoria' && (
+        <>
+          <p className="text-sm text-slate-600">
+            {auditoria
+              ? `${auditoria.itensAnalisados.toLocaleString('pt-BR')} itens de NF de saída analisados no período. Cada alerta é um item para conferir, não um erro provado: a regra olha a conta da própria nota, não o NCM nem benefício fiscal.`
+              : 'Analisando as notas do período…'}
+          </p>
+
+          <div className="space-y-2">
+            {(auditoria?.regras ?? []).map((r) => (
+              <div key={r.id} className="rounded-xl border border-slate-200 bg-white">
+                <button
+                  type="button"
+                  onClick={() => abrirRegra(r.id)}
+                  disabled={r.itens === 0}
+                  aria-expanded={regraAberta === r.id}
+                  className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left disabled:cursor-default"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium text-slate-900">{r.titulo}</span>
+                    <span className="block text-xs text-slate-500">{r.explicacao}</span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span
+                      className={`block text-lg font-semibold tabular-nums ${r.itens > 0 ? 'text-amber-800' : 'text-green-700'}`}
+                    >
+                      {r.itens > 0 ? `${r.itens.toLocaleString('pt-BR')} itens` : 'Nenhum item'}
+                    </span>
+                    {r.itens > 0 && (
+                      <span className="block text-xs text-slate-500">
+                        {moedaInteira(r.vendas)} em vendas
+                        {r.estimativa !== null && ` · ${moeda(r.estimativa)} possivelmente a mais`}
+                      </span>
+                    )}
+                  </span>
+                </button>
+
+                {regraAberta === r.id && (
+                  <div className="overflow-x-auto border-t border-slate-200">
+                    <table className="w-full text-left text-xs">
+                      <thead className="text-slate-500">
+                        <tr>
+                          <th className={`${TH} font-medium`}>DATA / NF</th>
+                          <th className={`${TH} font-medium`}>CANAL</th>
+                          <th className={`${TH} font-medium`}>PRODUTO</th>
+                          <th className={`${TH} font-medium`}>CFOP / CST</th>
+                          <th className={`${TH} text-right font-medium`}>VALOR</th>
+                          <th className={`${TH} text-right font-medium`}>BASE ICMS</th>
+                          <th className={`${TH} text-right font-medium`}>ALÍQ.</th>
+                          <th className={`${TH} text-right font-medium`}>ICMS</th>
+                          <th className={`${TH} text-right font-medium`}>DIFAL</th>
+                          <th className={`${TH} text-right font-medium`}>BASE PIS/COF</th>
+                          <th className={`${TH} text-right font-medium`}>ALÍQ. PIS</th>
+                          <th className={`${TH} text-right font-medium`}>PIS</th>
+                          <th className={`${TH} text-right font-medium`}>ALÍQ. COF</th>
+                          <th className={`${TH} text-right font-medium`}>COFINS</th>
+                          {r.estimativa !== null && <th className={`${TH} text-right font-medium`}>A MAIS</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {linhasAuditoria.map((l) => (
+                          <tr key={l.recno} className="border-t border-slate-100 align-top">
+                            <td className={`${TD} whitespace-nowrap`}>
+                              <div className="text-slate-900">{dataBr(l.data)}</div>
+                              <div className="text-slate-500">
+                                {l.nf}
+                                {l.uf ? ` · ${l.uf}` : ''}
+                              </div>
+                            </td>
+                            <td className={`${TD} max-w-[9rem]`}>
+                              <div className="truncate text-slate-900" title={l.canal}>
+                                {l.canal || '—'}
+                              </div>
+                              <div className="truncate text-slate-500" title={l.empresa}>
+                                {l.empresa}
+                              </div>
+                            </td>
+                            <td className={`${TD} min-w-[9rem]`}>
+                              <div className="text-slate-900">{l.produto || '—'}</div>
+                              <div className="text-slate-500">
+                                {l.cdProduto}
+                                {l.ncm ? ` · NCM ${l.ncm}` : ''}
+                              </div>
+                            </td>
+                            <td className={`${TD} whitespace-nowrap text-slate-700`}>
+                              {l.cfop || '—'} / {l.cst || '—'}
+                            </td>
+                            <td className={NUM}>{numero(l.vendas)}</td>
+                            <td className={NUM}>{numero(l.baseIcms)}</td>
+                            <td className={NUM}>{aliq(l.aliqIcms)}</td>
+                            <td className={NUM}>{numero(l.icms)}</td>
+                            <td className={NUM}>{numero(l.difal)}</td>
+                            <td className={NUM}>{numero(l.basePis)}</td>
+                            <td className={NUM}>{aliq(l.aliqPis)}</td>
+                            <td className={NUM}>{numero(l.pis)}</td>
+                            <td className={NUM}>{aliq(l.aliqCofins)}</td>
+                            <td className={NUM}>{numero(l.cofins)}</td>
+                            {r.estimativa !== null && (
+                              <td className={`${NUM} font-semibold text-amber-800`}>{numero(l.estimativa)}</td>
+                            )}
+                          </tr>
+                        ))}
+                        {linhasAuditoria.length === 0 && (
+                          <tr>
+                            <td colSpan={15} className="p-4 text-center text-sm text-slate-500">
+                              Carregando os itens…
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                    {linhasAuditoria.length >= 500 && (
+                      <p className="border-t border-slate-100 p-3 text-xs text-slate-500">
+                        Mostrando os 500 maiores. Restrinja o período ou os filtros para ver os demais.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </>
       )}
@@ -800,7 +1044,7 @@ export function McVendasPage() {
 
       <p className="text-xs text-slate-500">
         MC = valor da venda − custo líquido − ICMS − PIS/COFINS − DIFAL − tarifa do canal − frete do vendedor. Os
-        impostos são os destacados em cada item da NF de saída; o percentual é o valor sobre o preço de venda. DIFAL
+        impostos são os destacados em cada item da NF de saída. ICMS % e PIS/COF % são as alíquotas da própria nota; DIFAL % é o valor sobre a base de cálculo do ICMS. A alíquota não é o peso do imposto sobre a venda: a base inclui frete e, no PIS/COFINS, exclui o ICMS. DIFAL
         inclui o FECP. O custo líquido vem do Fechamento de Custo mais recente até o fim do período, já sem os créditos
         de ICMS, PIS e COFINS. Venda sem custo fica fora da MC, em branco, nunca zero.
       </p>
